@@ -5,11 +5,9 @@
 #include <fstream>
 #include <sstream>
 #include <math.h>
-#include <chrono>
 #include <limits>
 
 #include <cuda_runtime.h>
-#include <helper_cuda.h>
 #include <helper_math.h>
 #include <Random123/philox.h>
 #define CUB_STDERR
@@ -154,7 +152,7 @@ __global__ void add_mutations(float * mutations, float allele_freq, int num_new_
 	}
 }
 
-__global__ void initialize_mutation_array(float * mutations, const int * freq_index, const int * scan_index, const int N){
+__global__ void initialize_mutation_array(float * mutations, int * freq_index, int * scan_index, const int N){
 	//threads correspond to freq_index/scan_index indices, use grid-stride loops
 	//add_mutations using scan number to define start of array, freq_index to define num_new_mutations_index (if 0 simply return) and number of threads/blocks/etc ..., myID used to calculate allele_count
 	int myID = blockID.x*blockDim.x + threadID.x;
@@ -177,7 +175,7 @@ __global__ void initialize_mutation_array(float * mutations, const int * freq_in
 	}
 }
 
-__global__ void set_Index_Length(int * mutation_Index, int * array_length, const int * scan_index, const int * freq_index){
+__global__ void set_Index_Length(int * mutation_Index, int * array_length, const int * scan_index, const int * freq_index, const int N){
 	//one thread only
 	*mutation_Index = scan_index[N]+freq_index[N]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
 	*array_length = mutation_Index + 10*sqrt(mutation_Index);	//apparently due tails truncation can't get more than 6.66 stdevs from the mean with Box-Muller (http://en.wikipedia.org/wiki/Box–Muller_transform), of course multiple generations ...
@@ -185,12 +183,14 @@ __global__ void set_Index_Length(int * mutation_Index, int * array_length, const
 
 __host__ void initialize_equilibrium(float * mutations, int * is_zero, int * is_zero_inclusive_scan, int & mutation_Index, int & array_length, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 
-	__device__ int * freq_index;
-	cudaMalloc((void**)&freq_index,(N-1)*size(int));
-	__device__ int * scan_index;
-	cudaMalloc((void**)&scan_index,(N-1)*size(int));
+	int num_bytes = (N-1)*sizeof(int);
 
-	initialize_frequency_array<<16, 1024>>(freq_index, lambda, mu, N, L, s, h, seed, population);
+	__device__ int * freq_index;
+	cudaMalloc((void**)&freq_index, num_bytes);
+	__device__ int * scan_index;
+	cudaMalloc((void**)&scan_index,num_bytes);
+
+	initialize_frequency_array<<16, 1024>>(freq_index, mu, N, L, s, h, seed, population);
 
 	void * d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
@@ -200,10 +200,12 @@ __host__ void initialize_equilibrium(float * mutations, int * is_zero, int * is_
 	cudaFree(d_temp_storage);
 
 	set_Index_Length<<1,1>>(&mutation_Index, &array_length, scan_index, freq_index);
-
-	cudaMalloc((void**)&mutations, array_length*size(float));
-	cudaMalloc((void**)&is_zero, array_length*size(int));
-	cudaMalloc((void**)&is_zero_inclusive_scan, array_length*size(int));
+	int h_array_length;
+	cudaMemcpy(&h_array_length, &array_length, 4, cudaMemcpyDeviceToHost);
+	int num_bytes = h_array_length*sizeof(float);
+	cudaMalloc((void**)&mutations, num_bytes);
+	cudaMalloc((void**)&is_zero, num_bytes);
+	cudaMalloc((void**)&is_zero_inclusive_scan, num_bytes);
 
 	initialize_mutation_array<<1, 1024>>(mutations,freq_index,scan_index, N);
 
@@ -326,18 +328,18 @@ __host__ void run_sim(float * mutations, const int N, const float s, const int h
 
 int main(int argc, char **argv)
 {
-	auto start = std::chrono::system_clock::now();
-	//probably can use here, but c++11 semantics won't work with Nvidia device code, this is host code
-	//but may not work see (http://stackoverflow.com/questions/21457974/can-i-use-c11-in-the-cu-files-cuda5-5-in-windows7x64-msvc-and-linux64-gc)
-
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
 	/*int max_sm_occupancy;
     CubDebugExit(MaxSmOccupancy(max_sm_occupancy, BlockSumKernel<BLOCK_THREADS, ITEMS_PER_THREAD, ALGORITHM>, BLOCK_THREADS));*/ //part of CUB ... could be useful ...
 
-	int N_chrom_pop = 2*pow(10.f,6); //constant population for now
+	int N_chrom_pop = 2*pow(10.f,4); //constant population for now
 	float s = 0; //neutral for now
 	float h = 0.5;
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int L = pow(10.f,6); //eventually set so so the number of expected mutations is > a certain amount
+	int L = 2.5*pow(10.f,8); //eventually set so so the number of expected mutations is > a certain amount
 	int N_chrom_samp = 200;
 	const int total_number_of_generations = pow(10.f,5);
 	const int burn_in = 0;
@@ -346,8 +348,9 @@ int main(int argc, char **argv)
 	__device__ float * mutations; //allele counts of all current mutations
 	run_sim(mutations, N, s, h, L, total_number_of_generations, burn_in, seed);
 	cudaFree(mutations);
-
-	auto duration = std::chrono::duration_cast< std::chrono::milliseconds> (std::chrono::system_clock::now() - start);
-
-	cout << duration.count();
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	float elapsedTime;
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	printf("time elapsed: %f\n", elapsedTime);
 }
