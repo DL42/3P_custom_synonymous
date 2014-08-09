@@ -17,6 +17,12 @@ using namespace std;
 using namespace cub;
 using namespace r123;
 
+__device__ int mutation_Index;
+__device__ int array_length;
+__device__ int * is_zero;
+__device__ int * is_zero_inclusive_scan;
+__device__ float * mutations; //allele counts of all current mutations
+
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 //	 by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
 //	 optimize it down to an int-to-float conversion followed by a multiply
@@ -89,7 +95,7 @@ __device__ int RandNorm1(float mean, float var, int k, int step, int seed, int p
 
 	u.c = rng(count, key);
 
-	float2 G = boxmuller(i.x,i.y,mean,mean,var,var);
+	float2 G = boxmuller(u.i.x,u.i.y,mean,mean,var,var);
 
 	return round(G.x);
 }
@@ -110,9 +116,10 @@ __device__ int4 RandNorm4(float4 mean, float4 var, int k, int step, int seed, in
 
 	u.c = rng(count, key);
 
-	float4 G = make_float4(boxmuller(i.x,i.y,mean.x,mean.y,var.x,var.y),boxmuller(i.z,i.w,mean.z,mean.w,var.z,var.w));
+	float2 G1 = boxmuller(u.i.x,u.i.y,mean.x,mean.y,var.x,var.y);
+	float2 G2 = boxmuller(u.i.z,u.i.w,mean.z,mean.w,var.z,var.w));
 
-	return round(G);
+	return round(make_float4(G1.x,G1.y,G2.x,G2.y));
 }
 
 __global__ void initialize_frequency_array(int * const freq_index, const int num_mutations, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
@@ -144,7 +151,7 @@ __global__ void add_mutations(float * mutations, float allele_freq, int num_new_
 		if(i.y == 0){ i.y = allele_freq;}
 		if(i.z == 0){ i.z = allele_freq;}
 		if(i.w == 0){ i.w = allele_freq;}
-		reinterpret_cast<float*>(mutations)[id] = i;
+		reinterpret_cast<float4*>(mutations)[id] = i;
 	}
 	int id = myID + (num_new_mutations_index+1)/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id <= num_new_mutations_index){ //inclusive for num_new_mutations_index
@@ -152,7 +159,7 @@ __global__ void add_mutations(float * mutations, float allele_freq, int num_new_
 	}
 }
 
-__global__ void initialize_mutation_array(float * mutations, int * freq_index, int * scan_index, const int N){
+__global__ void initialize_mutation_array(int * freq_index, int * scan_index, const int N){
 	//threads correspond to freq_index/scan_index indices, use grid-stride loops
 	//add_mutations using scan number to define start of array, freq_index to define num_new_mutations_index (if 0 simply return) and number of threads/blocks/etc ..., myID used to calculate allele_count
 	int myID = blockID.x*blockDim.x + threadID.x;
@@ -175,19 +182,18 @@ __global__ void initialize_mutation_array(float * mutations, int * freq_index, i
 	}
 }
 
-__global__ void set_Index_Length(int * mutation_Index, int * array_length, const int * scan_index, const int * freq_index, const int N){
+__global__ void set_Index_Length(const int * scan_index, const int * freq_index, const int N){
 	//one thread only
-	*mutation_Index = scan_index[N]+freq_index[N]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
-	*array_length = mutation_Index + 10*sqrt(mutation_Index);	//apparently due tails truncation can't get more than 6.66 stdevs from the mean with Box-Muller (http://en.wikipedia.org/wiki/BoxÐMuller_transform), of course multiple generations ...
+	mutation_Index = scan_index[N]+freq_index[N]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
+	array_length = mutation_Index + 10*sqrt(mutation_Index);	//apparently due tails truncation can't get more than 6.66 stdevs from the mean with Box-Muller (http://en.wikipedia.org/wiki/BoxÐMuller_transform), of course multiple generations ...
 }
 
-__host__ void initialize_equilibrium(float * mutations, int * is_zero, int * is_zero_inclusive_scan, int & mutation_Index, int & array_length, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
+__host__ void initialize_equilibrium(int * is_zero, int * is_zero_inclusive_scan, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 
 	int num_bytes = (N-1)*sizeof(int);
-
-	__device__ int * freq_index;
+	int * freq_index;
 	cudaMalloc((void**)&freq_index, num_bytes);
-	__device__ int * scan_index;
+	int * scan_index;
 	cudaMalloc((void**)&scan_index,num_bytes);
 
 	initialize_frequency_array<<16, 1024>>(freq_index, mu, N, L, s, h, seed, population);
@@ -199,15 +205,16 @@ __host__ void initialize_equilibrium(float * mutations, int * is_zero, int * is_
     CubDebugExit(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1)));
 	cudaFree(d_temp_storage);
 
-	set_Index_Length<<1,1>>(&mutation_Index, &array_length, scan_index, freq_index);
+	set_Index_Length<<1,1>>(scan_index, freq_index);
 	int h_array_length;
 	cudaMemcpy(&h_array_length, &array_length, 4, cudaMemcpyDeviceToHost);
-	int num_bytes = h_array_length*sizeof(float);
+
+	num_bytes = h_array_length*sizeof(float);
 	cudaMalloc((void**)&mutations, num_bytes);
 	cudaMalloc((void**)&is_zero, num_bytes);
 	cudaMalloc((void**)&is_zero_inclusive_scan, num_bytes);
 
-	initialize_mutation_array<<1, 1024>>(mutations,freq_index,scan_index, N);
+	initialize_mutation_array<<1, 1024>>(freq_index,scan_index, N);
 
 
 	cudaFree(freq_index);
@@ -234,8 +241,8 @@ __global__ void selection_drift(float * mutations, int * is_zero, const int muta
 	}
 	int id = myID + (mutation_Index+1)/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id <= mutation_Index){ //inclusive for mutation_Index
-		i = mutations[id]; //allele frequency in previous population size
-		p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
+		float i = mutations[id]; //allele frequency in previous population size
+		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*float(N); //expected allele frequency in new generation's population size
 		int j = clamp(RandNorm1(mean,(1.0-p)*mean,(myID + 2),counter,seed,population),0, N);
@@ -269,13 +276,13 @@ __global__ void calc_new_mutations_index(int * new_mutations_index, int * mutati
 	//run with 1 thread
 	float lambda = mu*N*L;
 	int num_new_mutations = clamp(RandNorm1(lambda,lambda,1,counter,seed,population),0, N*L);
-	int total_zeros = is_zero_inclusive_scan[mutation_Index];
+	int total_zeros = is_zero_inclusive_scan[*mutation_Index];
 	if(num_new_mutations >= total_zeros){
 		//for now if num_new_mutations_index > last index, make it equal to last index, do not resize array
 		*mutation_Index = min(((num_new_mutations-total_zeros)+*mutation_Index), array_length-1);
 		*new_mutations_index = *mutation_Index;
 	}else{
-		search_new_mutations_index<<16, 1024>>(new_mutations_index, is_zero_inclusive_scan, is_zero, num_new_mutations, mutation_Index);
+		search_new_mutations_index<<16, 1024>>(new_mutations_index, is_zero_inclusive_scan, is_zero, num_new_mutations, *mutation_Index);
 	}
 }
 
@@ -310,10 +317,6 @@ __host__ void one_generation(float * mutations, int * is_zero, int * is_zero_inc
 }
 
 __host__ void run_sim(float * mutations, const int N, const float s, const int h, const int L, const int total_number_of_generations, const int burn_in, const int seed){
-	__device__ int mutation_Index;
-	__device__ int array_length;
-	__device__ int * is_zero;
-	__device__ int * is_zero_inclusive_scan;
 	initialize_equilibrium(mutations, is_zero, is_zero_inclusive_scan, &mutation_Index, &array_length, mu, N, L, s, h, seed, 0);
 
 	#pragma unroll
@@ -345,7 +348,6 @@ int main(int argc, char **argv)
 	const int burn_in = 0;
 	const int seed = 0xdecafbad;
 
-	__device__ float * mutations; //allele counts of all current mutations
 	run_sim(mutations, N, s, h, L, total_number_of_generations, burn_in, seed);
 	cudaFree(mutations);
 	cudaEventRecord(stop, 0);
