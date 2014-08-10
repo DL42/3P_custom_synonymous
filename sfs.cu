@@ -18,6 +18,7 @@ using namespace cub;
 using namespace r123;
 
 __device__ int new_mutations_index;
+__device__ int num_new_mutations;
 __device__ int mutation_Index;
 __device__ int array_length;
 __device__ int * is_zero;
@@ -123,6 +124,8 @@ __device__ int4 RandNorm4(float4 mean, float4 var, int k, int step, int seed, in
 	return round(make_float4(G1.x,G1.y,G2.x,G2.y));
 }
 
+__device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
+
 __global__ void initialize_frequency_array(int * const freq_index, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
@@ -130,7 +133,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float4 i = make_float4((4*id + 1),(4*id + 2),(4*id + 3),(4*id + 4))/float(N);
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
+		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
 		reinterpret_cast<int4*>(freq_index)[id] = clamp(RandNorm4(lambda, lambda, 0, id, seed, population),0,N*L); //mutations are poisson distributed in each frequency class
 	}
 
@@ -141,22 +144,6 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
 		freq_index[id] = clamp(RandNorm1(lambda, lambda, 0, id, seed, population),0,N*L); //mutations are poisson distributed in each frequency class
-	}
-}
-
-__global__ void add_mutations(float * mutations, float allele_freq, int num_new_mutations_index){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < (num_new_mutations_index+1)/4; id+= blockDim.x*gridDim.x){ //inclusive for num_new_mutations_index
-		float4 i = reinterpret_cast<float4*>(mutations)[id];
-		if(i.x == 0){ i.x = allele_freq;}
-		if(i.y == 0){ i.y = allele_freq;}
-		if(i.z == 0){ i.z = allele_freq;}
-		if(i.w == 0){ i.w = allele_freq;}
-		reinterpret_cast<float4*>(mutations)[id] = i;
-	}
-	int id = myID + (num_new_mutations_index+1)/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id <= num_new_mutations_index){ //inclusive for num_new_mutations_index
-		if(mutations[id] == 0){ mutations[id] = allele_freq; }
 	}
 }
 
@@ -228,10 +215,10 @@ __global__ void selection_drift(const int N, const float s, const float h, const
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (mutation_Index+1)/4; id+= blockDim.x*gridDim.x){ //inclusive for mutation_Index
 		float4 i = reinterpret_cast<float4*>(mutations)[id]; //allele frequency in previous population size
-		float4 p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
+		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*float(N); //expected allele frequency in new generation's population size
-		int4 j = clamp(RandNorm4(mean,(1.0-p)*mean,(myID + 2),counter,seed,population),0, N);
+		int4 j = clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(myID + 2),counter,seed,population),0, N);
 		int4 k = make_int4(0);
 		if(j.x == N || j.x == 0){ j.x = 0; k.x = 1; /*if(j.x==N) { atomicAdd(fixed_diff_count, 1); }*/ } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
 		if(j.y == N || j.y == 0){ j.y = 0; k.y = 1; /*if(j.y==N) { atomicAdd(fixed_diff_count, 1); }*/ }
@@ -254,39 +241,54 @@ __global__ void selection_drift(const int N, const float s, const float h, const
 	}
 }
 
-__global__ void search_new_mutations_index(const int num_new_mutations, const int mutation_Index){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+__global__ void search_new_mutations_index(){
+	if(new_mutations_index == -1){
+		int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
-	for(int id = myID; id < mutation_Index/4; id+= blockDim.x*gridDim.x){ //exclusive for mutation_Index
-		int4 i = reinterpret_cast<int4*>(is_zero_inclusive_scan)[id];
-		int4 j = reinterpret_cast<int4*>(is_zero_inclusive_scan)[id];
-		if(i.x == num_new_mutations && j.x == 1){ new_mutations_index = 4*id; } //can only be one answer
-		if(i.y == num_new_mutations && j.y == 1){ new_mutations_index = 4*id+1; }
-		if(i.z == num_new_mutations && j.z == 1){ new_mutations_index = 4*id+2; }
-		if(i.w == num_new_mutations && j.w == 1){ new_mutations_index = 4*id+3; }
-	}
-	int id = myID + (mutation_Index)/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutation_Index){ //exclusive for mutation_Index
-		int i = is_zero_inclusive_scan[id];
-		int j = is_zero_inclusive_scan[id];
-		if(i == num_new_mutations && j == 1){ new_mutations_index = id; }
+		for(int id = myID; id < mutation_Index/4; id+= blockDim.x*gridDim.x){ //exclusive for mutation_Index
+			int4 i = reinterpret_cast<int4*>(is_zero_inclusive_scan)[id];
+			int4 j = reinterpret_cast<int4*>(is_zero_inclusive_scan)[id];
+			if(i.x == num_new_mutations && j.x == 1){ new_mutations_index = 4*id; } //can only be one answer
+			if(i.y == num_new_mutations && j.y == 1){ new_mutations_index = 4*id+1; }
+			if(i.z == num_new_mutations && j.z == 1){ new_mutations_index = 4*id+2; }
+			if(i.w == num_new_mutations && j.w == 1){ new_mutations_index = 4*id+3; }
+		}
+		int id = myID + (mutation_Index)/4 * 4;  //right now only works if minimum of 3 threads are launched
+		if(id < mutation_Index){ //exclusive for mutation_Index
+			int i = is_zero_inclusive_scan[id];
+			int j = is_zero_inclusive_scan[id];
+			if(i == num_new_mutations && j == 1){ new_mutations_index = id; }
+		}
 	}
 }
 
-__global__ void add_new_mutations(const int mu, const int N, const int L, const int seed, const int population, const int counter){
+__global__ void calc_new_mutations_index(const int mu, const int N, const int L, const int seed, const int population, const int counter){
 	//run with 1 thread
 	float lambda = mu*N*L;
-	int num_new_mutations = clamp(RandNorm1(lambda,lambda,1,counter,seed,population),0, N*L);
+	num_new_mutations = clamp(RandNorm1(lambda,lambda,1,counter,seed,population),0, N*L);
 	int total_zeros = is_zero_inclusive_scan[mutation_Index];
+	new_mutations_index = -1;
 	if(num_new_mutations >= total_zeros){
 		//for now if num_new_mutations_index > last index, make it equal to last index, do not resize array
 		mutation_Index = min(((num_new_mutations-total_zeros)+mutation_Index), array_length-1);
 		new_mutations_index = mutation_Index;
-	}else{
-		search_new_mutations_index<<<16, 1024>>>(is_zero_inclusive_scan, is_zero, num_new_mutations);
 	}
+}
 
-	add_mutations<<<16, 1024>>>(mutations, (1.f/float(N)), new_mutations_index);
+__global__ void add_new_mutations(float * mutations, float allele_freq){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < (new_mutations_index+1)/4; id+= blockDim.x*gridDim.x){ //inclusive for num_new_mutations_index
+		float4 i = reinterpret_cast<float4*>(mutations)[id];
+		if(i.x == 0){ i.x = allele_freq;}
+		if(i.y == 0){ i.y = allele_freq;}
+		if(i.z == 0){ i.z = allele_freq;}
+		if(i.w == 0){ i.w = allele_freq;}
+		reinterpret_cast<float4*>(mutations)[id] = i;
+	}
+	int id = myID + (new_mutations_index+1)/4 * 4;  //right now only works if minimum of 3 threads are launched
+	if(id <= num_new_mutations_index){ //inclusive for num_new_mutations_index
+		if(mutations[id] == 0){ mutations[id] = allele_freq; }
+	}
 }
 
 
@@ -308,7 +310,9 @@ __host__ void new_mutations(const int mu, const int N, const int L, const int se
     CubDebugExit(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, is_zero, is_zero_inclusive_scan, (mutation_Index+1)));
 	cudaFree(d_temp_storage);
 
-	add_new_mutations<<<1,1>>>(mu, N, L, seed, population, counter); //only run with one thread
+	calc_new_mutations_index<<<1,1>>>(mu, N, L, seed, population, counter); //only run with one thread
+	search_new_mutations_index<<<16, 1024>>>();
+	add_new_mutations<<<16, 1024>>>(mutations, (1.f/float(N)));
 }
 
 __host__ void one_generation(const float mu, const int N, const int L, const float s, const int h, const int seed, const int population, const int counter, const int generation){
