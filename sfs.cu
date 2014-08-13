@@ -55,7 +55,7 @@ __device__ float uint_float_01(unsigned int in){
 //  The result is never exactly 0.0.
 //  The smallest absolute value returned is 2^-(W-1)
 //  Let M be the number of mantissa bits in Float.
-//  If W>M  then the largest value retured is 1.0 and the smallest is -1.0.
+//  If W>M  then the largest value returned is 1.0 and the smallest is -1.0.
 //  If W<=M then the largest value returned is the largest Float less than 1.0
 //    and the smallest value returned is the smallest Float greater than -1.0.
 __device__ float uint_float_neg11(unsigned int in){
@@ -83,7 +83,7 @@ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(
 __device__ int RandNorm1(float mean, float var, int k, int step, int seed, int population){
 	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
 
-	typedef Philox4x32 P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
     P rng;
 
 	P::key_type key = {{k, seed}};
@@ -104,7 +104,7 @@ __device__ int RandNorm1(float mean, float var, int k, int step, int seed, int p
 __device__ int4 RandNorm4(float4 mean, float4 var, int k, int step, int seed, int population){
 	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
 
-	typedef Philox4x32 P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
     P rng;
 
 	P::key_type key = {{k, seed}};
@@ -171,7 +171,7 @@ __global__ void initialize_mutation_array(float * mutations, int * freq_index, i
 	}
 }
 
-__global__ void print_Device_array_int(float * array, int num){
+/*__global__ void print_Device_array_int(float * array, int num){
 
 	for(int i = 9500; i < 10500; i++){
 		if(i%1000 == 0){ printf("\r"); }
@@ -185,48 +185,6 @@ __global__ void sum_Device_array_int(int * array, int num){
 		j += array[i];
 	}
 	printf("\r%d\r",j);
-}
-
-/*__host__ __forceinline__ void initialize_equilibrium(float * mutations, int * is_zero, int * is_zero_inclusive_scan, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
-
-	int num_bytes = (N-1)*sizeof(int);
-	int * freq_index;
-	cudaMalloc((void**)&freq_index, num_bytes);
-	int * scan_index;
-	cudaMalloc((void**)&scan_index,num_bytes);
-
-	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, L, s, h, seed, population);
-	//cudaDeviceSynchronize();
-	//print_Device_array_int<<<1,1>>>(freq_index,(N-1));
-	//sum_Device_array_int<<<1,1>>>(freq_index,(N-1));
-	void * d_temp_storage = NULL;
-    size_t temp_storage_bytes = 0;
-    DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-	cudaFree(d_temp_storage);
-	cout<<endl;
-	//print_Device_array_int<<<1,1>>>(scan_index,(N-1));
-
-	set_Index_Length<<<1,1>>>(scan_index, freq_index, N);
-
-	int h_array_length;
-	cudaDeviceSynchronize();
-	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-	cout<<endl<<"length " << h_array_length << endl;
-	num_bytes = h_array_length*sizeof(float);
-	cudaMalloc((void**)&mutations, num_bytes);
-	num_bytes = h_array_length*sizeof(int);
-	cudaMalloc((void**)&is_zero, num_bytes);
-	cudaMalloc((void**)&is_zero_inclusive_scan, num_bytes);
-	const dim3 blocksize(4,256,1);
-	const dim3 gridsize(16,32,1);
-	initialize_mutation_array<<<gridsize, blocksize>>>(mutations, freq_index,scan_index, N);
-
-	//print_Device_array_int<<<1,1>>>(mutations,h_array_length);
-
-	cudaFree(freq_index);
-	cudaFree(scan_index);
 }*/
 
 __global__ void selection_drift(float * mutations, int * is_zero, const int N, const float s, const float h, const int seed, const int population, const int counter, const int generation){
@@ -238,7 +196,7 @@ __global__ void selection_drift(float * mutations, int * is_zero, const int N, c
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*float(N); //expected allele frequency in new generation's population size
-		int4 j = round(mean);//clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(myID + 2),counter,seed,population),0, N);
+		int4 j = clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(id + 2),counter,seed,population),0, N);//round(mean);//
 		int4 k = make_int4(0);
 		if(j.x == N || j.x == 0){ j.x = 0; k.x = 1; /*if(j.x==N) { atomicAdd(fixed_diff_count, 1); }*/ } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
 		if(j.y == N || j.y == 0){ j.y = 0; k.y = 1; /*if(j.y==N) { atomicAdd(fixed_diff_count, 1); }*/ }
@@ -253,7 +211,7 @@ __global__ void selection_drift(float * mutations, int * is_zero, const int N, c
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*float(N); //expected allele frequency in new generation's population size
-		int j = round(mean);//clamp(RandNorm1(mean,(1.0-p)*mean,(myID + 2),counter,seed,population),0, N);
+		int j = clamp(RandNorm1(mean,(1.0-p)*mean,(id + 2),counter,seed,population),0, N); //round(mean);//
 		int k = 0;
 		if(j == N || j == 0){ j = 0; k = 1; /*if(j==N) { atomicAdd(fixed_diff_count, 1); }*/ } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
 		mutations[id] = float(j)/float(N); //final allele freq
@@ -340,7 +298,7 @@ __host__ __forceinline__ void new_mutations(float * mutations, int * is_zero, in
 
 __host__ __forceinline__ void one_generation(float * mutations, int * is_zero, int * is_zero_inclusive_scan, const float mu, const int N, const int L, const float s, const int h, const int seed, const int population, const int counter, const int generation){
 	selection_drift<<<1000, 64 >>>(mutations, is_zero, N, s, h, seed, population, counter, generation);
-	//new_mutations(mutations, is_zero, is_zero_inclusive_scan, mu, N, L, seed, population, counter);
+	new_mutations(mutations, is_zero, is_zero_inclusive_scan, mu, N, L, seed, population, counter);
 	//migration amongst the new generation
 }
 
@@ -392,8 +350,8 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 
 	//print_Device_array_int<<<1,1>>>(mutations,50);
 	cout<<endl;
-	//#pragma unroll
-	//for(int counter = 0; counter < burn_in; counter++){ one_generation(mutations, is_zero, is_zero_inclusive_scan, mu, N, L, s, h, seed, 0, counter, 0); }
+	#pragma unroll
+	for(int counter = 0; counter < burn_in; counter++){ one_generation(mutations, is_zero, is_zero_inclusive_scan, mu, N, L, s, h, seed, 0, counter, 0); }
 	cudaEvent_t start, stop;
 	    cudaEventCreate(&start);
 	    cudaEventCreate(&stop);
