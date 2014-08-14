@@ -199,9 +199,9 @@ __global__ void selection_drift(float * mutations, int * is_zero, const int N, c
 		int4 j = clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(id + 2),counter,seed,population),0, N);//round(mean);//
 		int4 k = make_int4(0);
 		if(j.x == N || j.x == 0){ j.x = 0; k.x = 1; /*if(j.x==N) { atomicAdd(fixed_diff_count, 1); }*/ } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
-		if(j.y == N || j.y == 0){ j.y = 0; k.y = 1; /*if(j.y==N) { atomicAdd(fixed_diff_count, 1); }*/ }
-		if(j.z == N || j.z == 0){ j.z = 0; k.z = 1; /*if(j.z==N) { atomicAdd(fixed_diff_count, 1); }*/ }
-		if(j.w == N || j.w == 0){ j.w = 0; k.w = 1; /*if(j.w==N) { atomicAdd(fixed_diff_count, 1); }*/ }
+		if(j.y == N || j.y == 0){ j.y = 0; k.y = 1; /*if(j.y==N) { /*atomicAdd(fixed_diff_count, 1); }*/ }
+		if(j.z == N || j.z == 0){ j.z = 0; k.z = 1; /*if(j.z==N) { /*atomicAdd(fixed_diff_count, 1); }*/ }
+		if(j.w == N || j.w == 0){ j.w = 0; k.w = 1; /*if(j.w==N) { /*atomicAdd(fixed_diff_count, 1); }*/ }
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/float(N); //final allele freq
 		reinterpret_cast<int4*>(is_zero)[id] = k;
 	}
@@ -213,11 +213,28 @@ __global__ void selection_drift(float * mutations, int * is_zero, const int N, c
 		float mean = p*float(N); //expected allele frequency in new generation's population size
 		int j = clamp(RandNorm1(mean,(1.0-p)*mean,(id + 2),counter,seed,population),0, N); //round(mean);//
 		int k = 0;
-		if(j == N || j == 0){ j = 0; k = 1; /*if(j==N) { atomicAdd(fixed_diff_count, 1); }*/ } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
+		if(j == N || j == 0){ j = 0; k = 1; /*if(j==N) { atomicAdd(fixed_diff_count, 1); } */} //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
 		mutations[id] = float(j)/float(N); //final allele freq
 		is_zero[id] = k;
 	}
 }
+
+/*__global__ void selection_drift(float * mutations, int * is_zero, const int N, const float s, const float h, const int seed, const int population, const int counter, const int generation){
+	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
+	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id <= mutation_Index; id+= blockDim.x*gridDim.x){ //inclusive for mutation_Index
+		float i = mutations[id]; //allele frequency in previous population size
+		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
+		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
+		float mean = p*float(N); //expected allele frequency in new generation's population size
+		int j = clamp(RandNorm1(mean,(1.0-p)*mean,(id + 2),counter,seed,population),0, N); //round(mean);//
+		int k = 0;
+		if(j == N || j == 0){ j = 0; k = 1; if(j==N) { atomicAdd(fixed_diff_count, 1); } } //for multiple populations only do this if derived allele has gone to fixation or loss in all populations
+		mutations[id] = float(j)/float(N); //final allele freq
+		is_zero[id] = k;
+	}
+}*/
 
 __global__ void search_new_mutations_index(int * is_zero, int * is_zero_inclusive_scan){
 	if(new_mutations_index == -1){
