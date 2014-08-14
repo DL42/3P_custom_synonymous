@@ -133,7 +133,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
-		reinterpret_cast<int4*>(freq_index)[id] = clamp(RandNorm4(lambda, lambda, 0, id, seed, population),0,N*L); //round(lambda);//// ////mutations are poisson distributed in each frequency class
+		reinterpret_cast<int4*>(freq_index)[id] = max(RandNorm4(lambda, lambda, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f %f %f %f %f %f %f \r", myID, id, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
 
@@ -144,7 +144,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
-		freq_index[id] = clamp(RandNorm1(lambda, lambda, 0, id, seed, population),0,N*L);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_index[id] = max(RandNorm1(lambda, lambda, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f\r", myID, id, i, lambda);
 	}
 }
@@ -243,7 +243,7 @@ __global__ void search_new_mutations_index(int * is_zero, int * is_zero_inclusiv
 __global__ void calc_new_mutations_index(int * is_zero_inclusive_scan, const int mu, const int N, const int L, const int seed, const int population, const int counter){
 	//run with 1 thread
 	float lambda = mu*N*L;
-	num_new_mutations = clamp(RandNorm1(lambda,lambda,1,counter,seed,population),0, N*L);
+	num_new_mutations = max(RandNorm1(lambda,lambda,1,counter,seed,population),0);
 	int total_zeros = is_zero_inclusive_scan[mutation_Index];
 	new_mutations_index = -1;
 	if(num_new_mutations >= total_zeros){
