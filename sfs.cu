@@ -80,50 +80,155 @@ __device__ float2 boxmuller(const unsigned int u0, const unsigned int u1, const 
 
 __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-__device__ int RandNorm1(float mean, float var, int k, int step, int seed, int population){
+__device__ int RandNorm1(uint4 rand, float mean, float var){
 	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
 
-	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
-    P rng;
-
-	P::key_type key = {{k, seed}};
-    P::ctr_type count = {{step, population, 0xdeadbeef, 0xbeeff00d}}; //random ints to set counter space
-
-	union {
-	    P::ctr_type c;
-	    uint4 i;
-	}u;
-
-	u.c = rng(count, key);
-
-	float2 G = boxmuller(u.i.x,u.i.y,mean,mean,var,var);
+	float2 G = boxmuller(rand.x,rand.y,mean,mean,var,var);
 
 	return round(G.x);
 }
 
-__device__ int4 RandNorm4(float4 mean, float4 var, int k, int step, int seed, int population){
+__device__ int4 RandNorm4(uint4 rand, float4 mean, float4 var){
 	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
 
-	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
-    P rng;
-
-	P::key_type key = {{k, seed}};
-    P::ctr_type count = {{step, population, 0xdeadbeef, 0xbeeff00d}}; //random ints to set counter space
-
-	union {
-	    P::ctr_type c;
-	    uint4 i;
-	}u;
-
-	u.c = rng(count, key);
-
-	float2 G1 = boxmuller(u.i.x,u.i.y,mean.x,mean.y,var.x,var.y);
-	float2 G2 = boxmuller(u.i.z,u.i.w,mean.z,mean.w,var.z,var.w);
+	float2 G1 = boxmuller(rand.x,rand.y,mean.x,mean.y,var.x,var.y);
+	float2 G2 = boxmuller(rand.z,rand.w,mean.z,mean.w,var.z,var.w);
 
 	return round(make_float4(G1.x,G1.y,G2.x,G2.y));
 }
 
 __device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
+
+__device__ int RandPois1(unsigned int rand, float mean){
+
+	float p = uint_float_01(rand);
+	float e = exp(-1 * mean);
+	float lambda_j = 1;
+	float factorial = 1;
+	int j = 0;
+
+	float sum = lambda_j/factorial;
+	float cdf = e*sum;
+	//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
+	if(cdf >= p){ return j; }
+
+	j = 1;
+	lambda_j = mean;
+	sum += lambda_j/factorial;
+	cdf = e*sum;
+	//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
+	if(cdf >= p){ return j; }
+	float end = mean + 7*sqrtf(mean);
+	j = 2;
+	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals never gets there anyway when putting in UINT_MAX)
+		lambda_j *= mean;
+		factorial*= j;
+		sum += lambda_j/factorial;
+		cdf = e*sum;
+		//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
+		if(cdf >= p){ return j; }
+	}
+
+	return j;
+}
+
+__device__ int4 RandPois4(uint4 rand, float4 mean){
+	return make_int4(RandPois1(rand.x, mean.x),RandPois1(rand.y, mean.y),RandPois1(rand.z, mean.z),RandPois1(rand.w, mean.w));
+}
+
+__device__ uint4 Philox(int k, int step, int seed, int population, int round){
+	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+	P rng;
+
+	P::key_type key = {{k, seed}};
+	P::ctr_type count = {{step, population, round, 0xbeeff00d}}; //random ints to set counter space
+
+	union {
+		P::ctr_type c;
+		uint4 i;
+	}u;
+
+	u.c = rng(count, key);
+
+	return u.i;
+}
+
+__global__ void print_Philox(){
+	uint4 j = Philox(0, 0, 0, 0, 0);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+
+	j = Philox(1, 0, 0, 0, 0);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+
+	j = Philox(0, 1, 0, 0, 0);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+
+	j = Philox(0, 0, 1, 0, 0);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+
+
+	j = Philox(0, 0, 0, 1, 0);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+
+	j = Philox(0, 0, 0, 0, 1);
+	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
+}
+
+__device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
+	uint4 i = Philox(k, step, seed, population, 0);
+
+	if(mean <= 10){ return RandPois1(i.x, mean); }
+	else if(mean >= N-10){ return N - RandPois1(i.x, N-mean); } //flip side of binomial, when 1-p is small
+	return RandNorm1(i, mean, var);
+}
+
+__device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population, int round){
+	uint4 i = Philox(k, step, seed, population, round);
+
+	if(mean <= 10){ return RandPois1(i.x, mean); }
+	else if(mean >= N-10){ return N - RandPois1(i.x, N-mean); } //flip side of binomial, when 1-p is small
+	return RandNorm1(i, mean, var);
+}
+
+__device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int seed, int population){
+	return make_int4(Rand1(mean.x, var.x, N, k, step, seed, population, 0),  Rand1(mean.y, var.y, N, k, step, seed, population, 1), Rand1(mean.z, var.z, N, k, step, seed, population, 2), Rand1(mean.w, var.w, N, k, step, seed, population, 3));
+/*	if((mean.x > 10 && mean.x < N-10) && (mean.y > 10 && mean.y < N-10) && (mean.z > 10 && mean.z < N-10) && (mean.w > 10 && mean.w < N-10)){
+		uint4 i = Philox(k, step, seed, population, 0);
+		return RandNorm4(i, mean, var);
+	}else if (mean.x <= 10 && mean.y <= 10 && mean.z <= 10 && mean.w <= 10){
+		uint4 i = Philox(k, step, seed, population, 0);
+		return RandPois4(i, mean);
+	}else if (mean.x >= N-10 && mean.y >= N-10 && mean.z >= N-10 && mean.w >= N-10){ //flip side of binomial, when 1-p is small
+		uint4 i = Philox(k, step, seed, population, 0);
+		return -1*RandPois4(i, -1*mean+N)+N;
+	}else{
+		uint4 p_norm = Philox(k, step, seed, population, 0);
+		uint4 p_pois = Philox(k, step, seed, population, 1);
+
+		int4 rnorm = RandNorm4(p_norm, mean, var);
+		int x,y,z,w;
+		if(mean.x <= 10){ x = RandPois1(p_pois.x, mean.x); }
+		else if(mean.x >= N-10){ x = N-RandPois1(p_pois.x, N-mean.x); }
+		else{ x = rnorm.x; }
+
+		if(mean.y <= 10){ y = RandPois1(p_pois.y, mean.y); }
+		else if(mean.y >= N-10){ y = N-RandPois1(p_pois.y, N-mean.y); }
+		else{ y = rnorm.y; }
+
+		if(mean.z <= 10){ z = RandPois1(p_pois.z, mean.z); }
+		else if(mean.z >= N-10){ z = N-RandPois1(p_pois.z, N-mean.z); }
+		else{ z = rnorm.z; }
+
+		if(mean.w <= 10){ w = RandPois1(p_pois.w, mean.w); }
+		else if(mean.w >= N-10){ w = N-RandPois1(p_pois.w, N-mean.w); }
+		else{ w = rnorm.w; }
+
+		return make_int4(x,y,z,w);
+	}*/
+
+}
+
+
 
 __global__ void initialize_frequency_array(int * const freq_index, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
@@ -133,7 +238,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
-		reinterpret_cast<int4*>(freq_index)[id] = max(RandNorm4(lambda, lambda, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
+		reinterpret_cast<int4*>(freq_index)[id] = max(Rand4(lambda, lambda, L*float(N), 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f %f %f %f %f %f %f \r", myID, id, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
 
@@ -144,7 +249,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
-		freq_index[id] = max(RandNorm1(lambda, lambda, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_index[id] = max(Rand1(lambda, lambda, L*float(N), 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f\r", myID, id, i, lambda);
 	}
 }
@@ -196,7 +301,7 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*float(N); //expected allele frequency in new generation's population size
-		int4 j = clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(id + 2),counter,seed,population),0, N);//round(mean);//
+		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,N,(id + 2),counter,seed,population),0, N);//round(mean);//
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/float(N); //final allele freq
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
@@ -205,15 +310,29 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*float(N); //expected allele frequency in new generation's population size
-		int j = clamp(RandNorm1(mean,(1.0-p)*mean,(id + 2),counter,seed,population),0, N); //round(mean);//
+		int j = clamp(Rand1(mean,(1.0-p)*mean,N,(id + 2),counter,seed,population),0, N); //round(mean);//
 		mutations[id] = float(j)/float(N); //final allele freq
 	}
 }
 
+/*__global__ void selection_drift(float * mutations, const int N, const float s, const float h, const int seed, int population, const int counter, const int generation){
+	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
+	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
+		float i = mutations[id]; //allele frequency in previous population size
+		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
+		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
+		float mean = p*float(N); //expected allele frequency in new generation's population size
+		int j = clamp(Rand1(mean,(1.0-p)*mean,N,(id + 2),counter,seed,population),0, N); //round(mean);//
+		mutations[id] = float(j)/float(N); //final allele freq
+	}
+}*/
+
 __global__ void num_new_mutations(const float mu, const int N, const int L, const int seed, const int counter, const int generation){
 	//1 thread 1 block for now
 	int lambda = mu*N*L;
-	int num_new_mutations = max(RandNorm1(lambda, lambda, 0, counter, seed, 0),0);
+	int num_new_mutations = max(Rand1(lambda, lambda, N, 1, counter, seed, 0),0);
 	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
@@ -279,7 +398,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	int h_array_length;
 	//cudaDeviceSynchronize();
 	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-	cout<<endl<<"length " << h_array_length << endl;
+	cout<<endl<<"initial length " << h_array_length << endl;
 	num_bytes = h_array_length*sizeof(float);
 	cudaMalloc((void**)&mutations, num_bytes);
 
@@ -376,7 +495,9 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 			copy_array<<<50,1024>>>(temp, temp2);
 			cudaFree(temp);
 			mutations = temp2;
-			//cout<<endl<<"length " << h_array_length << endl;
+			//int out;
+			//cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+			//cout<<endl<<"number of mutations: " << out << endl;
 		}
 		//----- end -----
 
@@ -387,8 +508,9 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("time elapsed generations: %f\n", elapsedTime);
-	cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
-	cout<<endl<<"length " << h_array_length << endl;
+	int out;
+	cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+	cout<<endl<<"final number of mutations: " << out << endl;
 	cudaFree(mutations);
 }
 
@@ -406,15 +528,16 @@ int main(int argc, char **argv)
 	float s = 0; //neutral for now
 	float h = 0.5;
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int L = 2.5*pow(10.f,8); //eventually set so so the number of expected mutations is > a certain amount
+	int L = 2.5*pow(10.f,8); //eventually set so so the number of expected mutations is > a certain amount, although L < 2^32 (max of int)
 	//int N_chrom_samp = 200;
 	const int total_number_of_generations = pow(10.f,4);
 	const int burn_in = 0;
 	const int seed = 0xdecafbad;
 
-
 	run_sim(mu, N_chrom_pop, s, h, L, total_number_of_generations, burn_in, seed);
 	//cudaDeviceSynchronize();
+
+	//print_Philox<<<1,1>>>();
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
