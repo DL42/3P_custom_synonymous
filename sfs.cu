@@ -20,8 +20,9 @@ using namespace std;
 using namespace cub;
 using namespace r123;
 
-__device__ int mutations_length; //one length for all populations
-__device__ int new_mutations_length; //length of mutation array in the new generation (after new mutations enter population)
+__device__ int mutations_Index; //one length for all populations
+__device__ int array_length;
+__device__ int new_mutations_Index; //length of mutation array in the new generation (after new mutations enter population)
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 //	 by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
@@ -148,9 +149,10 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 	}
 }
 
-__global__ void set_Index_Length(const int * scan_index, const int * freq_index, const int N){
+__global__ void set_Index_Length(const int * scan_index, const int * freq_index, const float mu, const int N, const int L, const int compact){
 	//one thread only, final index in N-2 (N-1 terms)
-	mutations_length = scan_index[(N-2)]+freq_index[(N-2)]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
+	mutations_Index = scan_index[(N-2)]+freq_index[(N-2)]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
+	array_length = mutations_Index + (mu*N*L + 7*sqrtf(mu*N*L))*compact;
 	//printf("\r %d %d \r",mutation_Index,array_length);
 }
 
@@ -189,7 +191,7 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
 	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_length/4; id+= blockDim.x*gridDim.x){
+	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		float4 i = reinterpret_cast<float4*>(mutations)[id]; //allele frequency in previous population size
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
@@ -197,8 +199,8 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 		int4 j = clamp(RandNorm4(mean,(-1*p + 1.0)*mean,(id + 2),counter,seed,population),0, N);//round(mean);//
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/float(N); //final allele freq
 	}
-	int id = myID + mutations_length/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_length){
+	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	if(id < mutations_Index){
 		float i = mutations[id]; //allele frequency in previous population size
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
@@ -212,37 +214,38 @@ __global__ void num_new_mutations(const float mu, const int N, const int L, cons
 	//1 thread 1 block for now
 	int lambda = mu*N*L;
 	int num_new_mutations = max(RandNorm1(lambda, lambda, 0, counter, seed, 0),0);
-	new_mutations_length = num_new_mutations + mutations_length;
+	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
 __global__ void copy_array(float * smaller_array, float * larger_array){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_length/4; id+= blockDim.x*gridDim.x){
+	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		reinterpret_cast<float4*>(larger_array)[id] = reinterpret_cast<float4*>(smaller_array)[id];
 	}
-	int id = myID + mutations_length/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_length){ larger_array[id] = smaller_array[id]; }
+	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
 }
 
 __global__ void add_new_mutations(float * new_mutations, float freq){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < (new_mutations_length-mutations_length); id+= blockDim.x*gridDim.x){ new_mutations[(mutations_length+id)] = freq; }
+	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ new_mutations[(mutations_Index+id)] = freq; }
 }
 
-__global__ void reset_length(){
+__global__ void reset_index(){
 	//run with 1 thread 1 block
-	mutations_length = new_mutations_length;
+	mutations_Index = new_mutations_Index;
 }
 
-__global__ void set_length(int * L){
+__global__ void set_length(int * Length, const float mu, const int N, const int L, const int compact){
 	//run with 1 thread 1 block
-	mutations_length = L[0];
+	mutations_Index = Length[0];
+	array_length = mutations_Index + (mu*N*L + 7*sqrtf(mu*N*L))*compact;
 }
 
-struct GreaterThan
+struct Clamp
 {
 	__host__ __device__ __forceinline__ bool operator()(const float &a) const {
-        return (a > 0);
+        return (a > 0.f && a < 1.f);
     }
 };
 
@@ -257,7 +260,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	cudaMalloc((void**)&freq_index, num_bytes);
 	int * scan_index;
 	cudaMalloc((void**)&scan_index,num_bytes);
-
+	int compact = 40;
 	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, L, s, h, seed, population);
 	//cudaDeviceSynchronize();
 	//print_Device_array_int<<<1,1>>>(freq_index,(N-1));
@@ -271,11 +274,11 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	cout<<endl;
 	//print_Device_array_int<<<1,1>>>(scan_index,(N-1));
 
-	set_Index_Length<<<1,1>>>(scan_index, freq_index, N);
+	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu, N, L,compact);
 
 	int h_array_length;
 	//cudaDeviceSynchronize();
-	cudaMemcpyFromSymbol(&h_array_length, mutations_length, sizeof(mutations_length), 0, cudaMemcpyDeviceToHost);
+	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 	cout<<endl<<"length " << h_array_length << endl;
 	num_bytes = h_array_length*sizeof(float);
 	cudaMalloc((void**)&mutations, num_bytes);
@@ -292,7 +295,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	//print_Device_array_int<<<1,1>>>(mutations,50);
 	cout<<endl;
 
-	int compact = 1;
+
     #pragma unroll
 	for(int counter = 0; counter < burn_in; counter++){
 
@@ -300,34 +303,34 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 
 		//-----generate new mutations -----
 		num_new_mutations<<<1,1>>>(mu, N, L, seed, counter, 0);
-		int h_new_array_length;
-		cudaMemcpyFromSymbol(&h_new_array_length, new_mutations_length, sizeof(new_mutations_length), 0, cudaMemcpyDeviceToHost);
-		float * temp;
-		num_bytes = h_new_array_length*sizeof(float);
-		cudaMalloc((void**)&temp, num_bytes);
-		copy_array<<<50,1024>>>(mutations, temp);
-		add_new_mutations<<<5,1024>>>(temp,1.f/float(N));
-		reset_length<<<1,1>>>();
-		cudaFree(mutations);
-		mutations = temp;
+		add_new_mutations<<<5,1024>>>(mutations,1.f/float(N));
+		reset_index<<<1,1>>>();
 		//----- end -----
 
 		//-----compact every X generations -----
 		if((counter > 0 && counter % compact == 0) || counter == (burn_in - 1)){
-			float * temp2 = NULL;
+			float * temp = NULL;
 			int * length = NULL;
-			cudaMalloc((void**)&temp2,num_bytes);
+			cudaMalloc((void**)&temp,num_bytes);
 			cudaMalloc((void**)&length,sizeof(int));
 			d_temp_storage = NULL;
 			size_t temp_storage_bytes = 0;
-			GreaterThan select_op;
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp2, length, h_new_array_length, select_op);
+			Clamp select_op;
+			cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaMalloc(&d_temp_storage, temp_storage_bytes);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp2, length, h_new_array_length, select_op);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaFree(mutations);
 			cudaFree(d_temp_storage);
+
+			set_length<<<1,1>>>(length, mu, N, L, compact);
+			cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+			float * temp2;
+			num_bytes = h_array_length*sizeof(float);
+			cudaMalloc((void**)&temp2, num_bytes);
+			copy_array<<<50,1024>>>(temp, temp2);
+			cudaFree(temp);
 			mutations = temp2;
-			set_length<<<1,1>>>(length);
 		}
 		//----- end -----
 	}
@@ -343,37 +346,40 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 		selection_drift<<<1000, 64 >>>(mutations, N, s, h, seed, population, counter, generations);
 
 		//-----generate new mutations -----
+
 		num_new_mutations<<<1,1>>>(mu, N, L, seed, counter, 0);
-		int h_new_array_length;
-		cudaMemcpyFromSymbol(&h_new_array_length, new_mutations_length, sizeof(new_mutations_length), 0, cudaMemcpyDeviceToHost);
-		float * temp;
-		num_bytes = h_new_array_length*sizeof(float);
-		cudaMalloc((void**)&temp, num_bytes);
-		copy_array<<<50,1024>>>(mutations, temp);
-		add_new_mutations<<<5,1024>>>(temp,1.f/float(N));
-		reset_length<<<1,1>>>();
-		cudaFree(mutations);
-		mutations = temp;
+		add_new_mutations<<<5,1024>>>(mutations,1.f/float(N));
+		reset_index<<<1,1>>>();
 		//----- end -----
 
 		//-----compact every X generations -----
 		if((generations % compact == 0) || counter == (burn_in+total_sim_generations - 1)){
-			float * temp2 = NULL;
+			float * temp = NULL;
 			int * length = NULL;
-			cudaMalloc((void**)&temp2,num_bytes);
+			cudaMalloc((void**)&temp,num_bytes);
 			cudaMalloc((void**)&length,sizeof(int));
 			d_temp_storage = NULL;
 			size_t temp_storage_bytes = 0;
-			GreaterThan select_op;
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp2, length, h_new_array_length, select_op);
+			Clamp select_op;
+			cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaMalloc(&d_temp_storage, temp_storage_bytes);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp2, length, h_new_array_length, select_op);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaFree(mutations);
 			cudaFree(d_temp_storage);
+
+			set_length<<<1,1>>>(length, mu, N, L, compact);
+			cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+			float * temp2;
+			num_bytes = h_array_length*sizeof(float);
+			cudaMalloc((void**)&temp2, num_bytes);
+			copy_array<<<50,1024>>>(temp, temp2);
+			cudaFree(temp);
 			mutations = temp2;
-			set_length<<<1,1>>>(length);
+			//cout<<endl<<"length " << h_array_length << endl;
 		}
 		//----- end -----
+
 	}
 
 	cudaEventRecord(stop, 0);
@@ -381,7 +387,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("time elapsed generations: %f\n", elapsedTime);
-	cudaMemcpyFromSymbol(&h_array_length, mutations_length, sizeof(mutations_length), 0, cudaMemcpyDeviceToHost);
+	cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
 	cout<<endl<<"length " << h_array_length << endl;
 	cudaFree(mutations);
 }
