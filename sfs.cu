@@ -88,6 +88,14 @@ __device__ int RandNorm1(uint4 rand, float mean, float var){
 	return round(G.x);
 }
 
+__device__ int RandNorm1(unsigned int rand1, unsigned int rand2, float mean, float var){
+	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
+
+	float2 G = boxmuller(rand1,rand2,mean,mean,var,var);
+
+	return round(G.x);
+}
+
 __device__ int4 RandNorm4(uint4 rand, float4 mean, float4 var){
 	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
 
@@ -120,7 +128,7 @@ __device__ int RandPois1(unsigned int rand, float mean){
 	if(cdf >= p){ return j; }
 	float end = mean + 7*sqrtf(mean);
 	j = 2;
-	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals never gets there anyway when putting in UINT_MAX)
+	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals rarely gets there anyway when putting in UINT_MAX)
 		lambda_j *= mean;
 		factorial*= j;
 		sum += lambda_j/factorial;
@@ -153,7 +161,7 @@ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	return u.i;
 }
 
-__global__ void print_Philox(){
+/*__global__ void print_Philox(){
 	uint4 j = Philox(0, 0, 0, 0, 0);
 	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
 
@@ -172,7 +180,7 @@ __global__ void print_Philox(){
 
 	j = Philox(0, 0, 0, 0, 1);
 	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-}
+}*/
 
 __device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
 	uint4 i = Philox(k, step, seed, population, 0);
@@ -182,16 +190,17 @@ __device__ int Rand1(float mean, float var, float N, int k, int step, int seed, 
 	return RandNorm1(i, mean, var);
 }
 
-__device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population, int round){
-	uint4 i = Philox(k, step, seed, population, round);
+__device__ int Rand1(unsigned int i, unsigned int j, float mean, float var, float N, int k, int step, int seed, int population){
 
-	if(mean <= 10){ return RandPois1(i.x, mean); }
-	else if(mean >= N-10){ return N - RandPois1(i.x, N-mean); } //flip side of binomial, when 1-p is small
-	return RandNorm1(i, mean, var);
+	if(mean <= 10){ return RandPois1(i, mean); }
+	else if(mean >= N-10){ return N - RandPois1(i, N-mean); } //flip side of binomial, when 1-p is small
+	return RandNorm1(i, j, mean, var);
 }
 
 __device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int seed, int population){
-	return make_int4(Rand1(mean.x, var.x, N, k, step, seed, population, 0),  Rand1(mean.y, var.y, N, k, step, seed, population, 1), Rand1(mean.z, var.z, N, k, step, seed, population, 2), Rand1(mean.w, var.w, N, k, step, seed, population, 3));
+	uint4 i = Philox(k, step, seed, population, 0);
+	uint4 j = Philox(k, step, seed, population, 1);
+	return make_int4(Rand1(i.x,i.y,mean.x, var.x, N, k, step, seed, population), Rand1(i.z,i.w,mean.y, var.y, N, k, step, seed, population), Rand1(j.x,j.y,mean.z, var.z, N, k, step, seed, population), Rand1(j.z,j.w,mean.w, var.w, N, k, step, seed, population));
 /*	if((mean.x > 10 && mean.x < N-10) && (mean.y > 10 && mean.y < N-10) && (mean.z > 10 && mean.z < N-10) && (mean.w > 10 && mean.w < N-10)){
 		uint4 i = Philox(k, step, seed, population, 0);
 		return RandNorm4(i, mean, var);
@@ -202,30 +211,8 @@ __device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int see
 		uint4 i = Philox(k, step, seed, population, 0);
 		return -1*RandPois4(i, -1*mean+N)+N;
 	}else{
-		uint4 p_norm = Philox(k, step, seed, population, 0);
-		uint4 p_pois = Philox(k, step, seed, population, 1);
-
-		int4 rnorm = RandNorm4(p_norm, mean, var);
-		int x,y,z,w;
-		if(mean.x <= 10){ x = RandPois1(p_pois.x, mean.x); }
-		else if(mean.x >= N-10){ x = N-RandPois1(p_pois.x, N-mean.x); }
-		else{ x = rnorm.x; }
-
-		if(mean.y <= 10){ y = RandPois1(p_pois.y, mean.y); }
-		else if(mean.y >= N-10){ y = N-RandPois1(p_pois.y, N-mean.y); }
-		else{ y = rnorm.y; }
-
-		if(mean.z <= 10){ z = RandPois1(p_pois.z, mean.z); }
-		else if(mean.z >= N-10){ z = N-RandPois1(p_pois.z, N-mean.z); }
-		else{ z = rnorm.z; }
-
-		if(mean.w <= 10){ w = RandPois1(p_pois.w, mean.w); }
-		else if(mean.w >= N-10){ w = N-RandPois1(p_pois.w, N-mean.w); }
-		else{ w = rnorm.w; }
-
-		return make_int4(x,y,z,w);
+		return make_int4(Rand1(mean.x, var.x, N, k, step, seed, population, 0),  Rand1(mean.y, var.y, N, k, step, seed, population, 1), Rand1(mean.z, var.z, N, k, step, seed, population, 2), Rand1(mean.w, var.w, N, k, step, seed, population, 3));
 	}*/
-
 }
 
 
