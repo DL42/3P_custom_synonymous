@@ -25,17 +25,17 @@ __device__ int array_length;
 __device__ int new_mutations_Index; //length of mutation array in the new generation (after new mutations enter population)
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
-//	 by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
-//	 optimize it down to an int-to-float conversion followed by a multiply
-//	 and an add, which might be fused, depending on the architecture.
+// by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
+// optimize it down to an int-to-float conversion followed by a multiply
+// and an add, which might be fused, depending on the architecture.
 //
-//  If the input is a uniformly distributed integer, then the
-//  result is a uniformly distributed floating point number in [0, 1].
-//  The result is never exactly 0.0.
-//  The smallest value returned is 2^-W.
-//  Let M be the number of mantissa bits in Float.
-//  If W>M  then the largest value retured is 1.0.
-//  If W<=M then the largest value returned is the largest Float less than 1.0.
+// If the input is a uniformly distributed integer, then the
+// result is a uniformly distributed floating point number in [0, 1].
+// The result is never exactly 0.0.
+// The smallest value returned is 2^-W.
+// Let M be the number of mantissa bits in Float.
+// If W>M  then the largest value retured is 1.0.
+// If W<=M then the largest value returned is the largest Float less than 1.0.
 __device__ float uint_float_01(unsigned int in){
 	//(mostly) stolen from Philox code "uniform.hpp"
 	R123_CONSTEXPR float factor = float(1.)/(UINT_MAX + float(1.));
@@ -64,9 +64,7 @@ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	return u.i;
 }
 
-__device__ int RandPois1(unsigned int rand, float mean){
-
-	float p = uint_float_01(rand);
+__device__ int RandPois1(float p, float mean){
 	float e = exp(-1 * mean);
 	float lambda_j = 1;
 	float factorial = 1;
@@ -85,7 +83,7 @@ __device__ int RandPois1(unsigned int rand, float mean){
 	if(cdf >= p){ return j; }
 	float end = mean + 7*sqrtf(mean);
 	j = 2;
-	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals rarely gets there anyway when putting in UINT_MAX)
+	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals rarely gets there anyway when putting in 1 for p)
 		lambda_j *= mean;
 		factorial*= j;
 		sum += lambda_j/factorial;
@@ -99,14 +97,14 @@ __device__ int RandPois1(unsigned int rand, float mean){
 
 __device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
 	uint4 i = Philox(k, step, seed, population, 0);
-	if(mean <= 10){ return RandPois1(i.x, mean); }
-	else if(mean >= N-10){ return N - RandPois1(i.x, N-mean); } //flip side of binomial, when 1-p is small
-	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
+	if(mean <= 10){ return RandPois1(uint_float_01(i.x), mean); }
+	else if(mean >= N-10){ return N - RandPois1(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
 __device__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 10){ return RandPois1(i, mean); }
-	else if(mean >= N-10){ return N - RandPois1(i, N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= 10){ return RandPois1(uint_float_01(i), mean); }
+	else if(mean >= N-10){ return N - RandPois1(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);//RandNorm1(i, j, mean, var);//
 }
 
@@ -259,7 +257,6 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
     DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
 	cudaFree(d_temp_storage);
-	cout<<endl;
 
 	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu, N, L,compact);
 
@@ -386,9 +383,6 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-	/*int max_sm_occupancy;
-    CubDebugExit(MaxSmOccupancy(max_sm_occupancy, BlockSumKernel<BLOCK_THREADS, ITEMS_PER_THREAD, ALGORITHM>, BLOCK_THREADS));*/ //part of CUB ... could be useful ...
-
 	int N_chrom_pop = 2*pow(10.f,4); //constant population for now
 	float s = 0; //neutral for now
 	float h = 0.5;
@@ -400,10 +394,6 @@ int main(int argc, char **argv)
 	const int seed = 0xdecafbad;
 
 	run_sim(mu, N_chrom_pop, s, h, L, total_number_of_generations, burn_in, seed);
-	//cudaDeviceSynchronize();
-	//float j = uint_float_01(UINT_MAX/4);
-	//cout<<j<<" " << normcdfinv(j)<<endl;
-	//print_Philox<<<1,1>>>();
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
