@@ -43,69 +43,26 @@ __device__ float uint_float_01(unsigned int in){
     return in*factor + halffactor;
 }
 
-
-// uint_float_neg11: Input is a W-bit integer (unsigned).  It is cast
-//    to a W-bit signed integer, multiplied by Float(2^-(W-1)) and
-//    then added to Float(2^(-W-2)).  A good compiler should optimize
-//    it down to an int-to-float conversion followed by a multiply and
-//    an add, which might be fused, depending on the architecture.
-//
-//  If the input is a uniformly distributed integer, then the
-//  output is a uniformly distributed floating point number in [-1, 1].
-//  The result is never exactly 0.0.
-//  The smallest absolute value returned is 2^-(W-1)
-//  Let M be the number of mantissa bits in Float.
-//  If W>M  then the largest value returned is 1.0 and the smallest is -1.0.
-//  If W<=M then the largest value returned is the largest Float less than 1.0
-//    and the smallest value returned is the smallest Float greater than -1.0.
-__device__ float uint_float_neg11(unsigned int in){
-	//(mostly) stolen from Philox code "uniform.hpp"
-	R123_CONSTEXPR float factor = float(1.)/(INT_MAX + float(1.));
-	R123_CONSTEXPR float halffactor = float(0.5)*factor;
-    return int(in)*factor + halffactor;
-}
-
-__device__ float2 boxmuller(const unsigned int u0, const unsigned int u1, const float mean1, const float mean2, const float var1, const float var2) {
-	//(mostly) stolen from Philox code "boxmuller.hpp"
-    float r1, r2;
-    float2 f;
-    sincospif(uint_float_neg11(u0), &f.x, &f.y); //-1_1 is necessary because this is sin(pi*x), cos(pi*x) not sin(2pi*x) and cos(2pi*x) - could've also clamped it between 0 and 1 and multplied x by 2
-    float temp = -2.f * logf(uint_float_01(u1));
-    r1 = sqrtf(var1 * temp);
-    r2 = sqrtf(var2 * temp);
-    f.x = f.x*r1 + mean1;
-    f.y = f.y*r2 + mean2;
-    return f;
-}
-
 __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-__device__ int RandNorm1(uint4 rand, float mean, float var){
-	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
-
-	float2 G = boxmuller(rand.x,rand.y,mean,mean,var,var);
-
-	return round(G.x);
-}
-
-__device__ int RandNorm1(unsigned int rand1, unsigned int rand2, float mean, float var){
-	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
-
-	float2 G = boxmuller(rand1,rand2,mean,mean,var,var);
-
-	return round(G.x);
-}
-
-__device__ int4 RandNorm4(uint4 rand, float4 mean, float4 var){
-	//Normal approximation to Binomial (mean = Np, std = sqrt(var = Np(1-p))) and Poisson (mean = Np, std = sqrt(var = mean))
-
-	float2 G1 = boxmuller(rand.x,rand.y,mean.x,mean.y,var.x,var.y);
-	float2 G2 = boxmuller(rand.z,rand.w,mean.z,mean.w,var.z,var.w);
-
-	return round(make_float4(G1.x,G1.y,G2.x,G2.y));
-}
-
 __device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
+
+__device__ uint4 Philox(int k, int step, int seed, int population, int round){
+	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+	P rng;
+
+	P::key_type key = {{k, seed}};
+	P::ctr_type count = {{step, population, round, 0xbeeff00d}}; //random ints to set counter space
+
+	union {
+		P::ctr_type c;
+		uint4 i;
+	}u;
+
+	u.c = rng(count, key);
+
+	return u.i;
+}
 
 __device__ int RandPois1(unsigned int rand, float mean){
 
@@ -140,82 +97,23 @@ __device__ int RandPois1(unsigned int rand, float mean){
 	return j;
 }
 
-__device__ int4 RandPois4(uint4 rand, float4 mean){
-	return make_int4(RandPois1(rand.x, mean.x),RandPois1(rand.y, mean.y),RandPois1(rand.z, mean.z),RandPois1(rand.w, mean.w));
-}
-
-__device__ uint4 Philox(int k, int step, int seed, int population, int round){
-	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
-	P rng;
-
-	P::key_type key = {{k, seed}};
-	P::ctr_type count = {{step, population, round, 0xbeeff00d}}; //random ints to set counter space
-
-	union {
-		P::ctr_type c;
-		uint4 i;
-	}u;
-
-	u.c = rng(count, key);
-
-	return u.i;
-}
-
-/*__global__ void print_Philox(){
-	uint4 j = Philox(0, 0, 0, 0, 0);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-
-	j = Philox(1, 0, 0, 0, 0);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-
-	j = Philox(0, 1, 0, 0, 0);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-
-	j = Philox(0, 0, 1, 0, 0);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-
-
-	j = Philox(0, 0, 0, 1, 0);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-
-	j = Philox(0, 0, 0, 0, 1);
-	printf("%d %d %d %d \r", j.x , j.y , j.z , j.w);
-}*/
-
 __device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
 	uint4 i = Philox(k, step, seed, population, 0);
-
 	if(mean <= 10){ return RandPois1(i.x, mean); }
 	else if(mean >= N-10){ return N - RandPois1(i.x, N-mean); } //flip side of binomial, when 1-p is small
-	return RandNorm1(i, mean, var);
+	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
-__device__ int Rand1(unsigned int i, unsigned int j, float mean, float var, float N, int k, int step, int seed, int population){
-
+__device__ int Rand1(unsigned int i, float mean, float var, float N){
 	if(mean <= 10){ return RandPois1(i, mean); }
 	else if(mean >= N-10){ return N - RandPois1(i, N-mean); } //flip side of binomial, when 1-p is small
-	return RandNorm1(i, j, mean, var);
+	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);//RandNorm1(i, j, mean, var);//
 }
 
 __device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int seed, int population){
 	uint4 i = Philox(k, step, seed, population, 0);
-	uint4 j = Philox(k, step, seed, population, 1);
-	return make_int4(Rand1(i.x,i.y,mean.x, var.x, N, k, step, seed, population), Rand1(i.z,i.w,mean.y, var.y, N, k, step, seed, population), Rand1(j.x,j.y,mean.z, var.z, N, k, step, seed, population), Rand1(j.z,j.w,mean.w, var.w, N, k, step, seed, population));
-/*	if((mean.x > 10 && mean.x < N-10) && (mean.y > 10 && mean.y < N-10) && (mean.z > 10 && mean.z < N-10) && (mean.w > 10 && mean.w < N-10)){
-		uint4 i = Philox(k, step, seed, population, 0);
-		return RandNorm4(i, mean, var);
-	}else if (mean.x <= 10 && mean.y <= 10 && mean.z <= 10 && mean.w <= 10){
-		uint4 i = Philox(k, step, seed, population, 0);
-		return RandPois4(i, mean);
-	}else if (mean.x >= N-10 && mean.y >= N-10 && mean.z >= N-10 && mean.w >= N-10){ //flip side of binomial, when 1-p is small
-		uint4 i = Philox(k, step, seed, population, 0);
-		return -1*RandPois4(i, -1*mean+N)+N;
-	}else{
-		return make_int4(Rand1(mean.x, var.x, N, k, step, seed, population, 0),  Rand1(mean.y, var.y, N, k, step, seed, population, 1), Rand1(mean.z, var.z, N, k, step, seed, population, 2), Rand1(mean.w, var.w, N, k, step, seed, population, 3));
-	}*/
+	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
 }
-
-
 
 __global__ void initialize_frequency_array(int * const freq_index, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
@@ -302,20 +200,6 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 	}
 }
 
-/*__global__ void selection_drift(float * mutations, const int N, const float s, const float h, const int seed, int population, const int counter, const int generation){
-	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
-	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
-		float i = mutations[id]; //allele frequency in previous population size
-		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
-		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
-		float mean = p*float(N); //expected allele frequency in new generation's population size
-		int j = clamp(Rand1(mean,(1.0-p)*mean,N,(id + 2),counter,seed,population),0, N); //round(mean);//
-		mutations[id] = float(j)/float(N); //final allele freq
-	}
-}*/
-
 __global__ void num_new_mutations(const float mu, const int N, const int L, const int seed, const int counter, const int generation){
 	//1 thread 1 block for now
 	int lambda = mu*N*L;
@@ -359,8 +243,8 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 
 	float * mutations; //allele counts of all current mutations
 	int population = 0;
-	//initialize_equilibrium(mutations, is_zero, is_zero_inclusive_scan, mu, N, L, s, h, seed, 0);
 
+	//----- initialize simulation -----
 	int num_bytes = (N-1)*sizeof(int);
 	int * freq_index;
 	cudaMalloc((void**)&freq_index, num_bytes);
@@ -368,9 +252,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	cudaMalloc((void**)&scan_index,num_bytes);
 	int compact = 40;
 	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, L, s, h, seed, population);
-	//cudaDeviceSynchronize();
-	//print_Device_array_int<<<1,1>>>(freq_index,(N-1));
-	//sum_Device_array_int<<<1,1>>>(freq_index,(N-1));
+
 	void * d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
     DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
@@ -378,12 +260,10 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
     DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
 	cudaFree(d_temp_storage);
 	cout<<endl;
-	//print_Device_array_int<<<1,1>>>(scan_index,(N-1));
 
 	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu, N, L,compact);
 
 	int h_array_length;
-	//cudaDeviceSynchronize();
 	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 	cout<<endl<<"initial length " << h_array_length << endl;
 	num_bytes = h_array_length*sizeof(float);
@@ -393,27 +273,23 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 	const dim3 gridsize(16,32,1);
 	initialize_mutation_array<<<gridsize, blocksize>>>(mutations, freq_index,scan_index, N);
 
-	//print_Device_array_int<<<1,1>>>(mutations,h_array_length);
-
 	cudaFree(freq_index);
 	cudaFree(scan_index);
+	//----- end -----
 
-	//print_Device_array_int<<<1,1>>>(mutations,50);
-	cout<<endl;
-
-
+	//----- burn in steps -----
     #pragma unroll
 	for(int counter = 0; counter < burn_in; counter++){
 
 		selection_drift<<<1000,64>>>(mutations, N, s, h, seed, population, counter, 0);
 
-		//-----generate new mutations -----
+		//----- generate new mutations -----
 		num_new_mutations<<<1,1>>>(mu, N, L, seed, counter, 0);
 		add_new_mutations<<<5,1024>>>(mutations,1.f/float(N));
 		reset_index<<<1,1>>>();
 		//----- end -----
 
-		//-----compact every X generations -----
+		//----- compact every X generations -----
 		if((counter > 0 && counter % compact == 0) || counter == (burn_in - 1)){
 			float * temp = NULL;
 			int * length = NULL;
@@ -440,11 +316,13 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 		}
 		//----- end -----
 	}
+	//----- end -----
 	cudaEvent_t start, stop;
     cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
+	//----- simulation steps -----
 	int generations;
     #pragma unroll
 	for(int counter = burn_in; counter < (burn_in+total_sim_generations); counter++){
@@ -489,7 +367,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 		//----- end -----
 
 	}
-
+	//----- end -----
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	float elapsedTime;
@@ -523,7 +401,8 @@ int main(int argc, char **argv)
 
 	run_sim(mu, N_chrom_pop, s, h, L, total_number_of_generations, burn_in, seed);
 	//cudaDeviceSynchronize();
-
+	//float j = uint_float_01(UINT_MAX/4);
+	//cout<<j<<" " << normcdfinv(j)<<endl;
 	//print_Philox<<<1,1>>>();
 
 	cudaEventRecord(stop, 0);
