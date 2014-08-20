@@ -64,7 +64,7 @@ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	return u.i;
 }
 
-__device__ int RandPois1(float p, float mean){
+__device__ int poiscdfinv(float p, float mean){
 	float e = exp(-1 * mean);
 	float lambda_j = 1;
 	float factorial = 1;
@@ -72,14 +72,12 @@ __device__ int RandPois1(float p, float mean){
 
 	float sum = lambda_j/factorial;
 	float cdf = e*sum;
-	//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
 	if(cdf >= p){ return j; }
 
 	j = 1;
 	lambda_j = mean;
 	sum += lambda_j/factorial;
 	cdf = e*sum;
-	//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
 	if(cdf >= p){ return j; }
 	float end = mean + 7*sqrtf(mean);
 	j = 2;
@@ -88,7 +86,6 @@ __device__ int RandPois1(float p, float mean){
 		factorial*= j;
 		sum += lambda_j/factorial;
 		cdf = e*sum;
-		//cout<< p << "  " << cdf <<  "  " << lambda_j<< "  " << factorial<< endl;
 		if(cdf >= p){ return j; }
 	}
 
@@ -97,15 +94,15 @@ __device__ int RandPois1(float p, float mean){
 
 __device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
 	uint4 i = Philox(k, step, seed, population, 0);
-	if(mean <= 10){ return RandPois1(uint_float_01(i.x), mean); }
-	else if(mean >= N-10){ return N - RandPois1(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= 10){ return poiscdfinv(uint_float_01(i.x), mean); }
+	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
 __device__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 10){ return RandPois1(uint_float_01(i), mean); }
-	else if(mean >= N-10){ return N - RandPois1(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
-	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);//RandNorm1(i, j, mean, var);//
+	if(mean <= 10){ return poiscdfinv(uint_float_01(i), mean); }
+	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
+	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
 __device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int seed, int population){
@@ -299,7 +296,6 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaMalloc(&d_temp_storage, temp_storage_bytes);
 			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
-			cudaFree(mutations);
 			cudaFree(d_temp_storage);
 
 			set_length<<<1,1>>>(length, mu, N, L, compact);
@@ -309,6 +305,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 			cudaMalloc((void**)&temp2, num_bytes);
 			copy_array<<<50,1024>>>(temp, temp2);
 			cudaFree(temp);
+			cudaFree(mutations);
 			mutations = temp2;
 		}
 		//----- end -----
@@ -346,7 +343,6 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaMalloc(&d_temp_storage, temp_storage_bytes);
 			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
-			cudaFree(mutations);
 			cudaFree(d_temp_storage);
 
 			set_length<<<1,1>>>(length, mu, N, L, compact);
@@ -356,6 +352,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 			cudaMalloc((void**)&temp2, num_bytes);
 			copy_array<<<50,1024>>>(temp, temp2);
 			cudaFree(temp);
+			cudaFree(mutations);
 			mutations = temp2;
 			//int out;
 			//cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
