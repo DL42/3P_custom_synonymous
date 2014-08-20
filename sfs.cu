@@ -103,7 +103,7 @@ __device__ int RandBinom(float p, float N, int k, int step, int seed, int popula
 	}u;
 	
 	while(counter < N){
-		u.i = Philox(k, step, seed, population, start_round+i);
+		u.i = Philox(k, step, seed, population, start_round+counter);
 		
 		int counter2 = 0;
 		while(counter < N && counter2 < 4){
