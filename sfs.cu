@@ -20,9 +20,9 @@ using namespace std;
 using namespace cub;
 using namespace r123;
 
-__device__ int mutations_Index; //one length for all populations
+__device__ int mutations_Index; //number of mutations in the population(s)
 __device__ int array_length;
-__device__ int new_mutations_Index; //length of mutation array in the new generation (after new mutations enter population)
+__device__ int new_mutations_Index; //number of mutations in the population(s) in the new generation (after new mutations enter population(s))
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
@@ -89,6 +89,30 @@ __device__ int poiscdfinv(float p, float mean){
 		if(cdf >= p){ return j; }
 	}
 
+	return j;
+}
+
+__device__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
+//only for use when N is small
+	int j = 0;
+	int counter = 0;
+	
+	union {
+		uint h[4];
+		uint4 i;
+	}u;
+	
+	while(counter < N){
+		u.i = Philox(k, step, seed, population, start_round+i);
+		
+		int counter2 = 0;
+		while(counter < N && counter2 < 4){
+			if(uint_float_01(u.h[counter2]) <= p){ j++; }
+			counter++;
+			counter2++;
+		}
+	}
+	
 	return j;
 }
 
