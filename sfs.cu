@@ -116,7 +116,9 @@ __device__ int RandBinom(float p, float N, int k, int step, int seed, int popula
 	return j;
 }
 
-__device__ int Rand1(float mean, float var, float N, int k, int step, int seed, int population){
+__device__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
+
+	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
 	uint4 i = Philox(k, step, seed, population, 0);
 	if(mean <= 10){ return poiscdfinv(uint_float_01(i.x), mean); }
 	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
@@ -129,7 +131,8 @@ __device__ int Rand1(unsigned int i, float mean, float var, float N){
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
-__device__ int4 Rand4(float4 mean, float4 var, float N, int k, int step, int seed, int population){
+__device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
+	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
 	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
 }
@@ -142,7 +145,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
-		reinterpret_cast<int4*>(freq_index)[id] = max(Rand4(lambda, lambda, L*float(N), 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
+		reinterpret_cast<int4*>(freq_index)[id] = max(Rand4(lambda, lambda, make_float4(mu), L*float(N), 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f %f %f %f %f %f %f \r", myID, id, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
 
@@ -153,7 +156,7 @@ __global__ void initialize_frequency_array(int * const freq_index, const float m
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
-		freq_index[id] = max(Rand1(lambda, lambda, L*float(N), 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_index[id] = max(Rand1(lambda, lambda, mu, L*float(N), 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f\r", myID, id, i, lambda);
 	}
 }
@@ -205,7 +208,7 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*float(N); //expected allele frequency in new generation's population size
-		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,N,(id + 2),counter,seed,population),0, N);//round(mean);//
+		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,p, N,(id + 2),counter,seed,population),0, N);
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/float(N); //final allele freq
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
@@ -214,7 +217,7 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*float(N); //expected allele frequency in new generation's population size
-		int j = clamp(Rand1(mean,(1.0-p)*mean,N,(id + 2),counter,seed,population),0, N); //round(mean);//
+		int j = clamp(Rand1(mean,(1.0-p)*mean,p,N,(id + 2),counter,seed,population),0, N); //round(mean);//
 		mutations[id] = float(j)/float(N); //final allele freq
 	}
 }
@@ -222,7 +225,7 @@ __global__ void selection_drift(float * mutations, const int N, const float s, c
 __global__ void num_new_mutations(const float mu, const int N, const int L, const int seed, const int counter, const int generation){
 	//1 thread 1 block for now
 	int lambda = mu*N*L;
-	int num_new_mutations = max(Rand1(lambda, lambda, N, 1, counter, seed, 0),0);
+	int num_new_mutations = max(Rand1(lambda, lambda, mu, float(N)*L, 1, counter, seed, 0),0);
 	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
