@@ -137,7 +137,7 @@ __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int ste
 	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
 }
 
-__global__ void initialize_frequency_array(int * __restrict__ freq_index, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
+__global__ void initialize_frequency_array(int * freq_index, const float mu, const int N, const int L, const float s, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
@@ -161,14 +161,14 @@ __global__ void initialize_frequency_array(int * __restrict__ freq_index, const 
 	}
 }
 
-__global__ void set_Index_Length(const int * __restrict__ scan_index, const int * __restrict__ freq_index, const float mu, const int N, const int L, const int compact){
+__global__ void set_Index_Length(const int * scan_index, const int * freq_index, const float mu, const int N, const int L, const int compact){
 	//one thread only, final index in N-2 (N-1 terms)
 	mutations_Index = scan_index[(N-2)]+freq_index[(N-2)]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
 	array_length = mutations_Index + (mu*N*L + 7*sqrtf(mu*N*L))*compact;
 	//printf("\r %d %d \r",mutation_Index,array_length);
 }
 
-__global__ void initialize_mutation_array(float * __restrict__ mutations, const int * __restrict__ freq_index, const int * __restrict__ scan_index, const int N){
+__global__ void initialize_mutation_array(float * mutations, const int * freq_index, const int * scan_index, const int N){
 	//fills in mutation array using the freq and scan indices
 	//y threads correspond to freq_index/scan_index indices, use grid-stride loops
 	//x threads correspond to mutation array indices, use grid-stride loops
@@ -199,7 +199,7 @@ __global__ void sum_Device_array_int(int * array, int num){
 	printf("\r%d\r",j);
 }*/
 
-__global__ void selection_drift(float * __restrict__ mutations, const int N, const float s, const float h, const int seed, int population, const int counter, const int generation){
+__global__ void selection_drift(float * mutations, const int N, const float s, const float h, const int seed, int population, const int counter, const int generation){
 	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
 	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -229,7 +229,7 @@ __global__ void num_new_mutations(const float mu, const int N, const int L, cons
 	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
-__global__ void copy_array(const float * __restrict__ smaller_array, float * __restrict__ larger_array){
+__global__ void copy_array(const float * smaller_array, float * larger_array){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		reinterpret_cast<float4*>(larger_array)[id] = reinterpret_cast<const float4*>(smaller_array)[id];
@@ -238,7 +238,7 @@ __global__ void copy_array(const float * __restrict__ smaller_array, float * __r
 	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
 }
 
-__global__ void add_new_mutations(float * __restrict__ new_mutations, float freq){
+__global__ void add_new_mutations(float * new_mutations, float freq){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ new_mutations[(mutations_Index+id)] = freq; }
 }
@@ -248,7 +248,7 @@ __global__ void reset_index(){
 	mutations_Index = new_mutations_Index;
 }
 
-__global__ void set_length(int * __restrict__ Length, const float mu, const int N, const int L, const int compact){
+__global__ void set_length(int * Length, const float mu, const int N, const int L, const int compact){
 	//run with 1 thread 1 block
 	mutations_Index = Length[0];
 	array_length = mutations_Index + (mu*N*L + 7*sqrtf(mu*N*L))*compact;
