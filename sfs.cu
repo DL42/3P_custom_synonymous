@@ -306,7 +306,7 @@ __host__ __forceinline__ void run_sim(const float mu, const int N, const float s
 
 		//----- generate new mutations -----
 		num_new_mutations<<<1,1>>>(mu, N, L, seed, counter, 0);
-		add_new_mutations<<<5,1024>>>(mutations,1.f/float(N));
+		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
 		reset_index<<<1,1>>>();
 		//----- end -----
 
