@@ -51,8 +51,8 @@ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
 	P rng;
 
-	P::key_type key = {{k, seed}};
-	P::ctr_type count = {{step, population, round, 0xbeeff00d}}; //random ints to set counter space
+	P::key_type key = {{0xbeeff00d, seed}}; //random int to set key space + seed
+	P::ctr_type count = {{k, step, population, round}};
 
 	union {
 		P::ctr_type c;
