@@ -207,18 +207,19 @@ __global__ void sum_Device_array_int(int * array, int num){
 	printf("\r%d\r",j);
 }*/
 
-template <typename Functor>
-__global__ void selection_drift(float * mutations, const int N, const Functor sel_coeff, const float h, const int seed, int population, const int counter, const int generation){
+template <typename Functor_sel>
+__global__ void selection_drift(float * mutations, const int N, const Functor_sel sel_coeff, const float h, const int seed, const int population, const int generation){
 	//calculates new frequencies for every mutation in the population, N1 previous pop size, N2, new pop size
 	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		float4 i = reinterpret_cast<float4*>(mutations)[id]; //allele frequency in previous population size
 		float4 s = make_float4(sel_coeff(generation, population, i.x),sel_coeff(generation, population, i.y),sel_coeff(generation, population, i.z),sel_coeff(generation, population, i.w));
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*N; //expected allele frequency in new generation's population size
-		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,p, N,(id + 2),counter,seed,population),0, N);
+		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,p, N,(id + 2),generation,seed,population),0, N);
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/N; //final allele freq
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
@@ -228,15 +229,16 @@ __global__ void selection_drift(float * mutations, const int N, const Functor se
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*N; //expected allele frequency in new generation's population size
-		int j = clamp(Rand1(mean,(1.0-p)*mean,p,N,(id + 2),counter,seed,population),0, N); //round(mean);//
+		int j = clamp(Rand1(mean,(1.0-p)*mean,p,N,(id + 2),generation,seed,population),0, N); //round(mean);//
 		mutations[id] = float(j)/N; //final allele freq
 	}
 }
 
-__global__ void num_new_mutations(const float mu, const int N, const float L, const int seed, const int counter, const int generation){
+__global__ void num_new_mutations(const float mu, const int N, const float L, const int seed, const int generation){
 	//1 thread 1 block for now
 	float lambda = mu*N*L;
-	int num_new_mutations = max(Rand1(lambda, lambda, mu, N*L, 1, counter, seed, 0),0);
+	int population = 0;
+	int num_new_mutations = max(Rand1(lambda, lambda, mu, N*L, 1, generation, seed, population),0);
 	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
@@ -266,6 +268,7 @@ __global__ void set_length(const int * const num_mutations, const Functor_mu mu,
 	mutations_Index = num_mutations[0];
 	array_length = mutations_Index;
 	for(int i = generations; i < (generations+compact); i++){
+		if(N(i,population) == -1){ break; } //population has ended
 		array_length += mu(i,population)*N(i,population)*L + 7*sqrtf(mu(i,population)*N(i,population)*L);
 	}
 }
@@ -283,9 +286,10 @@ struct sel_coeff
 struct demography
 {
 	int N;
-	demography(int N) : N(N){ }
+	int total_generations;
+	demography(int N, int total_generations) : N(N), total_generations(total_generations){ }
 	__host__ __device__ __forceinline__ int operator()(const int generation, const int population) const{
-		if(population == 0){ return N; }
+		if(population == 0 && generation < total_generations){ return N; }
 		return -1;
 	}
 };
@@ -340,8 +344,7 @@ __global__ void test(Functor N){
 }*/
 
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float L, const int total_sim_generations, const int burn_in, const int seed){
-
+__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed){
 	float * mutations; //allele frequency of all current mutations
 	int population = 0;
 	int N = demography(0,population);
@@ -354,7 +357,7 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	cudaMalloc((void**)&scan_index,num_bytes);
 	int compact = 40;
 
-	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, L, s, h, seed, population);
+	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
 
 	void * d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
@@ -363,11 +366,11 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
     DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
 	cudaFree(d_temp_storage);
 
-	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, L,compact);
+	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact);
 
 	int h_array_length;
 	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-	cout<<endl<<"initial length " << h_array_length << endl;
+	cout<<"initial length " << h_array_length << endl;
 	num_bytes = h_array_length*sizeof(float);
 	cudaMalloc((void**)&mutations, num_bytes);
 
@@ -385,22 +388,21 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	cudaEventRecord(start, 0);
 
 	//----- simulation steps -----
-	int generations;
     #pragma unroll
-	for(int counter = burn_in; counter < (burn_in+total_sim_generations); counter++){
-		generations = counter - burn_in + 1;
+	for(int generations = 1; generations < (demography.total_generations); generations++){
 		N = demography(generations,population);
-		selection_drift<<<1000, 64 >>>(mutations, N, s, h, seed, population, counter, generations);
+
+		selection_drift<<<1000,64>>>(mutations, N, s, h, seed, population, generations);
 
 		//-----generate new mutations -----
 
-		num_new_mutations<<<1,1>>>(mu, N, L, seed, counter, 0);
+		num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, generations);
 		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
 		reset_index<<<1,1>>>();
 		//----- end -----
 
 		//-----compact every X generations -----
-		if((generations % compact == 0) || counter == (burn_in+total_sim_generations - 1)){
+		if((generations % compact == 0) || generations == (demography.total_generations - 1)){
 			float * temp = NULL;
 			int * length = NULL;
 			cudaMalloc((void**)&temp,num_bytes);
@@ -414,7 +416,7 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
 			cudaFree(d_temp_storage);
 
-			set_length<<<1,1>>>(length, mu_rate, demography, L, compact, generations);
+			set_length<<<1,1>>>(length, mu_rate, demography, num_sites, compact, generations);
 			cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 			float * temp2;
 			num_bytes = h_array_length*sizeof(float);
@@ -460,13 +462,15 @@ int main(int argc, char **argv)
 	float L = 2.5*pow(10.f,8); //eventually set so so the number of expected mutations is > a certain amount
 	//int N_chrom_samp = 200;
 	const int total_number_of_generations = pow(10.f,4);
-	const int burn_in = 0;
 	const int seed = 0xdecafbad;
+	demography dem(N_chrom_pop,total_number_of_generations);
 
-	float * mutations = run_sim(mutation(mu), demography(N_chrom_pop), sel_coeff(s), h, L, total_number_of_generations, burn_in, seed);
+	float * mutations = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed);
+
 /*	demography_test a(5,5);
 	test<<<1,1>>>(a);
 	cout<<a(0,0,false)<<" "<<a(1,0,false)<<endl;*/
+
 	delete mutations;
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
