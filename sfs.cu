@@ -388,10 +388,10 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	cudaEventRecord(start, 0);
 
 	//----- simulation steps -----
-    #pragma unroll
-	for(int generations = 1; generations < (demography.total_generations); generations++){
+	int generations = 1;
+	while(true){
 		N = demography(generations,population);
-
+		if(N == -1){ break; }
 		selection_drift<<<1000,64>>>(mutations, N, s, h, seed, population, generations);
 
 		//-----generate new mutations -----
@@ -401,8 +401,8 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 		reset_index<<<1,1>>>();
 		//----- end -----
 
-		//-----compact every X generations -----
-		if((generations % compact == 0) || generations == (demography.total_generations - 1)){
+		//-----compact every X generations and final generation -----
+		if((generations % compact == 0) || demography(generations+1,population) == -1){
 			float * temp = NULL;
 			int * length = NULL;
 			cudaMalloc((void**)&temp,num_bytes);
@@ -430,7 +430,7 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 			//cout<<endl<<"number of mutations: " << out << endl;
 		}
 		//----- end -----
-
+		generations++;
 	}
 	//----- end -----
 	cudaEventRecord(stop, 0);
