@@ -138,7 +138,6 @@ __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int ste
 }
 
 struct sel_coeff
-//cannot run in device mode if contains pointer
 {
 	float s;
 	sel_coeff(float s) : s(s){ }
@@ -281,20 +280,45 @@ struct Clamp
 };
 
 struct demography
-//cannot run in device mode if contains pointer
 {
 	int N;
 	demography(int N) : N(N){ }
-	__host__ __forceinline__ int operator()(const int generation, const int population) const{
+	__host__ __device__ __forceinline__ int operator()(const int generation, const int population) const{
 		if(population == 0){ return N; }
 		return -1;
+	}
+};
+/*
+struct demography_test
+{
+	int * d_N;
+	int * h_N;
+	demography_test(int L, int N) {
+		h_N = new int[L];
+		for(int i = 0; i < L; i++){
+			h_N[i] = N+i;
+		}
+
+		cudaMalloc((void**)&d_N, L*sizeof(int));
+		cudaMemcpy(d_N,h_N,L*sizeof(int),cudaMemcpyHostToDevice);
+	}
+	~demography_test(){
+		cudaFree(d_N);
+		delete h_N;
+	}
+	__host__ __device__ __forceinline__ int operator()(const int generation, const int population) const{
+		#ifdef  __CUDA_ARCH__
+			return d_N[generation];
+		#else
+			return h_N[generation];
+		#endif
 	}
 };
 
 template <typename Functor>
 __global__ void test(Functor N){
-	printf("\r%d\r%d\r", N(0,0), N(1,0));
-}
+	printf("\r%d\r%d\r", N(0,0,true), N(1,0,true));
+}*/
 
 template <typename Functor_dem, typename Functor_sel>
 __host__ __forceinline__ void run_sim(const float mu, const Functor_dem demography, const Functor_sel s, const int h, const float L, const int total_sim_generations, const int burn_in, const int seed){
@@ -456,6 +480,9 @@ int main(int argc, char **argv)
 	const int seed = 0xdecafbad;
 
 	run_sim(mu, demography(N_chrom_pop), sel_coeff(s), h, L, total_number_of_generations, burn_in, seed);
+/*	demography_test a(5,5);
+	test<<<1,1>>>(a);
+	cout<<a(0,0,false)<<" "<<a(1,0,false)<<endl;*/
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
