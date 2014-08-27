@@ -349,13 +349,14 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	int population = 0;
 	int N = demography(0,population);
 	float mu = mu_rate(0,population);
+	int compact = 40;
+
 	//----- initialize simulation -----
 	int num_bytes = (N-1)*sizeof(int);
 	int * freq_index;
 	cudaMalloc((void**)&freq_index, num_bytes);
 	int * scan_index;
 	cudaMalloc((void**)&scan_index,num_bytes);
-	int compact = 40;
 
 	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
 
