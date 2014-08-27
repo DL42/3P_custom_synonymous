@@ -137,8 +137,8 @@ __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int ste
 	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
 }
 
-template <typename Functor>
-__global__ void initialize_frequency_array(int * freq_index, const float mu, const int N, const float L, const Functor sel_coeff, const float h, const int seed, const int population){
+template <typename Functor_sel>
+__global__ void initialize_frequency_array(int * freq_index, const float mu, const int N, const float L, const Functor_sel sel_coeff, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
