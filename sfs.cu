@@ -343,6 +343,74 @@ struct Clamp
     }
 };
 
+template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
+__host__ __forceinline__ float * init_mut_sel_equil(int & num_bytes, int & h_array_length, const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const int compact_rate){
+	float * init_mutuations;
+
+	int population = 0;
+	int N = demography(0,population);
+	float mu = mu_rate(0,population);
+
+	num_bytes = (N-1)*sizeof(int);
+	int * freq_index;
+	cudaMalloc((void**)&freq_index, num_bytes);
+	int * scan_index;
+	cudaMalloc((void**)&scan_index,num_bytes);
+
+	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
+
+	void * d_temp_storage = NULL;
+	size_t temp_storage_bytes = 0;
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
+	cudaMalloc(&d_temp_storage, temp_storage_bytes);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
+	cudaFree(d_temp_storage);
+
+	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact_rate);
+
+
+	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+	cout<<"initial length " << h_array_length << endl;
+	num_bytes = h_array_length*sizeof(float);
+	cudaMalloc((void**)&init_mutuations, num_bytes);
+
+	const dim3 blocksize(4,256,1);
+	const dim3 gridsize(16,32,1);
+	initialize_mutation_array<<<gridsize, blocksize>>>(init_mutuations, freq_index,scan_index, N);
+
+	cudaFree(freq_index);
+	cudaFree(scan_index);
+
+	return init_mutuations;
+}
+
+template <typename Functor_mu, typename Functor_dem>
+__host__ __forceinline__ float * init_new_mut(int & num_bytes, int & h_array_length, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int seed, const int compact_rate){
+	//not yet tested
+	float * init_mutuations;
+
+	int population = 0;
+	int N = demography(0,population);
+	float mu = mu_rate(0,population);
+
+	int * num_current_mutations;
+	cudaMalloc((void**)&num_current_mutations,sizeof(int));
+	cudaMemset(&num_current_mutations,0,sizeof(int));
+
+	set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact_rate, 0);
+	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+	cout<<"initial length " << h_array_length << endl;
+	num_bytes = h_array_length*sizeof(float);
+	cudaMalloc((void**)&init_mutuations, num_bytes);
+	cudaFree(num_current_mutations);
+
+	num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, 0);
+	add_new_mutations<<<5,1024>>>(init_mutuations,1.f/N);
+	reset_index<<<1,1>>>();
+
+	return init_mutuations;
+}
+
 template <typename Functor_mu, typename Functor_dem>
 __host__ __forceinline__ float * compact(float * mutations, int & num_bytes, int & h_array_length, const int generations, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int compact_rate){
 	float * compact_result;
@@ -382,55 +450,11 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 
 	//----- initialize simulation -----
 	if(init_equil){
-		//----- initialize to mutation-selection equilibrium (default) -----
-		num_bytes = (N-1)*sizeof(int);
-		int * freq_index;
-		cudaMalloc((void**)&freq_index, num_bytes);
-		int * scan_index;
-		cudaMalloc((void**)&scan_index,num_bytes);
-
-		initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
-
-		void * d_temp_storage = NULL;
-		size_t temp_storage_bytes = 0;
-		DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-		cudaMalloc(&d_temp_storage, temp_storage_bytes);
-		DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-		cudaFree(d_temp_storage);
-
-		set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact_rate);
-
-
-		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-		cout<<"initial length " << h_array_length << endl;
-		num_bytes = h_array_length*sizeof(float);
-		cudaMalloc((void**)&mutations, num_bytes);
-
-		const dim3 blocksize(4,256,1);
-		const dim3 gridsize(16,32,1);
-		initialize_mutation_array<<<gridsize, blocksize>>>(mutations, freq_index,scan_index, N);
-
-		cudaFree(freq_index);
-		cudaFree(scan_index);
-		//----- end -----
+		//----- mutation-selection equilibrium (default) -----
+		mutations = init_mut_sel_equil(num_bytes, h_array_length,mu_rate, demography, s, h, num_sites, seed, compact_rate);
 	}else{
-		//----- initialize to one round of mutation (will often take >> N generations to reach equilibrium) -----
-		//not yet tested
-		int * num_current_mutations;
-		cudaMalloc((void**)&num_current_mutations,sizeof(int));
-		cudaMemset(&num_current_mutations,0,sizeof(int));
-
-		set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact_rate, 0);
-		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-		cout<<"initial length " << h_array_length << endl;
-		num_bytes = h_array_length*sizeof(float);
-		cudaMalloc((void**)&mutations, num_bytes);
-		cudaFree(num_current_mutations);
-
-		num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, 0);
-		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
-		reset_index<<<1,1>>>();
-		//----- end -----
+		//----- one round of mutation (will often take >> N generations to reach equilibrium) -----
+		mutations = init_new_mut(num_bytes, h_array_length, mu_rate, demography, num_sites, seed,compact_rate);
 	}
 	//----- end -----
 
