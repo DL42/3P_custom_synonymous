@@ -304,13 +304,6 @@ struct mutation
 	}
 };
 
-struct Clamp
-{
-	__host__ __device__ __forceinline__ bool operator()(const float &a) const {
-        return (a > 0.f && a < 1.f);
-    }
-};
-
 /*
 struct demography_test
 {
@@ -343,44 +336,74 @@ __global__ void test(Functor N){
 	printf("\r%d\r%d\r", N(0,0,true), N(1,0,true));
 }*/
 
+struct Clamp
+{
+	__host__ __device__ __forceinline__ bool operator()(const float &a) const {
+        return (a > 0.f && a < 1.f);
+    }
+};
+
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed){
+__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, bool init_equil = true){
 	float * mutations; //allele frequency of all current mutations
 	int population = 0;
 	int N = demography(0,population);
 	float mu = mu_rate(0,population);
 	int compact = 40;
+	int h_array_length;
+	int num_bytes;
 
 	//----- initialize simulation -----
-	int num_bytes = (N-1)*sizeof(int);
-	int * freq_index;
-	cudaMalloc((void**)&freq_index, num_bytes);
-	int * scan_index;
-	cudaMalloc((void**)&scan_index,num_bytes);
+	if(init_equil){
+		//----- initialize to mutation-selection equilibrium (default) -----
+		num_bytes = (N-1)*sizeof(int);
+		int * freq_index;
+		cudaMalloc((void**)&freq_index, num_bytes);
+		int * scan_index;
+		cudaMalloc((void**)&scan_index,num_bytes);
 
-	initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
+		initialize_frequency_array<<<6, 1024>>>(freq_index, mu, N, num_sites, s, h, seed, population);
 
-	void * d_temp_storage = NULL;
-    size_t temp_storage_bytes = 0;
-    DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-    cudaMalloc(&d_temp_storage, temp_storage_bytes);
-    DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
-	cudaFree(d_temp_storage);
+		void * d_temp_storage = NULL;
+		size_t temp_storage_bytes = 0;
+		DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
+		cudaMalloc(&d_temp_storage, temp_storage_bytes);
+		DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
+		cudaFree(d_temp_storage);
 
-	set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact);
+		set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact);
 
-	int h_array_length;
-	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-	cout<<"initial length " << h_array_length << endl;
-	num_bytes = h_array_length*sizeof(float);
-	cudaMalloc((void**)&mutations, num_bytes);
+		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+		cout<<"initial length " << h_array_length << endl;
+		num_bytes = h_array_length*sizeof(float);
+		cudaMalloc((void**)&mutations, num_bytes);
 
-	const dim3 blocksize(4,256,1);
-	const dim3 gridsize(16,32,1);
-	initialize_mutation_array<<<gridsize, blocksize>>>(mutations, freq_index,scan_index, N);
+		const dim3 blocksize(4,256,1);
+		const dim3 gridsize(16,32,1);
+		initialize_mutation_array<<<gridsize, blocksize>>>(mutations, freq_index,scan_index, N);
 
-	cudaFree(freq_index);
-	cudaFree(scan_index);
+		cudaFree(freq_index);
+		cudaFree(scan_index);
+		//----- end -----
+	}else{
+		//----- initialize to one round of mutation (will often take >> N generations to reach equilibrium) -----
+		//not yet tested
+		int * num_current_mutations;
+		cudaMalloc((void**)&num_current_mutations,sizeof(int));
+		cudaMemset(&num_current_mutations,0,sizeof(int));
+
+		set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact, 0);
+		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+		cout<<"initial length " << h_array_length << endl;
+		num_bytes = h_array_length*sizeof(float);
+		cudaMalloc((void**)&mutations, num_bytes);
+		cudaFree(num_current_mutations);
+
+		num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, 0);
+		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
+		reset_index<<<1,1>>>();
+		//----- end -----
+	}
 	//----- end -----
 
 	cudaEvent_t start, stop;
@@ -405,19 +428,19 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 		//-----compact every X generations and final generation -----
 		if((generations % compact == 0) || demography(generations+1,population) == -1){
 			float * temp = NULL;
-			int * length = NULL;
+			int * num_current_mutations = NULL;
 			cudaMalloc((void**)&temp,num_bytes);
-			cudaMalloc((void**)&length,sizeof(int));
-			d_temp_storage = NULL;
+			cudaMalloc((void**)&num_current_mutations,sizeof(int));
+			void * d_temp_storage = NULL;
 			size_t temp_storage_bytes = 0;
 			Clamp select_op;
 			cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
 			cudaMalloc(&d_temp_storage, temp_storage_bytes);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, length, h_array_length, select_op);
+			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
 			cudaFree(d_temp_storage);
 
-			set_length<<<1,1>>>(length, mu_rate, demography, num_sites, compact, generations);
+			set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact, generations);
 			cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 			float * temp2;
 			num_bytes = h_array_length*sizeof(float);
