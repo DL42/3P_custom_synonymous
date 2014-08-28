@@ -343,15 +343,42 @@ struct Clamp
     }
 };
 
+template <typename Functor_mu, typename Functor_dem>
+__host__ __forceinline__ float * compact(float * mutations, int & num_bytes, int & h_array_length, const int generations, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int compact_rate){
+	float * compact_result;
+
+	float * temp;
+	int * num_current_mutations;
+	cudaMalloc((void**)&temp,num_bytes);
+	cudaMalloc((void**)&num_current_mutations,sizeof(int));
+	void * d_temp_storage = NULL;
+	size_t temp_storage_bytes = 0;
+	Clamp select_op;
+	cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+	cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
+	cudaMalloc(&d_temp_storage, temp_storage_bytes);
+	cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
+	cudaFree(d_temp_storage);
+
+	set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact_rate, generations);
+	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
+
+	num_bytes = h_array_length*sizeof(float);
+	cudaMalloc((void**)&compact_result, num_bytes);
+	copy_array<<<50,1024>>>(temp, compact_result);
+	cudaFree(temp);
+
+	return compact_result;
+}
+
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, bool init_equil = true){
+__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const bool init_equil = true, const int compact_rate = 40){
 	float * mutations; //allele frequency of all current mutations
 	int population = 0;
 	int N = demography(0,population);
 	float mu = mu_rate(0,population);
-	int compact = 40;
-	int h_array_length;
 	int num_bytes;
+	int h_array_length;
 
 	//----- initialize simulation -----
 	if(init_equil){
@@ -371,7 +398,8 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 		DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, (N-1));
 		cudaFree(d_temp_storage);
 
-		set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact);
+		set_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites,compact_rate);
+
 
 		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 		cout<<"initial length " << h_array_length << endl;
@@ -392,7 +420,7 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 		cudaMalloc((void**)&num_current_mutations,sizeof(int));
 		cudaMemset(&num_current_mutations,0,sizeof(int));
 
-		set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact, 0);
+		set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact_rate, 0);
 		cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 		cout<<"initial length " << h_array_length << endl;
 		num_bytes = h_array_length*sizeof(float);
@@ -415,40 +443,23 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	int generations = 1;
 	while(true){
 		N = demography(generations,population);
-		if(N == -1){ break; }
+		if(N == -1){ break; } //end of simulation
+
+		//-----selection & drift -----
 		selection_drift<<<1000,64>>>(mutations, N, s, h, seed, population, generations);
+		//----- end -----
 
 		//-----generate new mutations -----
-
 		num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, generations);
 		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
 		reset_index<<<1,1>>>();
 		//----- end -----
 
-		//-----compact every X generations and final generation -----
-		if((generations % compact == 0) || demography(generations+1,population) == -1){
-			float * temp = NULL;
-			int * num_current_mutations = NULL;
-			cudaMalloc((void**)&temp,num_bytes);
-			cudaMalloc((void**)&num_current_mutations,sizeof(int));
-			void * d_temp_storage = NULL;
-			size_t temp_storage_bytes = 0;
-			Clamp select_op;
-			cudaMemcpyFromSymbol(&h_array_length, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
-			cudaMalloc(&d_temp_storage, temp_storage_bytes);
-			cub::DeviceSelect::If(d_temp_storage, temp_storage_bytes, mutations, temp, num_current_mutations, h_array_length, select_op);
-			cudaFree(d_temp_storage);
-
-			set_length<<<1,1>>>(num_current_mutations, mu_rate, demography, num_sites, compact, generations);
-			cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
-			float * temp2;
-			num_bytes = h_array_length*sizeof(float);
-			cudaMalloc((void**)&temp2, num_bytes);
-			copy_array<<<50,1024>>>(temp, temp2);
-			cudaFree(temp);
+		//-----compact every compact_rate generations and final generation -----
+		if((generations % compact_rate == 0) || demography(generations+1,population) == -1){
+			float * temp = compact(mutations, num_bytes, h_array_length, generations, mu_rate, demography, num_sites, compact_rate);
 			cudaFree(mutations);
-			mutations = temp2;
+			mutations = temp;
 			//int out;
 			//cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
 			//cout<<endl<<"number of mutations: " << out << endl;
