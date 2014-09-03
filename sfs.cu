@@ -143,7 +143,7 @@ __global__ void initialize_frequency_array(int * freq_index, const float mu, con
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
 		float4 i = make_float4((4*id + 1),(4*id + 2),(4*id + 3),(4*id + 4))/N;
-		float s = sel_coeff(0, population, 0.5); //below don't work for frequency-dependent selection anyway
+		float s = sel_coeff(0, 0.5); //below don't work for frequency-dependent selection anyway
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
@@ -155,7 +155,7 @@ __global__ void initialize_frequency_array(int * freq_index, const float mu, con
 	int id = myID + (N-1)/4*4; //all integers //right now only works if minimum of 3 threads are launched
 	if(id < (N-1)){
 		float i = (id+1.f)/N;
-		float s = sel_coeff(0, population, 0.5);
+		float s = sel_coeff(0, 0.5);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
@@ -167,11 +167,10 @@ __global__ void initialize_frequency_array(int * freq_index, const float mu, con
 template <typename Functor_mu, typename Functor_dem>
 __global__ void set_Index_Length(const int * scan_index, const int * freq_index, const Functor_mu mu, const Functor_dem N, const float L, const int compact){
 	//one thread only, final index in N-2 (N-1 terms)
-	int population = 0;
-	mutations_Index = scan_index[(N(0,population)-2)]+freq_index[(N(0,population)-2)]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
+	mutations_Index = scan_index[(N(0)-2)]+freq_index[(N(0)-2)]-1; //mutation_Index equal to num_mutations-1 (zero-based indexing) at initialization
 	array_length = mutations_Index;
 	for(int i = 0; i < compact; i++){
-		array_length += mu(i,population)*N(i,population)*L + 7*sqrtf(mu(i,population)*N(i,population)*L);
+		array_length += mu(i)*N(i)*L + 7*sqrtf(mu(i)*N(i)*L);
 	}
 	//printf("\r %d %d \r",mutation_Index,array_length);
 }
@@ -215,7 +214,7 @@ __global__ void selection_drift(float * mutations, const int N, const Functor_se
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		float4 i = reinterpret_cast<float4*>(mutations)[id]; //allele frequency in previous population size
-		float4 s = make_float4(sel_coeff(generation, population, i.x),sel_coeff(generation, population, i.y),sel_coeff(generation, population, i.z),sel_coeff(generation, population, i.w));
+		float4 s = make_float4(sel_coeff(generation, i.x),sel_coeff(generation, i.y),sel_coeff(generation, i.z),sel_coeff(generation, i.w));
 		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*N; //expected allele frequency in new generation's population size
@@ -225,7 +224,7 @@ __global__ void selection_drift(float * mutations, const int N, const Functor_se
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
 		float i = mutations[id]; //allele frequency in previous population size
-		float s = sel_coeff(generation, population, i);
+		float s = sel_coeff(generation, i);
 		float p = (1+s)*i/((1+s)*i + 1*(1.0-i)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float mean = p*N; //expected allele frequency in new generation's population size
@@ -237,8 +236,7 @@ __global__ void selection_drift(float * mutations, const int N, const Functor_se
 __global__ void num_new_mutations(const float mu, const int N, const float L, const int seed, const int generation){
 	//1 thread 1 block for now
 	float lambda = mu*N*L;
-	int population = 0;
-	int num_new_mutations = max(Rand1(lambda, lambda, mu, N*L, 1, generation, seed, population),0);
+	int num_new_mutations = max(Rand1(lambda, lambda, mu, N*L, 1, generation, seed, 0),0);
 	new_mutations_Index = num_new_mutations + mutations_Index;
 }
 
@@ -264,12 +262,11 @@ __global__ void reset_index(){
 template <typename Functor_mu, typename Functor_dem>
 __global__ void set_length(const int * const num_mutations, const Functor_mu mu, const Functor_dem N, const float L, const int compact, const int generations){
 	//run with 1 thread 1 block
-	int population = 0;
 	mutations_Index = num_mutations[0];
 	array_length = mutations_Index;
 	for(int i = generations; i < (generations+compact); i++){
-		if(N(i,population) == -1){ break; } //population has ended
-		array_length += mu(i,population)*N(i,population)*L + 7*sqrtf(mu(i,population)*N(i,population)*L);
+		if(N(i) == -1){ break; } //population has ended
+		array_length += mu(i)*N(i)*L + 7*sqrtf(mu(i)*N(i)*L);
 	}
 }
 
@@ -278,7 +275,7 @@ struct sel_coeff
 {
 	float s;
 	sel_coeff(float s) : s(s){ }
-	__device__ __forceinline__ float operator()(const int generation, const int population, const float freq) const{
+	__device__ __forceinline__ float operator()(const int generation, const float freq) const{
 		return s;
 	}
 };
@@ -288,8 +285,8 @@ struct demography
 	int N;
 	int total_generations;
 	demography(int N, int total_generations) : N(N), total_generations(total_generations){ }
-	__host__ __device__ __forceinline__ int operator()(const int generation, const int population) const{
-		if(population == 0 && generation < total_generations){ return N; }
+	__host__ __device__ __forceinline__ int operator()(const int generation) const{
+		if(generation < total_generations){ return N; }
 		return -1;
 	}
 };
@@ -298,9 +295,8 @@ struct mutation
 {
 	float mu;
 	mutation(float mu) : mu(mu){ }
-	__host__ __device__ __forceinline__ float operator()(const int generation, const int population) const{
-		if(population == 0){ return mu; }
-		return -1;
+	__host__ __device__ __forceinline__ float operator()(const int generation) const{
+		return mu;
 	}
 };
 
@@ -348,8 +344,8 @@ __host__ __forceinline__ float * init_mut_sel_equil(int & num_bytes, int & h_arr
 	float * init_mutuations;
 
 	int population = 0;
-	int N = demography(0,population);
-	float mu = mu_rate(0,population);
+	int N = demography(0);
+	float mu = mu_rate(0);
 
 	num_bytes = (N-1)*sizeof(int);
 	int * freq_index;
@@ -389,9 +385,8 @@ __host__ __forceinline__ float * init_new_mut(int & num_bytes, int & h_array_len
 	//not yet tested
 	float * init_mutuations;
 
-	int population = 0;
-	int N = demography(0,population);
-	float mu = mu_rate(0,population);
+	int N = demography(0);
+	float mu = mu_rate(0);
 
 	int * num_current_mutations;
 	cudaMalloc((void**)&num_current_mutations,sizeof(int));
@@ -443,8 +438,8 @@ template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
 __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const bool init_equil = true, const int compact_rate = 40){
 	float * mutations; //allele frequency of all current mutations
 	int population = 0;
-	int N = demography(0,population);
-	float mu = mu_rate(0,population);
+	int N = demography(0);
+	float mu = mu_rate(0);
 	int num_bytes;
 	int h_array_length;
 
@@ -466,7 +461,8 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	//----- simulation steps -----
 	int generations = 1;
 	while(true){
-		N = demography(generations,population);
+		N = demography(generations);
+		mu = mu_rate(generations);
 		if(N == -1){ break; } //end of simulation
 
 		//-----selection & drift -----
@@ -480,7 +476,7 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 		//----- end -----
 
 		//-----compact every compact_rate generations and final generation -----
-		if((generations % compact_rate == 0) || demography(generations+1,population) == -1){
+		if((generations % compact_rate == 0) || demography(generations+1) == -1){
 			float * temp = compact(mutations, num_bytes, h_array_length, generations, mu_rate, demography, num_sites, compact_rate);
 			cudaFree(mutations);
 			mutations = temp;
