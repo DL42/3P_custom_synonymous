@@ -434,8 +434,17 @@ __host__ __forceinline__ float * compact(float * mutations, int & num_bytes, int
 	return compact_result;
 }
 
+struct sim_result{
+	float * mutations;
+	int array_length;
+	
+	sim_result() : array_length(0){ mutations = NULL; }
+	sim_result(int array_length, float * mutation_array): array_length(array_length){ mutations = mutation_array; }
+	~sim_result(){ delete mutations; }
+};
+
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const bool init_equil = true, const int compact_rate = 40){
+__host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const bool init_equil = true, const int compact_rate = 40){
 	float * mutations; //allele frequency of all current mutations
 	int population = 0;
 	int N = demography(0);
@@ -480,9 +489,6 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 			float * temp = compact(mutations, num_bytes, h_array_length, generations, mu_rate, demography, num_sites, compact_rate);
 			cudaFree(mutations);
 			mutations = temp;
-			//int out;
-			//cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
-			//cout<<endl<<"number of mutations: " << out << endl;
 		}
 		//----- end -----
 		generations++;
@@ -494,13 +500,15 @@ __host__ __forceinline__ float * run_sim(const Functor_mu mu_rate, const Functor
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("time elapsed generations: %f\n", elapsedTime);
 
-	int out;
-	cudaMemcpyFromSymbol(&out, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
-	cout<<endl<<"final number of mutations: " << out << endl;
-	float * h_mutations = new float[out];
-	cudaMemcpy(h_mutations,mutations,out*sizeof(float),cudaMemcpyDeviceToHost);
+	int h_num_mutations;
+	cudaMemcpyFromSymbol(&h_num_mutations, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
+	cout<<endl<<"final number of mutations: " << h_num_mutations << endl;
+	float * h_mutations = new float[h_num_mutations];
+	cudaMemcpy(h_mutations,mutations,h_num_mutations*sizeof(float),cudaMemcpyDeviceToHost);
 	cudaFree(mutations);
-	return h_mutations;
+	
+	sim_result out(h_num_mutations,h_mutations);
+	return out;
 }
 
 int main(int argc, char **argv)
@@ -520,13 +528,12 @@ int main(int argc, char **argv)
 	const int seed = 0xdecafbad;
 	demography dem(N_chrom_pop,total_number_of_generations);
 
-	float * mutations = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed);
+	sim_result a = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed);
 
 /*	demography_test a(5,5);
 	test<<<1,1>>>(a);
 	cout<<a(0,0,false)<<" "<<a(1,0,false)<<endl;*/
 
-	delete mutations;
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
 	float elapsedTime;
