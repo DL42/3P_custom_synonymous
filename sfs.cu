@@ -484,7 +484,7 @@ __host__ __forceinline__ float * compact(float * mutations, int & num_bytes, int
 
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
 __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const bool init_mse = true, const sim_result prev_sim = sim_result(), const int compact_rate = 40){
-	float * mutations; //allele frequency of all current mutations
+	sim_struct mutations; //allele frequency of all current mutations
 	int N = demography(0);
 	float mu = mu_rate(0);
 	int num_bytes;
@@ -493,16 +493,16 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
-		mutations = initialize_mse(num_bytes, h_array_length,mu_rate, demography, s, h, num_sites, seed, compact_rate);
+		mutations.d_mutations_freq = initialize_mse(num_bytes, h_array_length,mu_rate, demography, s, h, num_sites, seed, compact_rate);
 		//----- end -----
 	}else{
 		if(prev_sim.num_mutations == 0){
 			//----- one round of mutation (will often take >> N generations to reach equilibrium) -----
-			mutations = init_new_mut(num_bytes, h_array_length, mu_rate, demography, num_sites, seed, compact_rate);
+			mutations.d_mutations_freq = init_new_mut(num_bytes, h_array_length, mu_rate, demography, num_sites, seed, compact_rate);
 			//----- end -----
 		}else{
 			//----- initialize from results of previous simulation run -----
-			mutations = init_prev_sim_run(num_bytes, h_array_length, prev_sim, mu_rate, demography, num_sites, seed, compact_rate);
+			mutations.d_mutations_freq = init_prev_sim_run(num_bytes, h_array_length, prev_sim, mu_rate, demography, num_sites, seed, compact_rate);
 			//----- end -----
 		}
 	}
@@ -521,20 +521,20 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		if(N == -1){ break; } //end of simulation
 
 		//-----selection & drift -----
-		selection_drift<<<1000,64>>>(mutations, N, s, h, seed, generations);
+		selection_drift<<<1000,64>>>(mutations.d_mutations_freq, N, s, h, seed, generations);
 		//----- end -----
 
 		//-----generate new mutations -----
 		num_new_mutations<<<1,1>>>(mu, N, num_sites, seed, generations);
-		add_new_mutations<<<5,1024>>>(mutations,1.f/N);
+		add_new_mutations<<<5,1024>>>(mutations.d_mutations_freq,1.f/N);
 		reset_index<<<1,1>>>();
 		//----- end -----
 
 		//-----compact every compact_rate generations and final generation -----
 		if((generations % compact_rate == 0) || demography(generations+1) == -1){
-			float * temp = compact(mutations, num_bytes, h_array_length, generations, mu_rate, demography, num_sites, compact_rate);
-			cudaFree(mutations);
-			mutations = temp;
+			float * temp = compact(mutations.d_mutations_freq, num_bytes, h_array_length, generations, mu_rate, demography, num_sites, compact_rate);
+			cudaFree(mutations.d_mutations_freq);
+			mutations.d_mutations_freq = temp;
 		}
 		//----- end -----
 		generations++;
@@ -546,8 +546,8 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("time elapsed generations: %f\n", elapsedTime);
 
-	sim_result out(mutations);
-	cudaFree(mutations);
+	sim_result out(mutations.d_mutations_freq);
+	//cudaFree(mutations);
 
 	return out;
 }
