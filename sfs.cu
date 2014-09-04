@@ -346,21 +346,23 @@ struct sim_struct{
 	float * d_mutations_freq;
 	float * d_mutations_age;
 	sim_struct(){ d_mutations_freq = NULL; d_mutations_age = NULL; }
-	~sim_struct(){ cudaFree(d_mutations_freq); cudaFree(d_mutations_age); }
+	~sim_struct(){ if(d_mutations_freq){ cudaFree(d_mutations_freq); } if (d_mutations_age){ cudaFree(d_mutations_age); } }
 };
 
 //for final result output
 struct sim_result{
 	float * mutations_freq;
+	float * mutations_age;
 	int num_mutations;
 
-	sim_result() : num_mutations(0){ mutations_freq = NULL; }
+	sim_result() : num_mutations(0){ mutations_freq = NULL; mutations_age = NULL; }
 	sim_result(float * d_mutation_freq){
 		cudaMemcpyFromSymbol(&num_mutations, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
 		mutations_freq = new float[num_mutations];
 		cudaMemcpy(mutations_freq,d_mutation_freq,num_mutations*sizeof(float),cudaMemcpyDeviceToHost);
+		mutations_age = NULL;
 	}
-	~sim_result(){ delete mutations_freq; }
+	~sim_result(){ if(mutations_freq){ delete mutations_freq; } if(mutations_age){ delete mutations_age; } }
 };
 
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
@@ -446,7 +448,7 @@ __host__ __forceinline__ float * init_prev_sim_run(int & num_bytes, int & h_arra
 	cout<<"initial length " << h_array_length << endl;
 	num_bytes = h_array_length*sizeof(float);
 	cudaMalloc((void**)&init_mutuations, num_bytes);
-	cudaMemcpy(init_mutuations, prev_sim.mutations, num_bytes, cudaMemcpyHostToDevice);
+	cudaMemcpy(init_mutuations, prev_sim.mutations_freq, num_bytes, cudaMemcpyHostToDevice);
 	cudaFree(num_current_mutations);
 
 	return init_mutuations;
