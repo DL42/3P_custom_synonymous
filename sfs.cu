@@ -499,11 +499,6 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	}
 	//----- end -----
 
-	cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord(start, 0);
-
 	//----- simulation steps -----
 	int generations = 1;
 	while(true){
@@ -529,11 +524,6 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		generations++;
 	}
 	//----- end -----
-	cudaEventRecord(stop, 0);
-	cudaEventSynchronize(stop);
-	float elapsedTime;
-	cudaEventElapsedTime(&elapsedTime, start, stop);
-	printf("time elapsed generations: %f\n", elapsedTime);
 
 	sim_result out(mutations, num_sites);
 
