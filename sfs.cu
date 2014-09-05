@@ -281,38 +281,6 @@ struct mutation
 	}
 };
 
-/*
-struct demography_test
-{
-	int * d_N;
-	int * h_N;
-	demography_test(int L, int N) {
-		h_N = new int[L];
-		for(int i = 0; i < L; i++){
-			h_N[i] = N+i;
-		}
-
-		cudaMalloc((void**)&d_N, L*sizeof(int));
-		cudaMemcpy(d_N,h_N,L*sizeof(int),cudaMemcpyHostToDevice);
-	}
-	~demography_test(){
-		cudaFree(d_N);
-		delete h_N;
-	}
-	__host__ __device__ __forceinline__ int operator()(const int generation, const int population) const{
-		#ifdef  __CUDA_ARCH__
-			return d_N[generation];
-		#else
-			return h_N[generation];
-		#endif
-	}
-};
-
-template <typename Functor>
-__global__ void test(Functor N){
-	printf("\r%d\r%d\r", N(0,0,true), N(1,0,true));
-}*/
-
 //for internal function passing
 struct sim_struct{
 	//device arrays
@@ -437,9 +405,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 
 	int h_num_mutations;
 	cudaMemcpy(&h_num_mutations, &d_num_mutations[0], sizeof(int), cudaMemcpyDeviceToHost);
-	//cout<<h_num_mutations<<endl;
 	set_Index_Length(mutations, h_num_mutations, mu_rate, demography, num_sites, compact_rate, generations);
-	//cout<<mutations.h_mutations_Index<<endl;
 
 	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_array_length*sizeof(float));
 	copy_array<<<50,1024>>>(temp, mutations.d_mutations_freq, mutations.h_mutations_Index); //slightly faster than cudaMemcpyAsync
@@ -461,7 +427,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		initialize_mse(mutations, mu_rate, demography, s, h, num_sites, seed, compact_rate);
 		//----- end -----
 	}else{
-		//----- initialize from results of previous simulation run or blank (blank will often take >> N generations to reach equilibrium) -----
+		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
 		init_blank_prev_run(mutations, prev_sim, mu_rate, demography, num_sites, seed, compact_rate);
 		//----- end -----
 	}
@@ -469,6 +435,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	cout<<"initial num_mutations " << mutations.h_mutations_Index << endl;
 	//----- simulation steps -----
 	int generations = 1;
+
 	while(true){
 		N = demography(generations);
 		mu = mu_rate(generations);
@@ -482,7 +449,6 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		calc_new_mutations_Index(mutations, mu, N, num_sites, seed, generations);
 		add_new_mutations<<<5,1024>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_new_mutations_Index, mutations.h_array_length, 1.f/N);
 		mutations.h_mutations_Index = mutations.h_new_mutations_Index;
-		//cout<<"num_mutations " << mutations.h_mutations_Index << endl;
 		//----- end -----
 
 		//-----compact every compact_rate generations and final generation -----
@@ -495,17 +461,8 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	//----- end -----
 
 	sim_result out(mutations, num_sites);
-
 	return out;
 }
-
-/*__global__ void test(int * a){
-	for(int i = 0; i < 3; i++){ a[i] = i; }
-}*/
-
-/*__global__ void test_Philox(int seed, int k){
-	printf("\r%u, %u, %u, %u\r",Philox(k, 0, seed, 0, 0).x,Philox(k, 0, seed, 0, 0).y,Philox(k, 0, seed, 0, 0).z,Philox(k, 0, seed, 0, 0).z);
-}*/
 
 int main(int argc, char **argv)
 {
@@ -523,31 +480,16 @@ int main(int argc, char **argv)
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
 	demography burn_in(N_chrom_pop,5);
+	demography dem(N_chrom_pop,total_number_of_generations);
 
-	sim_result a = run_sim(mutation(mu), burn_in, sel_coeff(s), h, L, seed);
+	sim_result a = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed);
 	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
 
-	demography dem(N_chrom_pop,total_number_of_generations);
+/*	sim_result a = run_sim(mutation(mu), burn_in, sel_coeff(s), h, L, seed);
+	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
+
 	sim_result b = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed+1, false, a);
-	cout<<endl<<"final number of mutations: " << b.num_mutations << endl;
-
-/*	int k = 1463434;
-	test_Philox<<<1,1>>>(seed, k);
-	printf("\r%u, %u, %u, %u\r",Philox(k, 0, seed, 0, 0).x,Philox(k, 0, seed, 0, 0).y,Philox(k, 0, seed, 0, 0).z,Philox(k, 0, seed, 0, 0).z);*/
-
-/*	int * d_test_array;
-	cudaMalloc((void**)&d_test_array,8*sizeof(int));
-	cudaMemset(d_test_array,0,8*sizeof(int));
-	print_Device_array_int<<<1,1>>>(d_test_array, 8);
-	//cudaMemset(&d_test_array[5],0,sizeof(int));
-	test<<<1,1>>>(&d_test_array[4]);
-	print_Device_array_int<<<1,1>>>(d_test_array, 8);
-	int * h_test_array = new int[1];
-	int h_test = 1;
-	cudaMemcpy(&h_test,&d_test_array[5],sizeof(int),cudaMemcpyDeviceToHost);
-	cout<<"hello "<<h_test_array[0] << " " << h_test <<endl;
-	cudaFree(d_test_array);
-	delete h_test_array;*/
+	cout<<endl<<"final number of mutations: " << b.num_mutations << endl;*/
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
