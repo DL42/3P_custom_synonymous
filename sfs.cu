@@ -36,18 +36,18 @@ __device__ int new_mutations_Index; //number of mutations in the population(s) i
 // Let M be the number of mantissa bits in Float.
 // If W>M  then the largest value retured is 1.0.
 // If W<=M then the largest value returned is the largest Float less than 1.0.
-__device__ float uint_float_01(unsigned int in){
+__host__ __device__ float uint_float_01(unsigned int in){
 	//(mostly) stolen from Philox code "uniform.hpp"
 	R123_CONSTEXPR float factor = float(1.)/(UINT_MAX + float(1.));
 	R123_CONSTEXPR float halffactor = float(0.5)*factor;
     return in*factor + halffactor;
 }
 
-__device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
+__host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-__device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
+__host__ __device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
 
-__device__ uint4 Philox(int k, int step, int seed, int population, int round){
+__host__ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
 	P rng;
 
@@ -64,7 +64,7 @@ __device__ uint4 Philox(int k, int step, int seed, int population, int round){
 	return u.i;
 }
 
-__device__ int poiscdfinv(float p, float mean){
+__host__ __device__ int poiscdfinv(float p, float mean){
 	float e = exp(-1 * mean);
 	float lambda_j = 1;
 	float factorial = 1;
@@ -92,7 +92,7 @@ __device__ int poiscdfinv(float p, float mean){
 	return j;
 }
 
-__device__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
+__host__ __device__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
 //only for use when N is small
 	int j = 0;
 	int counter = 0;
@@ -116,7 +116,7 @@ __device__ int RandBinom(float p, float N, int k, int step, int seed, int popula
 	return j;
 }
 
-__device__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
+__host__ __device__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
 
 	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
 	uint4 i = Philox(k, step, seed, population, 0);
