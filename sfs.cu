@@ -384,8 +384,8 @@ struct sim_result{
 };
 
 template <typename Functor_mu, typename Functor_dem>
-void initialize_mse_Index_Length(int & h_array_length, int & h_mutations_Index, const int * scan_index, const int * freq_index, const Functor_mu mu, const Functor_dem N, const float L, const int compact){
-	//one thread only, final index in N-2 (N-1 terms)
+__host__ __forceinline__ void initialize_mse_Index_Length(int & h_array_length, int & h_mutations_Index, const int * scan_index, const int * freq_index, const Functor_mu mu, const Functor_dem N, const float L, const int compact){
+	//final index in N-2 (N-1 terms)
 
 	int prefix_sum_result;
 	int final_freq_count;
@@ -398,6 +398,16 @@ void initialize_mse_Index_Length(int & h_array_length, int & h_mutations_Index, 
 		h_array_length += mu(i)*N(i)*L + 7*sqrtf(mu(i)*N(i)*L);
 	}
 	//printf("\r %d %d \r",mutation_Index,array_length);
+}
+
+template <typename Functor_mu, typename Functor_dem>
+__host__ __forceinline__ void set_Index_Length(int & h_array_length, int & h_mutations_Index, const int num_mutations, const Functor_mu mu, const Functor_dem N, const float L, const int compact, const int generations){
+	h_mutations_Index = num_mutations;
+	h_array_length = h_mutations_Index;
+	for(int i = generations; i < (generations+compact); i++){
+		if(N(i) == -1){ break; } //population has ended
+		h_array_length += mu(i)*N(i)*L + 7*sqrtf(mu(i)*N(i)*L);
+	}
 }
 
 template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
@@ -434,6 +444,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, int & num_b
 	cudaFree(freq_index);
 	cudaFree(scan_index);
 }
+
+
 
 template <typename Functor_mu, typename Functor_dem>
 __host__ __forceinline__ void init_new_mut(sim_struct & mutations, int & num_bytes, int & h_array_length, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int seed, const int compact_rate){
