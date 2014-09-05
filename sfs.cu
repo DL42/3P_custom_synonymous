@@ -191,7 +191,7 @@ __global__ void initialize_mse_mutation_array(float * mutations, const int * fre
 	}
 }
 
-__global__ void print_Device_array_int(float * array, int num){
+/*__global__ void print_Device_array_int(float * array, int num){
 
 	for(int i = 9500; i < 10500; i++){
 		if(i%1000 == 0){ printf("\r"); }
@@ -199,7 +199,7 @@ __global__ void print_Device_array_int(float * array, int num){
 	}
 }
 
-/*__global__ void sum_Device_array_int(int * array, int num){
+__global__ void sum_Device_array_int(int * array, int num){
 	int j = 0;
 	for(int i = 0; i < num; i++){
 		j += array[i];
@@ -250,9 +250,9 @@ __global__ void copy_array(const float * smaller_array, float * larger_array){
 	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
 }
 
-__global__ void add_new_mutations(float * new_mutations, float freq){
+__global__ void add_new_mutations(float * mutations, float freq){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ new_mutations[(mutations_Index+id)] = freq; }
+	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ mutations[(mutations_Index+id)] = freq; }
 }
 
 __global__ void reset_mutations_Index(){
@@ -269,6 +269,23 @@ __global__ void set_Index_Length(const int * const num_mutations, const Functor_
 		if(N(i) == -1){ break; } //population has ended
 		array_length += mu(i)*N(i)*L + 7*sqrtf(mu(i)*N(i)*L);
 	}
+}
+
+__device__ char4 boundary(float4 freq){
+	return make_char4((freq.x == 0 || freq.x == 1), (freq.y == 0 || freq.y == 1), (freq.z == 0 || freq.z == 1), (freq.w == 0 || freq.w == 1));
+}
+
+__device__ char boundary(float freq){
+	return (freq == 0 || freq == 1);
+}
+
+__global__ void mark_extant_mut(char * flag, const float * const mutations){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
+		reinterpret_cast<char4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
+	}
+	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
 }
 
 
@@ -360,7 +377,7 @@ struct sim_result{
 	sim_result(sim_struct & mutations, int num_sites) : num_sites(num_sites){
 		cudaMemcpyFromSymbol(&num_mutations, mutations_Index, sizeof(mutations_Index), 0, cudaMemcpyDeviceToHost);
 		mutations_freq = new float[num_mutations];
-		cudaMemcpy(mutations_freq,mutations.d_mutations_freq,num_mutations*sizeof(float),cudaMemcpyDeviceToHost);
+		cudaMemcpy(mutations_freq, mutations.d_mutations_freq, num_mutations*sizeof(float), cudaMemcpyDeviceToHost);
 		mutations_age = NULL;
 	}
 	~sim_result(){ if(mutations_freq){ delete mutations_freq; } if(mutations_age){ delete mutations_age; } }
@@ -387,7 +404,6 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, int & num_b
 	cudaFree(d_temp_storage);
 
 	initialize_mse_Index_Length<<<1,1>>>(scan_index, freq_index, mu_rate, demography, num_sites, compact_rate);
-
 
 	cudaMemcpyFromSymbol(&h_array_length, array_length, sizeof(array_length), 0, cudaMemcpyDeviceToHost);
 	cout<<"initial length " << h_array_length << endl;
@@ -553,11 +569,6 @@ int main(int argc, char **argv)
 	demography dem(N_chrom_pop,total_number_of_generations);
 	sim_result b = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed+1, false, a);
 	cout<<endl<<"final number of mutations: " << b.num_mutations << endl;
-
-
-/*	demography_test a(5,5);
-	test<<<1,1>>>(a);
-	cout<<a(0,0,false)<<" "<<a(1,0,false)<<endl;*/
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
