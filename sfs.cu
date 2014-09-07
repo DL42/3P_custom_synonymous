@@ -484,31 +484,6 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	return out;
 }
 
-//__global__ void test(){
-//	int N_chrom_pop = 2*pow(10.f,4); //constant population for now
-//	float gamma = -90;
-//	float s = gamma/(2.f*N_chrom_pop);//0 //;
-//
-//	float mu = pow(10.f,-9); //per-site mutation rate
-//	float L = 2.5*pow(10.f,8); //eventually set so the number of expected mutations is > a certain amount
-//
-//	const int total_number_of_generations = pow(10.f,4);
-//
-//	{
-//	float4 i;
-//	i.x = 1.f/N_chrom_pop;
-//	i.y = 2.f/N_chrom_pop;
-//	i.z = 3.f/N_chrom_pop;
-//	i.w = 4.f/N_chrom_pop;
-//
-//	float4 lambda =  2*mu*L*((-1.0*expd(-1*(2*N_chrom_pop*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1*(2*N_chrom_pop*double(s)))+1)*i*(-1.0*i+1.0)));
-//
-//	printf("\rblah\r%f\r%f\r",lambda.x,((-1.0*expd(-1.f*(2*N_chrom_pop*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1.f*(2*N_chrom_pop*double(s)))+1)*i*(-1.0*i+1.0))).x);
-//	}
-//	float i = 1.f/N_chrom_pop;
-//	printf("\r%f\r",2*mu*L*(1-exp(-1*(2*N_chrom_pop*double(s))*(1-i)))/((1-exp(-1*(2*N_chrom_pop*double(s))))*i*(1-i)));
-//}
-
 int main(int argc, char **argv)
 {
     cudaEvent_t start, stop;
