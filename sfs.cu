@@ -41,7 +41,19 @@ __host__ __device__ float uint_float_01(unsigned int in){
 
 __host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-__host__ __device__ float4 exp(float4 f){ return(make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w))); }
+__host__ __device__ float4 exp(float4 f){ return make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w)); }
+
+__host__ __device__ double4 expd(float4 d){ return make_double4(exp(double(d.x)),exp(double(d.y)),exp(double(d.z)),exp(double(d.w))); }
+
+inline __host__ __device__ double4 operator*(int a, double4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
+
+inline __host__ __device__ double4 operator*(double a, float4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
+
+inline __host__ __device__ double4 operator*(double4 a, double4 b){ return make_double4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
+
+inline __host__ __device__ double4 operator+(double4 b, double a){ return make_double4(a + b.x, a + b.y, a + b.z, a + b.w); }
+
+inline __host__ __device__ float4 operator/(double4 a, double4 b){ return make_float4(a.x/b.x, a.y/b.y, a.z/b.z, a.w/b.w); }
 
 __host__ __device__  uint4 Philox(int k, int step, int seed, int population, int round){
 	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
@@ -141,10 +153,10 @@ __global__ void initialize_mse_frequency_array(int * freq_index, const float mu,
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
 		float4 i = make_float4((4*id + 1),(4*id + 2),(4*id + 3),(4*id + 4))/N;
-		float s = sel_coeff(0, 0.5); //below don't work for frequency-dependent selection anyway
+		float s = sel_coeff(0, 0.5); //the equations below don't work for frequency-dependent selection anyway
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda =  2*mu*L*(-1*exp(-1*(2*N*s)*(-1.0*i+1.0))+1.0)/((-1*exp(-1*(2*N*s))+1)*i*(-1.0*i+1.0)); }
+		else{ lambda =  2*mu*L*((-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1*(2*N*double(s)))+1)*i*(-1.0*i+1.0))); }
 		reinterpret_cast<int4*>(freq_index)[id] = max(Rand4(lambda, lambda, make_float4(mu), L*N, 0, id, seed, 0),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f %f %f %f %f %f %f \r", myID, id, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
@@ -156,7 +168,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, const float mu,
 		float s = sel_coeff(0, 0.5);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*s)*(1-i)))/((1-exp(-1*(2*N*s)))*i*(1-i)); }
+		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*double(s))*(1-i)))/((1-exp(-1*(2*N*double(s))))*i*(1-i)); }
 		freq_index[id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, 0),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf("%d %d %f %f\r", myID, id, i, lambda);
 	}
@@ -202,10 +214,10 @@ __global__ void selection_drift(float * mutations, const int mutations_Index, co
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		float4 i = reinterpret_cast<float4*>(mutations)[id]; //allele frequency in previous population size
 		float4 s = make_float4(sel_coeff(generation, i.x),sel_coeff(generation, i.y),sel_coeff(generation, i.z),sel_coeff(generation, i.w));
-		float4 p = (1+s)*i/((1+s)*i + 1*(-1*i + 1.0)); //haploid
+		float4 p = (1+s)*i/((1+s)*i + 1.f*(-1.f*i + 1.0)); //haploid
 		//p = ((1+s)*i*i+(1+h*s)*i*(1-i))/((1+s)*i*i + 2*(1+h*s)*i*(1-i) + (1-i)*(1-i)); //diploid
 		float4 mean = p*N; //expected allele frequency in new generation's population size
-		int4 j = clamp(Rand4(mean,(-1*p + 1.0)*mean,p, N,(id + 2),generation,seed,0), 0, N);
+		int4 j = clamp(Rand4(mean,(-1.f*p + 1.0)*mean,p, N,(id + 2),generation,seed,0), 0, N);
 		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/N; //final allele freq
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
@@ -288,8 +300,8 @@ struct sim_struct{
 	float * d_mutations_age;  //allele age of current mutations
 
 	int h_array_length; //full length of the mutation array
-	int h_mutations_Index; //number of mutations in the population(s)
-	int h_new_mutations_Index; //number of mutations in the population(s) in the new generation (after new mutations enter population(s))
+	int h_mutations_Index; //number of mutations in the population (last mutation is at h_mutations_Index-1)
+	int h_new_mutations_Index; //number of mutations in the population in the new generation (after new mutations enter population(s))
 
 	sim_struct(): h_array_length(0), h_mutations_Index(0), h_new_mutations_Index(0){ d_mutations_freq = NULL; d_mutations_age = NULL; }
 	~sim_struct(){ cudaFree(d_mutations_freq); cudaFree(d_mutations_age); }
@@ -352,7 +364,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	//final index is N-2 (N-1 terms)
 	cudaMemcpy(&prefix_sum_result, &scan_index[(demography(0)-2)], sizeof(int), cudaMemcpyDeviceToHost);
 	cudaMemcpy(&final_freq_count, &freq_index[(demography(0)-2)], sizeof(int), cudaMemcpyDeviceToHost);
-	int num_mutations = prefix_sum_result+final_freq_count-1;
+	int num_mutations = prefix_sum_result+final_freq_count;
 
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, num_sites, compact_rate, 0);
 
@@ -388,9 +400,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	float * temp;
 	int * d_num_mutations;
 	char * flag;
-	cudaMalloc((void**)&temp,mutations.h_array_length*sizeof(float));
+	cudaMalloc((void**)&temp,mutations.h_mutations_Index*sizeof(float)); //doesn't need to be bigger than the number of mutations in the freq array
 	cudaMalloc((void**)&d_num_mutations,sizeof(int));
-	cudaMalloc((void**)&flag,mutations.h_array_length*sizeof(char));
+	cudaMalloc((void**)&flag,mutations.h_mutations_Index*sizeof(char));
 
 	mark_extant_mut<<<50,1024>>>(flag, mutations.d_mutations_freq, mutations.h_mutations_Index);
 
@@ -408,6 +420,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	set_Index_Length(mutations, h_num_mutations, mu_rate, demography, num_sites, compact_rate, generations);
 
 	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_array_length*sizeof(float));
+
 	copy_array<<<50,1024>>>(temp, mutations.d_mutations_freq, mutations.h_mutations_Index); //slightly faster than cudaMemcpyAsync
 
 	cudaFree(d_num_mutations);
@@ -471,6 +484,31 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	return out;
 }
 
+//__global__ void test(){
+//	int N_chrom_pop = 2*pow(10.f,4); //constant population for now
+//	float gamma = -90;
+//	float s = gamma/(2.f*N_chrom_pop);//0 //;
+//
+//	float mu = pow(10.f,-9); //per-site mutation rate
+//	float L = 2.5*pow(10.f,8); //eventually set so the number of expected mutations is > a certain amount
+//
+//	const int total_number_of_generations = pow(10.f,4);
+//
+//	{
+//	float4 i;
+//	i.x = 1.f/N_chrom_pop;
+//	i.y = 2.f/N_chrom_pop;
+//	i.z = 3.f/N_chrom_pop;
+//	i.w = 4.f/N_chrom_pop;
+//
+//	float4 lambda =  2*mu*L*((-1.0*expd(-1*(2*N_chrom_pop*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1*(2*N_chrom_pop*double(s)))+1)*i*(-1.0*i+1.0)));
+//
+//	printf("\rblah\r%f\r%f\r",lambda.x,((-1.0*expd(-1.f*(2*N_chrom_pop*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1.f*(2*N_chrom_pop*double(s)))+1)*i*(-1.0*i+1.0))).x);
+//	}
+//	float i = 1.f/N_chrom_pop;
+//	printf("\r%f\r",2*mu*L*(1-exp(-1*(2*N_chrom_pop*double(s))*(1-i)))/((1-exp(-1*(2*N_chrom_pop*double(s))))*i*(1-i)));
+//}
+
 int main(int argc, char **argv)
 {
     cudaEvent_t start, stop;
@@ -479,7 +517,8 @@ int main(int argc, char **argv)
     cudaEventRecord(start, 0);
 
     int N_chrom_pop = 2*pow(10.f,4); //constant population for now
-	float s = -45.f/N_chrom_pop;
+    float gamma = 0;
+	float s = gamma/(2.f*N_chrom_pop);
 	float h = 0.5;
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2.5*pow(10.f,8); //eventually set so the number of expected mutations is > a certain amount
@@ -490,6 +529,7 @@ int main(int argc, char **argv)
 	demography dem(N_chrom_pop,total_number_of_generations);
 
 	sim_result a = run_sim(mutation(mu), dem, sel_coeff(s), h, L, seed);
+
 	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
 
 /*	sim_result a = run_sim(mutation(mu), burn_in, sel_coeff(s), h, L, seed);
