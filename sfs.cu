@@ -205,10 +205,10 @@ __global__ void initialize_mse_mutation_array(float * mutations, const int * fre
 	printf("\r%d\r",j);
 }*/
 
+//calculates new frequencies for every mutation in the population
+//seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
 template <typename Functor_sel>
 __global__ void selection_drift(float * mutations, const int mutations_Index, const int N, const Functor_sel sel_coeff, const float h, const int seed, const int generation){
-	//calculates new frequencies for every mutation in the population
-	//myID+seed for random number generator philox's k, generation+pop_offset for its step in the pseudorandom sequence
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -453,6 +453,10 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	cudaEvent_t kernelEvent;
 	cudaEventCreateWithFlags((&kernelEvent), cudaEventDisableTiming);
 
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord(start, 0);
 	while(true){
 		N = demography(generations);
 		mu = mu_rate(generations);
@@ -463,20 +467,26 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		selection_drift<<<1000,64>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, N, s, h, seed, generations);
 		//----- end -----
 
-		//-----generate new mutations -----
-		calc_new_mutations_Index(mutations, mu, N, num_sites, seed, generations);
-		add_new_mutations<<<5,1024>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_new_mutations_Index, mutations.h_array_length, 1.f/N);
-		mutations.h_mutations_Index = mutations.h_new_mutations_Index;
-		//----- end -----
-		//cudaEventRecord(kernelEvent,stream2);
-		//-----compact every compact_rate generations and final generation -----
-		if((generations % compact_rate == 0) || demography(generations+1) == -1){
-			compact(mutations, generations, mu_rate, demography, num_sites, compact_rate);
-		}
+//		//-----generate new mutations -----
+//		calc_new_mutations_Index(mutations, mu, N, num_sites, seed, generations);
+//		add_new_mutations<<<5,1024>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_new_mutations_Index, mutations.h_array_length, 1.f/N);
+//		mutations.h_mutations_Index = mutations.h_new_mutations_Index;
+//		//----- end -----
+//		//cudaEventRecord(kernelEvent,stream2);
+//		//-----compact every compact_rate generations and final generation -----
+//		if((generations % compact_rate == 0) || demography(generations+1) == -1){
+//			compact(mutations, generations, mu_rate, demography, num_sites, compact_rate);
+//		}
 		//----- end -----
 		generations++;
 	}
 	//----- end -----
+
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	float elapsedTime;
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	printf("time elapsed generations: %f\n", elapsedTime);
 
 	sim_result out(mutations, num_sites);
 	cudaStreamDestroy(stream1); cudaStreamDestroy(stream2);
@@ -492,7 +502,7 @@ int main(int argc, char **argv)
     cudaEventRecord(start, 0);
 
     int N_chrom_pop = 2*pow(10.f,4); //constant population for now
-    float gamma = 0;
+    float gamma = -400;
 	float s = gamma/(2.f*N_chrom_pop);
 	float h = 0.5;
 	float mu = pow(10.f,-9); //per-site mutation rate
