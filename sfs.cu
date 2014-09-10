@@ -254,7 +254,7 @@ __device__ char boundary(float freq){
 	return (freq > 0.f && freq < 1.f);
 }
 
-__global__ void mark_extant_mut(char * flag, const float * const mutations, const int mutations_Index){
+__global__ void flag_segregating_mutations(char * flag, const float * const mutations, const int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		reinterpret_cast<char4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
@@ -404,7 +404,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	cudaMalloc((void**)&d_num_mutations,sizeof(int));
 	cudaMalloc((void**)&flag,mutations.h_mutations_Index*sizeof(char));
 
-	mark_extant_mut<<<50,1024>>>(flag, mutations.d_mutations_freq, mutations.h_mutations_Index);
+	flag_segregating_mutations<<<50,1024>>>(flag, mutations.d_mutations_freq, mutations.h_mutations_Index);
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
