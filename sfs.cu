@@ -254,22 +254,17 @@ __global__ void flag_segregating_mutations(char * flag, const float * const muta
 	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
 }
 
-__global__ void copy_array(const float * smaller_array, float * larger_array, int mutations_Index){
+__global__ void copy_arrays(const float * f_smaller_array, float * f_larger_array, const int * i_smaller_array, int * i_larger_array, int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		reinterpret_cast<float4*>(larger_array)[id] = reinterpret_cast<const float4*>(smaller_array)[id];
+		reinterpret_cast<float4*>(f_larger_array)[id] = reinterpret_cast<const float4*>(f_smaller_array)[id];
+		reinterpret_cast<int4*>(i_larger_array)[id] = reinterpret_cast<const int4*>(i_smaller_array)[id];
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
-}
-
-__global__ void copy_array(const int * smaller_array, int * larger_array, int mutations_Index){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		reinterpret_cast<int4*>(larger_array)[id] = reinterpret_cast<const int4*>(smaller_array)[id];
+	if(id < mutations_Index){
+		f_larger_array[id] = f_smaller_array[id];
+		i_larger_array[id] = i_smaller_array[id];
 	}
-	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
 }
 
 __global__ void refactor_mutation_age(int * mutation_age, int mutations_Index, int total_generations){
@@ -324,7 +319,7 @@ struct mutation
 struct sim_struct{
 	//device arrays
 	float * d_mutations_freq; //allele frequency of current mutations
-	int * d_mutations_age;  //allele age of current mutations
+	int * d_mutations_age;  //generation when mutation entered the population
 
 	int h_array_length; //full length of the mutation array
 	int h_mutations_Index; //number of mutations in the population (last mutation is at h_mutations_Index-1)
@@ -337,7 +332,7 @@ struct sim_struct{
 //for final result output
 struct sim_result{
 	float * mutations_freq; //allele frequency of mutations in final generation
-	int * mutations_age; //allele age of mutations in final generation (0 most recent, increasing negative values represent older alleles)
+	int * mutations_age; //allele age of mutations in final generation (0 most recent, negative values for older mutations)
 	int num_mutations; //number of mutations in array (array length)
 	int num_sites; //number of sites in simulation
 	int total_generations; //number of generations in the simulation
@@ -468,8 +463,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_array_length*sizeof(float));
 	cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_length*sizeof(int));
 
-	copy_array<<<50,1024,0,stream1>>>(temp, mutations.d_mutations_freq, mutations.h_mutations_Index); //slightly faster than cudaMemcpyAsync
-	copy_array<<<50,1024,0,stream2>>>(temp2, mutations.d_mutations_age, mutations.h_mutations_Index);
+	copy_arrays<<<50,1024>>>(temp, mutations.d_mutations_freq, temp2, mutations.d_mutations_age, mutations.h_mutations_Index);
 
 	cudaFree(flag);
 	cudaFree(d_num_mutations);
