@@ -149,8 +149,8 @@ __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int ste
 	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
 }
 
-template <typename Functor_sel>
-__global__ void initialize_mse_frequency_array(int * freq_index, const float mu, const int N, const float L, const Functor_sel sel_coeff, const float h, const int seed){
+template <typename Functor_selection>
+__global__ void initialize_mse_frequency_array(int * freq_index, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const int seed){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
@@ -209,8 +209,8 @@ __global__ void initialize_mse_mutation_array(float * mutations, const int * fre
 
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
-template <typename Functor_sel>
-__global__ void selection_drift(float * mutations, const int mutations_Index, const int N, const Functor_sel sel_coeff, const float h, const float F, const int seed, const int generation){
+template <typename Functor_selection>
+__global__ void selection_drift(float * mutations, const int mutations_Index, const int N, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -219,7 +219,7 @@ __global__ void selection_drift(float * mutations, const int mutations_Index, co
 		float4 i_next = (s*i*i+i+(F+h-h*F)*s*i*(1-i))/(i*i*s+(F+2*h-2*h*F)*s*i*(1-i)+1);
 		float4 mean = i_next*N; //expected allele count in new generation
 		int4 j = clamp(Rand4(mean,(-1.f*i_next + 1.0)*mean,i_next,N,(id + 2),generation,seed,0), 0, N);
-		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/N; //final allele freq
+		reinterpret_cast<float4*>(mutations)[id] = make_float4(j)/N; //final allele freq in new generation
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
@@ -228,8 +228,30 @@ __global__ void selection_drift(float * mutations, const int mutations_Index, co
 		float i_next = (s*i*i+i+(F+h-h*F)*s*i*(1-i))/(i*i*s+(F+2*h-2*h*F)*s*i*(1-i)+1);
 		float mean = i_next*N; //expected allele count in new generation
 		int j = clamp(Rand1(mean,(1.0-i_next)*mean,i_next,N,(id + 2),generation,seed,0), 0, N);
-		mutations[id] = float(j)/N; //final allele freq
+		mutations[id] = float(j)/N; //final allele freq in new generation
 	}
+}
+
+__global__ void add_new_mutations(float * mutations_freq, int * mutations_age, const int mutations_Index, const int new_mutations_Index, const int array_length, float freq, int generation){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ mutations_freq[(mutations_Index+id)] = freq; mutations_age[(mutations_Index+id)] = generation;}
+}
+
+__device__ char4 boundary(float4 freq){
+	return make_char4((freq.x > 0.f && freq.x < 1.f), (freq.y > 0.f && freq.y < 1.f), (freq.z > 0.f && freq.z < 1.f), (freq.w > 0.f && freq.w < 1.f));
+}
+
+__device__ char boundary(float freq){
+	return (freq > 0.f && freq < 1.f);
+}
+
+__global__ void flag_segregating_mutations(char * flag, const float * const mutations, const int mutations_Index){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
+		reinterpret_cast<char4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
+	}
+	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
 }
 
 __global__ void copy_array(const float * smaller_array, float * larger_array, int mutations_Index){
@@ -250,26 +272,13 @@ __global__ void copy_array(const int * smaller_array, int * larger_array, int mu
 	if(id < mutations_Index){ larger_array[id] = smaller_array[id]; }
 }
 
-__global__ void add_new_mutations(float * mutation_freq, int * mutation_age, const int mutations_Index, const int new_mutations_Index, const int array_length, float freq, int generation){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ mutation_freq[(mutations_Index+id)] = freq; mutation_age[(mutations_Index+id)] = generation;}
-}
-
-__device__ char4 boundary(float4 freq){
-	return make_char4((freq.x > 0.f && freq.x < 1.f), (freq.y > 0.f && freq.y < 1.f), (freq.z > 0.f && freq.z < 1.f), (freq.w > 0.f && freq.w < 1.f));
-}
-
-__device__ char boundary(float freq){
-	return (freq > 0.f && freq < 1.f);
-}
-
-__global__ void flag_segregating_mutations(char * flag, const float * const mutations, const int mutations_Index){
+__global__ void refactor_mutation_age(int * mutation_age, int mutations_Index, int total_generations){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		reinterpret_cast<char4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
+		reinterpret_cast<float4*>(mutation_age)[id] =  reinterpret_cast<const float4*>(mutation_age)[id] - total_generations;
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
+	if(id < mutations_Index){ mutation_age[id] = mutation_age[id] - total_generations; }
 }
 
 
@@ -290,6 +299,15 @@ struct demography
 	__host__ __forceinline__ int operator()(const int generation) const{
 		if(generation < total_generations){ return N; }
 		return -1;
+	}
+};
+
+struct inbreeding
+{
+	float F;
+	inbreeding(float F) : F(F){ }
+	__host__ __forceinline__ float operator()(const int generation) const{
+		return F;
 	}
 };
 
@@ -319,7 +337,7 @@ struct sim_struct{
 //for final result output
 struct sim_result{
 	float * mutations_freq; //allele frequency of mutations in final generation
-	float * mutations_age; //allele age of mutations in final generation
+	int * mutations_age; //allele age of mutations in final generation (0 most recent, increasing negative values represent older alleles)
 	int num_mutations; //number of mutations in array (array length)
 	int num_sites; //number of sites in simulation
 	int total_generations; //number of generations in the simulation
@@ -327,8 +345,9 @@ struct sim_result{
 	sim_result() : num_mutations(0), num_sites(0), total_generations(0) { mutations_freq = NULL; mutations_age = NULL; }
 	sim_result(sim_struct & mutations, int num_sites, int total_generations) : num_mutations(mutations.h_mutations_Index), num_sites(num_sites), total_generations(total_generations){
 		mutations_freq = new float[num_mutations];
-		cudaMemcpy(mutations_freq, mutations.d_mutations_freq, num_mutations*sizeof(float), cudaMemcpyDeviceToHost);
-		mutations_age = NULL;
+		cudaMemcpyAsync(mutations_freq, mutations.d_mutations_freq, num_mutations*sizeof(float), cudaMemcpyDeviceToHost);
+		mutations_age = new int[num_mutations];
+		cudaMemcpy(mutations_age, mutations.d_mutations_age, num_mutations*sizeof(int), cudaMemcpyDeviceToHost);
 	}
 	~sim_result(){ if(mutations_freq){ delete mutations_freq; } if(mutations_age){ delete mutations_age; } }
 };
@@ -349,8 +368,8 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 	mutations.h_new_mutations_Index = num_new_mutations + mutations.h_mutations_Index;
 }
 
-template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const int h, const float num_sites, const int seed, const int compact_rate){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_selection>
+__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const int h, const float num_sites, const int seed, const int compact_rate){
 	int N = demography(0);
 	float mu = mu_rate(0);
 
@@ -391,8 +410,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 }
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
-template <typename Functor_mu, typename Functor_dem>
-__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const sim_result & prev_sim, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int seed, const int compact_rate){
+template <typename Functor_mutation, typename Functor_demography>
+__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate){
 	int N = demography(0);
 	float mu = mu_rate(0);
 
@@ -408,8 +427,8 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const 
 	}
 }
 
-template <typename Functor_mu, typename Functor_dem>
-__host__ __forceinline__ void compact(sim_struct & mutations, const int generation, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int compact_rate, cudaStream_t stream1, cudaStream_t stream2){
+template <typename Functor_mutation, typename Functor_demography>
+__host__ __forceinline__ void compact(sim_struct & mutations, const int generation, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int compact_rate, cudaStream_t stream1, cudaStream_t stream2){
 	float * temp;
 	int * temp2;
 	int * d_num_mutations;
@@ -459,12 +478,12 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	cudaFree(temp2);
 }
 
-template <typename Functor_mu, typename Functor_dem, typename Functor_sel>
-__host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Functor_dem demography, const Functor_sel s, const float h, const float F, const float num_sites, const int seed, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 40){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_selection>
+__host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const float h, const Functor_inbreeding FI, const float num_sites, const int seed, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 40){
 	sim_struct mutations;
 	int N = demography(0);
 	float mu = mu_rate(0);
-
+	float F = FI(0);
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
@@ -487,17 +506,15 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
-	bool compact_generation = false;
+
 	int generation = 1;
 	while(true){
 		N = demography(generation);
-		mu = mu_rate(generation);
 		if(N == -1){ break; } //end of simulation
+		mu = mu_rate(generation);
+		F = FI(generation);
 
 		//-----selection & drift -----
-
-		if((generation % compact_rate == 0) || demography(generation+1) == -1){ compact_generation = true; }
-
 		selection_drift<<<1000,64>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, N, s, h, F, seed, generation);
 		//----- end -----
 
@@ -508,14 +525,15 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mu mu_rate, const Func
 		//----- end -----
 
 		//-----compact every compact_rate generations and final generation -----
-		if(compact_generation){
+		if((generation % compact_rate == 0) || demography(generation+1) == -1){
 			compact(mutations, generation, mu_rate, demography, num_sites, compact_rate, stream1, stream2);
 		}
 		//----- end -----
 		generation++;
-		compact_generation = false;
 	}
 	//----- end -----
+
+	refactor_mutation_age<<<50,1024>>>(mutations.d_mutations_age, mutations.h_mutations_Index, generation);
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
@@ -548,8 +566,8 @@ int main(int argc, char **argv)
 	const int seed = 0xdecafbad;
 	demography burn_in(N_chrom_pop,5);
 	demography dem(N_chrom_pop,total_number_of_generations);
-
-	sim_result a = run_sim(mutation(mu), dem, sel_coeff(s), h, F, L, seed);
+	inbreeding Fi(F);
+	sim_result a = run_sim(mutation(mu), dem, sel_coeff(s), h, Fi, L, seed);
 
 	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
 
