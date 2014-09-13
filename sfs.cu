@@ -266,19 +266,6 @@ __global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_a
 	}
 }
 
-__global__ void copy_arrays(const float * f_smaller_array, float * f_larger_array, const int * i_smaller_array, int * i_larger_array, int mutations_Index){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		reinterpret_cast<float4*>(f_larger_array)[id] = reinterpret_cast<const float4*>(f_smaller_array)[id];
-		reinterpret_cast<int4*>(i_larger_array)[id] = reinterpret_cast<const int4*>(i_smaller_array)[id];
-	}
-	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
-	if(id < mutations_Index){
-		f_larger_array[id] = f_smaller_array[id];
-		i_larger_array[id] = i_smaller_array[id];
-	}
-}
-
 __global__ void refactor_mutation_age(int * mutation_age, int mutations_Index, int total_generations){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
