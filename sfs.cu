@@ -254,6 +254,18 @@ __global__ void flag_segregating_mutations(char * flag, const float * const muta
 	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
 }
 
+__global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_age, const float * const mutations_freq, const int * const mutations_age, const char * const flag, const int * const scan_Index, const int mutations_Index){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
+		if(flag[id]){
+			int index = scan_Index[id];
+			new_mutations_freq[index] = mutations_freq[id];
+			new_mutations_age[index] = mutations_age[id];
+		}
+	}
+}
+
 __global__ void copy_arrays(const float * f_smaller_array, float * f_larger_array, const int * i_smaller_array, int * i_larger_array, int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
