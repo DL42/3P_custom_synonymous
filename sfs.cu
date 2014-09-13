@@ -237,24 +237,24 @@ __global__ void add_new_mutations(float * mutations_freq, int * mutations_age, c
 	for(int id = myID; (id < (new_mutations_Index-mutations_Index)) && ((id + mutations_Index) < array_length); id+= blockDim.x*gridDim.x){ mutations_freq[(mutations_Index+id)] = freq; mutations_age[(mutations_Index+id)] = generation;}
 }
 
-__device__ char4 boundary(float4 freq){
-	return make_char4((freq.x > 0.f && freq.x < 1.f), (freq.y > 0.f && freq.y < 1.f), (freq.z > 0.f && freq.z < 1.f), (freq.w > 0.f && freq.w < 1.f));
+__device__ int4 boundary(float4 freq){
+	return make_int4((freq.x > 0.f && freq.x < 1.f), (freq.y > 0.f && freq.y < 1.f), (freq.z > 0.f && freq.z < 1.f), (freq.w > 0.f && freq.w < 1.f));
 }
 
-__device__ char boundary(float freq){
+__device__ int boundary(float freq){
 	return (freq > 0.f && freq < 1.f);
 }
 
-__global__ void flag_segregating_mutations(char * flag, const float * const mutations, const int mutations_Index){
+__global__ void flag_segregating_mutations(int * flag, const float * const mutations, const int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		reinterpret_cast<char4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
+		reinterpret_cast<int4*>(flag)[id] = boundary(reinterpret_cast<const float4*>(mutations)[id]);
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id < mutations_Index){ flag[id] = boundary(mutations[id]); }
 }
 
-__global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_age, const float * const mutations_freq, const int * const mutations_age, const char * const flag, const int * const scan_Index, const int mutations_Index){
+__global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_age, const float * const mutations_freq, const int * const mutations_age, const int * const flag, const int * const scan_Index, const int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
@@ -435,53 +435,44 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const 
 }
 
 template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void compact(sim_struct & mutations, const int generation, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int compact_rate, cudaStream_t stream1, cudaStream_t stream2){
-	float * temp;
-	int * temp2;
-	int * d_num_mutations;
-	int * d_num_mutations2;
-	cudaMalloc((void**)&temp,mutations.h_mutations_Index*sizeof(float));
-	cudaMalloc((void**)&d_num_mutations,sizeof(int));
-	cudaMalloc((void**)&temp2,mutations.h_mutations_Index*sizeof(int));
-	cudaMalloc((void**)&d_num_mutations2,sizeof(int));
-
-	char * flag;
-	cudaMalloc((void**)&flag,mutations.h_mutations_Index*sizeof(char));
+__host__ __forceinline__ void compact(sim_struct & mutations, const int generation, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int compact_rate){
+	int * flag;
+	cudaMalloc((void**)&flag,mutations.h_mutations_Index*sizeof(int));
 
 	flag_segregating_mutations<<<50,1024>>>(flag, mutations.d_mutations_freq, mutations.h_mutations_Index);
 
+	int * scan_Index;
+	cudaMalloc((void**)&scan_Index, mutations.h_mutations_Index*sizeof(int));
+
 	void * d_temp_storage = NULL;
-	void * d_temp_storage2 = NULL;
 	size_t temp_storage_bytes = 0;
-	size_t temp_storage_bytes2 = 0;
-
-	DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, mutations.d_mutations_freq, flag, temp, d_num_mutations, mutations.h_mutations_Index);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, flag, scan_Index, mutations.h_mutations_Index);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceSelect::Flagged(d_temp_storage2, temp_storage_bytes2, mutations.d_mutations_age, flag, temp2, d_num_mutations2, mutations.h_mutations_Index);
-	cudaMalloc(&d_temp_storage2, temp_storage_bytes2);
-
-	DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, mutations.d_mutations_freq, flag, temp, d_num_mutations, mutations.h_mutations_Index, stream1);
-	DeviceSelect::Flagged(d_temp_storage2, temp_storage_bytes2, mutations.d_mutations_age, flag, temp2, d_num_mutations2, mutations.h_mutations_Index, stream2);
-
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, flag, scan_Index, mutations.h_mutations_Index);
 	cudaFree(d_temp_storage);
-	cudaFree(d_temp_storage2);
+
+	int h_num_seg_mutations;
+	cudaMemcpy(&h_num_seg_mutations, &scan_Index[mutations.h_mutations_Index-1], sizeof(int), cudaMemcpyDeviceToHost);
+	h_num_seg_mutations += 1;
+
+	int old_mutations_Index = mutations.h_mutations_Index;
+	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, num_sites, compact_rate, generation);
+
+	float * temp;
+	int * temp2;
+	cudaMalloc((void**)&temp,mutations.h_array_length*sizeof(float));
+	cudaMalloc((void**)&temp2,mutations.h_array_length*sizeof(int));
+
+	scatter_arrays<<<50,1024>>>(temp, temp2, mutations.d_mutations_freq, mutations.d_mutations_age, flag, scan_Index, old_mutations_Index);
+
 	cudaFree(mutations.d_mutations_freq);
 	cudaFree(mutations.d_mutations_age);
 
-	int h_num_mutations;
-	cudaMemcpy(&h_num_mutations, &d_num_mutations[0], sizeof(int), cudaMemcpyDeviceToHost);
-	set_Index_Length(mutations, h_num_mutations, mu_rate, demography, num_sites, compact_rate, generation);
-
-	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_array_length*sizeof(float));
-	cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_length*sizeof(int));
-
-	copy_arrays<<<50,1024>>>(temp, mutations.d_mutations_freq, temp2, mutations.d_mutations_age, mutations.h_mutations_Index);
+	mutations.d_mutations_freq = temp;
+	mutations.d_mutations_age = temp2;
 
 	cudaFree(flag);
-	cudaFree(d_num_mutations);
-	cudaFree(d_num_mutations2);
-	cudaFree(temp);
-	cudaFree(temp2);
+	cudaFree(scan_Index);
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_selection>
@@ -532,7 +523,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 
 		//-----compact every compact_rate generations and final generation -----
 		if((generation % compact_rate == 0) || demography(generation+1) == -1){
-			compact(mutations, generation, mu_rate, demography, num_sites, compact_rate, stream1, stream2);
+			compact(mutations, generation, mu_rate, demography, num_sites, compact_rate);
 		}
 		//----- end -----
 		generation++;
