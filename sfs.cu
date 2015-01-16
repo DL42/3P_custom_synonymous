@@ -210,7 +210,7 @@ __global__ void initialize_mse_mutation_array(float * mutations, const int * fre
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
 template <typename Functor_selection>
-__global__ void selection_drift(float * mutations, const int mutations_Index, const int N, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int generation){
+__global__ void migration_selection_drift(float * mutations, const int mutations_Index, const int N, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -499,7 +499,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 		F = FI(generation);
 
 		//-----selection & drift -----
-		selection_drift<<<1000,64>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, N, s, h, F, seed, generation);
+		migration_selection_drift<<<1000,64>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, N, s, h, F, seed, generation);
 		//----- end -----
 
 		//-----generate new mutations -----
