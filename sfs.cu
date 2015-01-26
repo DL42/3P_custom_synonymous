@@ -150,33 +150,34 @@ __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int ste
 }
 
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const int seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const int seed, const int population){
 	//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < (N-1)/4; id+= blockDim.x*gridDim.x){ //exclusive, length of freq array is chromosome population size N-1
+
+	for(int id = myID; id < (N-1)/4; id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float4 i = make_float4((4*id + 1),(4*id + 2),(4*id + 3),(4*id + 4))/N;
-		float s = sel_coeff(0, 0, 0.5); //the equations below don't work for frequency-dependent selection anyway
+		float s = sel_coeff(population, 0, 0.5); //the equations below don't work for frequency-dependent selection anyway
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*((-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1*(2*N*double(s)))+1)*i*(-1.0*i+1.0))); }
-		reinterpret_cast<int4*>(freq_index)[id] = max(Rand4(lambda, lambda, make_float4(mu), L*N, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
-		//printf("%d %d %f %f %f %f %f %f %f %f \r", myID, id, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
+		reinterpret_cast<int4*>(freq_index)[offset/4 + id] = max(Rand4(lambda, lambda, make_float4(mu), L*N, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
+		//printf(" %d %d %d %f %f %f %f %f %f %f %f \r", myID, id, population, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
 
-
+	int next_offset = (int)(ceil((N-1)/4.f)*4);
 	int id = myID + (N-1)/4*4; //all integers //right now only works if minimum of 3 threads are launched
 	if(id < (N-1)){
 		float i = (id+1.f)/N;
-		float s = sel_coeff(0, 0, 0.5);
+		float s = sel_coeff(population, 0, 0.5);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*double(s))*(1-i)))/((1-exp(-1*(2*N*double(s))))*i*(1-i)); }
-		freq_index[id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
-		//printf("%d %d %f %f\r", myID, id, i, lambda);
-	}
+		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		//printf(" %d %d %d %f %f\r", myID, id, population, i, lambda);
+	}else if(id >= (N-1) && id < next_offset){ freq_index[offset+id] = 0; }
 }
 
-__global__ void initialize_mse_mutation_array(float * mutations, const int * freq_index, const int * scan_index, const int N, const int population, const int num_populations, const int array_Length){
+__global__ void initialize_mse_mutation_array(float * mutations, const int * freq_index, const int * scan_index, const int offset, const int N, const int population, const int num_populations, const int array_Length){
 	//fills in mutation array using the freq and scan indices
 	//y threads correspond to freq_index/scan_index indices, use grid-stride loops
 	//x threads correspond to mutation array indices, use grid-stride loops
@@ -184,8 +185,8 @@ __global__ void initialize_mse_mutation_array(float * mutations, const int * fre
 	int myIDy = blockIdx.y*blockDim.y + threadIdx.y;
 	for(int idy = myIDy; idy < (N-1); idy+= blockDim.y*gridDim.y){
 		int myIDx = blockIdx.x*blockDim.x + threadIdx.x;
-		int start = scan_index[idy];
-		int num_mutations = freq_index[idy];
+		int start = scan_index[offset+idy];
+		int num_mutations = freq_index[offset+idy];
 		float freq = (idy+1.f)/N;
 		for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
 			for(int pop = 0; pop < num_populations; pop++){ mutations[pop*array_Length + start + idx] = 0; }
@@ -217,7 +218,7 @@ __global__ void migration_selection_drift(float * mutations_freq, const int muta
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		float4 i = reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
+		float4 i = reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably divisible by 32 or warp_size)!!!!!!
 		float4 s = make_float4(sel_coeff(population,generation, i.x),sel_coeff(population,generation, i.y),sel_coeff(population,generation, i.z),sel_coeff(population,generation, i.w));
 		float4 i_next = (s*i*i+i+(F+h-h*F)*s*i*(1-i))/(i*i*s+(F+2*h-2*h*F)*s*i*(1-i)+1);
 		float4 mean = i_next*N; //expected allele count in new generation
@@ -378,7 +379,7 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 		if(demography(0,gen) == -1){ break; } //reference population has ended
 		for(int pop = 0; pop < num_populations; pop++){  mutations.h_array_Length += mu_rate(pop,gen)*demography(pop,gen)*num_sites + 7*sqrtf(mu_rate(pop,gen)*demography(pop,gen)*num_sites); }
 	}
-	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/32.f)*32); //replace with variable for warp size, coalesce memory access for multiple populations
+	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/32.f)*32); //replace with variable for warp size, coalesces memory access for multiple populations
 }
 
 template <typename Functor_mutation, typename Functor_demography>
@@ -399,7 +400,7 @@ template <typename Functor_mutation, typename Functor_demography, typename Funct
 __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const int h, const float num_sites, const int seed, const int compact_rate){
 
 	int Nfreq = 0; //number of frequencies
-	for(int pop = 0; pop < mutations.h_num_populations; pop++){ Nfreq += demography(pop,0) - 1; }
+	for(int pop = 0; pop < mutations.h_num_populations; pop++){ Nfreq += (int)(ceil((demography(pop,0) - 1)/4.f)*4); }
 
 	int * freq_index;
 	cudaMalloc((void**)&freq_index, Nfreq*sizeof(int));
@@ -408,10 +409,20 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		float mu = mu_rate(pop,0);
-		initialize_mse_frequency_array<<<6,1024>>>(&freq_index[offset], mu, demography(pop,0), num_sites, s, h, seed, pop);
-		offset += demography(pop,0) - 1;
+		initialize_mse_frequency_array<<<6,1024>>>(freq_index, offset, mu_rate(pop,0), demography(pop,0), num_sites, s, h, seed, pop);
+		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
+
+/*	int*test = new int[Nfreq];
+	cudaMemcpy(test,freq_index,Nfreq*sizeof(int),cudaMemcpyDeviceToHost);
+
+	offset = 0;
+	for(int pop = 0; pop < mutations.h_num_populations; pop++){
+		float freq = 1.f/demography(pop,0);
+		for(int counter = 0; counter < demography(pop,0) - 1; counter++){ cout<<endl<<freq<<"\t"<<test[offset+counter]; freq += 1.f/demography(pop,0); }
+		cout<<endl<<"------------"<<endl;
+		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
+	}*/
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
@@ -434,8 +445,10 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	const dim3 blocksize(4,256,1);
 	const dim3 gridsize(16,32,1);
+	offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		initialize_mse_mutation_array<<<gridsize,blocksize>>>(mutations.d_mutations_freq, freq_index, scan_index, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
+		initialize_mse_mutation_array<<<gridsize,blocksize>>>(mutations.d_mutations_freq, freq_index, scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
+		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 	cudaMemsetAsync(mutations.d_mutations_age,0,mutations.h_array_Length*sizeof(int)); //eventually will replace where mutations have age <= 0 (age before sim start)
 
@@ -506,7 +519,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_migration, typename Functor_selection>
 __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration m, const Functor_selection s, const float h, const Functor_inbreeding FI, const float num_sites, const int seed, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 40){
 	sim_struct mutations;
-	mutations.h_num_populations = 1;
+	mutations.h_num_populations = 2;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
 
 	//----- initialize simulation -----
@@ -580,7 +593,18 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 	return out;
 }
 
-//__global__ void test(int * test){ printf("%d\t%d\n",test[threadIdx.x],threadIdx.x); }
+__global__ void test(int * test){
+	printf("WTF\n");
+	int3 i = reinterpret_cast<const int3*>(test)[threadIdx.x];
+	printf("%d\t%d\t%d\n",i.x,i.y,threadIdx.x);
+}
+
+__global__ void test2(int * test){
+	printf("WTF2\n");
+	int i = test[threadIdx.x];
+	printf("%d\t%d\n",i,threadIdx.x);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -613,7 +637,8 @@ int main(int argc, char **argv)
 	int * d_temp;
 	cudaMalloc((void**)&d_temp,5*sizeof(int));
 	cudaMemcpy(d_temp, h_temp, 5*sizeof(int), cudaMemcpyHostToDevice);
-	test<<<1,3>>>(&d_temp[2]);
+	test2<<<1,3>>>(&d_temp[1]);
+	test<<<1,2>>>(&d_temp[4]);
 	cudaFree(d_temp);*/
 
 /*	sim_result a = run_sim(mutation(mu), burn_in, sel_coeff(s), h, L, seed);
