@@ -268,13 +268,13 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 	}
 }
 
-__global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_age, const float * const mutations_freq, const int * const mutations_age, const int * const flag, const int * const scan_Index, const int mutations_Index, const int array_Length){
+__global__ void scatter_arrays(float * new_mutations_freq, int * new_mutations_age, const float * const mutations_freq, const int * const mutations_age, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	int pop = blockIdx.y;
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
 		if(flag[id]){
 			int index = scan_Index[id];
-			new_mutations_freq[index] = mutations_freq[pop*array_Length+id];
+			new_mutations_freq[pop*new_array_Length+index] = mutations_freq[pop*old_array_Length+id];
 			if(pop == 0){ new_mutations_age[index] = mutations_age[id]; }
 		}
 	}
@@ -402,14 +402,14 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	int Nfreq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){ Nfreq += (int)(ceil((demography(pop,0) - 1)/4.f)*4); }
 
-	int * freq_index;
-	cudaMalloc((void**)&freq_index, Nfreq*sizeof(int));
-	int * scan_index;
-	cudaMalloc((void**)&scan_index,Nfreq*sizeof(int));
+	int * d_freq_index;
+	cudaMalloc((void**)&d_freq_index, Nfreq*sizeof(int));
+	int * d_scan_index;
+	cudaMalloc((void**)&d_scan_index,Nfreq*sizeof(int));
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		initialize_mse_frequency_array<<<6,1024>>>(freq_index, offset, mu_rate(pop,0), demography(pop,0), num_sites, s, h, seed, pop);
+		initialize_mse_frequency_array<<<6,1024>>>(d_freq_index, offset, mu_rate(pop,0), demography(pop,0), num_sites, s, h, seed, pop);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 
@@ -426,16 +426,16 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, Nfreq);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, Nfreq);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, freq_index, scan_index, Nfreq);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, Nfreq);
 	cudaFree(d_temp_storage);
 
 	int prefix_sum_result;
 	int final_freq_count;
 	//final index is Nfreq-1
-	cudaMemcpy(&prefix_sum_result, &scan_index[(Nfreq-1)], sizeof(int), cudaMemcpyDeviceToHost);
-	cudaMemcpy(&final_freq_count, &freq_index[(Nfreq-1)], sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&prefix_sum_result, &d_scan_index[(Nfreq-1)], sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&final_freq_count, &d_freq_index[(Nfreq-1)], sizeof(int), cudaMemcpyDeviceToHost);
 	int num_mutations = prefix_sum_result+final_freq_count;
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, num_sites, compact_rate, mutations.h_num_populations, 0);
 	cout<<"initial length " << mutations.h_array_Length << endl;
@@ -447,30 +447,32 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	const dim3 gridsize(16,32,1);
 	offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		initialize_mse_mutation_array<<<gridsize,blocksize>>>(mutations.d_mutations_freq, freq_index, scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
+		initialize_mse_mutation_array<<<gridsize,blocksize>>>(mutations.d_mutations_freq, d_freq_index, d_scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 	cudaMemsetAsync(mutations.d_mutations_age,0,mutations.h_array_Length*sizeof(int)); //eventually will replace where mutations have age <= 0 (age before sim start)
 
-	cudaFree(freq_index);
-	cudaFree(scan_index);
+	cudaFree(d_freq_index);
+	cudaFree(d_scan_index);
 }
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography>
 __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate){
-	int N = demography(0,0);
-	float mu = mu_rate(0,0);
-
-	set_Index_Length(mutations, prev_sim.num_mutations, mu_rate, demography, num_sites, compact_rate, mutations.h_num_populations, 0);
-	cout<<"initial length " << mutations.h_array_Length << endl;
-	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-	cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_Length*sizeof(int));
-
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	if(prev_sim.num_mutations != 0 && num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations){
+		set_Index_Length(mutations, prev_sim.num_mutations, mu_rate, demography, num_sites, compact_rate, mutations.h_num_populations, 0);
+		cout<<"initial length " << mutations.h_array_Length << endl;
+		cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
+		cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_Length*sizeof(int));
+
 		cudaMemcpyAsync(mutations.d_mutations_freq, prev_sim.mutations_freq, prev_sim.num_populations*prev_sim.num_mutations*sizeof(float), cudaMemcpyHostToDevice);
-		cudaMemcpyAsync(mutations.d_mutations_age, prev_sim.mutations_freq, prev_sim.num_populations*prev_sim.num_mutations*sizeof(int), cudaMemcpyHostToDevice);
+		cudaMemcpyAsync(mutations.d_mutations_age, prev_sim.mutations_freq, prev_sim.num_mutations*sizeof(int), cudaMemcpyHostToDevice);
+	}else{
+		set_Index_Length(mutations, 0, mu_rate, demography, num_sites, compact_rate, mutations.h_num_populations, 0);
+		cout<<"initial length " << mutations.h_array_Length << endl;
+		cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
+		cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_Length*sizeof(int));
 	}
 }
 
@@ -493,9 +495,10 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 
 	int h_num_seg_mutations;
 	cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[mutations.h_mutations_Index-1], sizeof(int), cudaMemcpyDeviceToHost);
-	h_num_seg_mutations += 1; //necessarily true? shouldn't it be h_num_seg_mutations += flag[mutations.h_mutations_Index-1]?
+	h_num_seg_mutations += 1; //doesn't need to be h_num_seg_mutations += d_flag[mutations.h_mutations_Index-1] as last mutation in index will be new, so d_flag[mutations.h_mutations_Index-1] = 1
 
 	int old_mutations_Index = mutations.h_mutations_Index;
+	int old_array_Length = mutations.h_array_Length;
 	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, num_sites, compact_rate, mutations.h_num_populations, generation);
 
 	float * d_temp;
@@ -504,7 +507,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const int generati
 	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int));
 
 	const dim3 gridsize(50,mutations.h_num_populations,1);
-	scatter_arrays<<<gridsize,1024>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_age, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length);
+	scatter_arrays<<<gridsize,1024>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_age, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
 
 	cudaFree(mutations.d_mutations_freq);
 	cudaFree(mutations.d_mutations_age);
