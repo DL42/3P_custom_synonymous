@@ -557,7 +557,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			N = demography(pop,generation);
 			int F = FI(pop,generation);
-			migration_selection_drift<<<1000,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<800,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
 		}
 		//----- end -----
 
@@ -615,7 +615,7 @@ int main(int argc, char **argv)
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2.5*pow(10.f,8); //eventually set so the number of expected mutations is > a certain amount
 	float m = 0;
-	int num_pop = 2;
+	int num_pop = 3;
 
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
