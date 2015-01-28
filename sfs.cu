@@ -406,7 +406,7 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_selection>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const int h, const float num_sites, const int seed, const int compact_rate){
+__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const int h, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams){
 
 	int Nfreq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){ Nfreq += (int)(ceil((demography(pop,0) - 1)/4.f)*4); } //adds a little padding to ensure distances between populations in array are a multiple of 4
@@ -418,7 +418,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		initialize_mse_frequency_array<<<6,1024>>>(d_freq_index, offset, mu_rate(pop,0), demography(pop,0), num_sites, s, h, seed, pop);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, offset, mu_rate(pop,0), demography(pop,0), num_sites, s, h, seed, pop);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 
@@ -445,7 +445,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	const dim3 gridsize(16,32,1);
 	offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		initialize_mse_mutation_array<<<gridsize,blocksize>>>(mutations.d_mutations_freq, d_freq_index, d_scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
+		initialize_mse_mutation_array<<<gridsize,blocksize,0,pop_streams[pop]>>>(mutations.d_mutations_freq, d_freq_index, d_scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 	cudaMemsetAsync(mutations.d_mutations_age,0,mutations.h_array_Length*sizeof(int)); //eventually will replace where mutations have age <= 0 (age before sim start)
@@ -522,11 +522,13 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 	sim_struct mutations;
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
+	cudaStream_t * pop_streams = new cudaStream_t[mutations.h_num_populations];
+	for(int pop = 0; pop < mutations.h_num_populations; pop++){ cudaStreamCreate(&pop_streams[pop]); }
 
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
-		initialize_mse(mutations, mu_rate, demography, s, h, num_sites, seed, compact_rate);
+		initialize_mse(mutations, mu_rate, demography, s, h, num_sites, seed, compact_rate, pop_streams);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
@@ -538,8 +540,6 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 	cout<<"initial num_mutations " << mutations.h_mutations_Index << endl;
 
 	//----- simulation steps -----
-	cudaStream_t * pop_streams = new cudaStream_t[mutations.h_num_populations];
-	for(int pop = 0; pop < mutations.h_num_populations; pop++){ cudaStreamCreate(&pop_streams[pop]); }
 	cudaEvent_t kernelEvent;
 	cudaEventCreateWithFlags((&kernelEvent), cudaEventDisableTiming);
 
@@ -559,7 +559,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 			int F = FI(pop,generation);
 			migration_selection_drift<<<800,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
 		}
-		//----- end  -----
+		//----- end -----
 
 		//-----generate new mutations -----
 		calc_new_mutations_Index(mutations, mu_rate, demography, num_sites, seed, mutations.h_num_populations, generation);
@@ -615,7 +615,7 @@ int main(int argc, char **argv)
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2.5*pow(10.f,8); //eventually set so the number of expected mutations is > a certain amount
 	float m = 0;
-	int num_pop = 3;
+	int num_pop = 2;
 
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
