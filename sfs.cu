@@ -559,7 +559,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 			int F = FI(pop,generation);
 			migration_selection_drift<<<800,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
 		}
-		//----- end -----
+		//----- end  -----
 
 		//-----generate new mutations -----
 		calc_new_mutations_Index(mutations, mu_rate, demography, num_sites, seed, mutations.h_num_populations, generation);
