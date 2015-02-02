@@ -377,7 +377,7 @@ struct sim_result{
 		mutations_gen = new int[num_mutations];
 		cudaMemcpy(mutations_gen, mutations.d_mutations_age, num_mutations*sizeof(int), cudaMemcpyDeviceToHost);
 	}
-	~sim_result(){ if(mutations_freq){ delete mutations_freq; } if(mutations_age){ delete mutations_age; } }
+	~sim_result(){ if(mutations_freq){ delete mutations_freq; } if(mutations_gen){ delete mutations_gen; } }
 };
 
 //for site frequency spectrum output
@@ -397,8 +397,8 @@ template <typename Functor_mu, typename Functor_dem>
 __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int compact_rate, const int generation){
 	mutations.h_mutations_Index = num_mutations;
 	mutations.h_array_Length = mutations.h_mutations_Index;
-	for(int gen = generation; gen < (generation+compact_rate); gen++){
-		if(demography(0,gen) == -1){ break; } //reference population has ended
+	for(int gen = generation+1; gen <= (generation+compact_rate); gen++){
+		if(demography(0,gen) == -1){ break; } //simulation has ended
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){  mutations.h_array_Length += mu_rate(pop,gen)*demography(pop,gen)*num_sites + 7*sqrtf(mu_rate(pop,gen)*demography(pop,gen)*num_sites); }
 	}
 	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/32.f)*32); //replace with variable for warp size, coalesces memory access for multiple populations
@@ -469,10 +469,11 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate){
+__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	if(prev_sim.num_mutations != 0 && num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations){
-		set_Index_Length(mutations, prev_sim.num_mutations, mu_rate, demography, num_sites, compact_rate, 0);
+		generation_shift = prev_sim.total_generations;
+		set_Index_Length(mutations, prev_sim.num_mutations, mu_rate, demography, num_sites, compact_rate, generation_shift);
 		cout<<"initial length " << mutations.h_array_Length << endl;
 		cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
 		cudaMalloc((void**)&mutations.d_mutations_age, mutations.h_array_Length*sizeof(int));
@@ -536,6 +537,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
 	cudaStream_t * pop_streams = new cudaStream_t[mutations.h_num_populations];
+	int generation_shift = 0; //if starting from a previous sim, it will shift starting generation up
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){ cudaStreamCreate(&pop_streams[pop]); }
 
 	//----- initialize simulation -----
@@ -545,7 +547,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, prev_sim, mu_rate, demography, num_sites, seed, compact_rate);
+		init_blank_prev_run(mutations, generation_shift, prev_sim, mu_rate, demography, num_sites, seed, compact_rate);
 		//----- end -----
 	}
 	//----- end -----
@@ -559,7 +561,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	int generation = 0;
+	int generation = 0 + generation_shift;
 	while(demography(0,generation+1) != -1){ //end of simulation
 		generation++;
 
@@ -583,7 +585,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 		//----- end -----
 
 		//-----compact every compact_rate generations and final generation -----
-		if((generation % compact_rate == 0) || demography(0,generation+1) == -1){ compact(mutations, generation, mu_rate, demography, num_sites, compact_rate); }
+		if(((generation - generation_shift) % compact_rate == 0) || demography(0,generation+1) == -1){ compact(mutations, generation, mu_rate, demography, num_sites, compact_rate); }
 		//----- end -----
 
 		//cout<<"num_mutations " << mutations.h_mutations_Index <<" generations " << generation << endl;
