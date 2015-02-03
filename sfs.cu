@@ -146,7 +146,7 @@ __device__ int Rand1(unsigned int i, float mean, float var, float N){
 __device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
 	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
-	return make_int4(Rand1(i.x,mean.x, var.x, N), Rand1(i.y,mean.y, var.y, N), Rand1(i.z,mean.z, var.z, N), Rand1(i.w,mean.w, var.w, N));
+	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
 
 template <typename Functor_selection>
@@ -198,14 +198,10 @@ __global__ void initialize_mse_mutation_array(float * mutations_freq, const int 
 //assumes mutations are only in one population at start
 __global__ void mse_set_mutID(int3 * mutations_ID, const float * const mutations_freq, const int mutations_Index, const int num_populations, const int array_Length){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-	int3 setVal;
-	setVal.x = 0; //age: eventually will replace where mutations have age <= 0 (age before sim start)
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
-		setVal.y = id; //threadID
 		for(int pop = 0; pop < num_populations; pop++){
 			if(mutations_freq[pop*array_Length+id] > 0){
-				setVal.z = pop; //population
-				mutations_ID[id] = setVal;
+				mutations_ID[id] = make_int3(0,id,pop);//age: eventually will replace where mutations have age <= 0 (age before sim start)//threadID//population
 				break;
 			}
 		}
@@ -263,14 +259,10 @@ __global__ void migration_selection_drift(float * mutations_freq, const int muta
 
 __global__ void add_new_mutations(float * mutations_freq, int3 * mutations_ID, const int prev_mutations_Index, const int new_mutations_Index, const int array_Length, float freq, const int population, const int num_populations, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	int3 setVal;
-	setVal.x = generation;
-	setVal.z = population;
 	for(int id = myID; (id < (new_mutations_Index-prev_mutations_Index)) && ((id + prev_mutations_Index) < array_Length); id+= blockDim.x*gridDim.x){
-		setVal.y = id;
 		for(int pop = 0; pop < num_populations; pop++){ mutations_freq[(pop*array_Length+prev_mutations_Index+id)] = 0; }
 		mutations_freq[(population*array_Length+prev_mutations_Index+id)] = freq;
-		mutations_ID[(prev_mutations_Index+id)] = setVal;
+		mutations_ID[(prev_mutations_Index+id)] = make_int3(generation,id,population);
 	}
 }
 
@@ -309,14 +301,14 @@ __global__ void scatter_arrays(float * new_mutations_freq, int3 * new_mutations_
 	}
 }
 
-__global__ void refactor_mutation_age(int * mutation_age, int mutations_Index, int total_generations){
+/*__global__ void refactor_mutation_age(int * mutation_age, int mutations_Index, int total_generations){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		reinterpret_cast<int4*>(mutation_age)[id] = reinterpret_cast<const int4*>(mutation_age)[id] - total_generations;
 	}
 	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
 	if(id < mutations_Index){ mutation_age[id] = mutation_age[id] - total_generations; }
-}
+}*/
 
 struct mig_prop
 {
@@ -371,7 +363,7 @@ struct mutation
 struct sim_struct{
 	//device arrays
 	float * d_mutations_freq; //allele frequency of current mutations
-	int3 * d_mutations_ID;  //generation when mutation entered the population
+	int3 * d_mutations_ID;  //generation mutations appeared in simulation, ID that generated mutation, population that mutation first arose
 
 	int h_num_populations; //number of populations (# rows for freq)
 	int h_array_Length; //full length of the mutation array, total number of mutations across all populations (# columns for freq)
@@ -480,7 +472,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaMalloc((void**)&mutations.d_mutations_ID, mutations.h_array_Length*sizeof(int3));
 
 	const dim3 blocksize(4,256,1);
-	const dim3 gridsize(16,32,1);
+	const dim3 gridsize(32,32,1);
 	offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
 		initialize_mse_mutation_array<<<gridsize,blocksize,0,pop_streams[pop]>>>(mutations.d_mutations_freq, d_freq_index, d_scan_index, offset, demography(pop,0), pop, mutations.h_num_populations, mutations.h_array_Length);
@@ -605,7 +597,7 @@ __host__ __forceinline__ sim_result run_sim(const Functor_mutation mu_rate, cons
 			int N = demography(pop,generation);
 			int prev_Index = mutations.h_new_mutation_Indices[pop];
 			int new_Index = mutations.h_new_mutation_Indices[pop+1];
-			add_new_mutations<<<5,1024,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, 1.f/N, pop, mutations.h_num_populations, generation);
+			add_new_mutations<<<10,512,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, 1.f/N, pop, mutations.h_num_populations, generation);
 		}
 		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
 		//----- end -----
@@ -646,10 +638,22 @@ struct no_mig
 	__device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const{ return pop_FROM == pop_TO; }
 };
 
-template <typename Neutral, typename No_mig>
-__host__ __forceinline__ sfs site_frequency_spectrum(sim_result sim, int * population, int * num_samples, const int seed, Neutral neu = neutral(), No_mig mig = no_mig()){
+template <typename Functor>
+__global__ void test(Functor fun){
 
+}
+
+__host__ __forceinline__ sim_result sample(sim_result sim, int * population, int * num_samples, const int seed){
+	neutral neu;
+	no_mig mig;
+	test<<<1,1>>>(neu);
 	//migration_selection_drift(float * mutations_freq, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int population, const int num_populations, const int generation);
+	//compact(sim_struct & mutations, const int generation, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int compact_rate)
+	return sim_result();
+}
+
+__host__ __forceinline__ sfs site_frequency_spectrum(sim_result sim, int * population, int * num_samples, const int seed){
+	sim_result samp = sample(sim, population, num_samples, seed);
 
 	return sfs();
 }
@@ -709,6 +713,13 @@ int main(int argc, char **argv)
 	sim_result a = run_sim(mutation(mu), dem, mig_prop(m), sel_coeff(s), h, Fi, L, num_pop, seed);
 	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
 
+	int * pop = new int[1];
+	int * num_samp = new int[1];
+	pop[0] = 0;
+	num_samp[0] = 200;
+	sfs test = site_frequency_spectrum(a,pop,num_samp,0);
+	delete pop;
+	delete num_samp;
 /*	sim_result a = run_sim(mutation(mu), burn_in, sel_coeff(s), h, L, seed);
 	cout<<endl<<"final number of mutations: " << a.num_mutations << endl;
 
