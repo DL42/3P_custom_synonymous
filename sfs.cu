@@ -552,7 +552,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaFree(d_temp_storage);
 
 	int h_num_seg_mutations;
-	cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[mutations.h_mutations_Index-1], sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[mutations.h_mutations_Index-1], sizeof(int), cudaMemcpyDeviceToHost); //got to stall the host since h_num_seq_mutations is manipulated on CPU right after
 	h_num_seg_mutations += 1; //doesn't need to be h_num_seg_mutations += d_flag[mutations.h_mutations_Index-1] as last mutation in index will be new, so d_flag[mutations.h_mutations_Index-1] = 1
 
 	int old_mutations_Index = mutations.h_mutations_Index;
@@ -640,7 +640,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	int next_compact_generation = generation + compact_rate;
 	int sample_index = 0;
 	int * d_new_mutation_Indices;
-	cudaMalloc((void**)&d_new_mutation_Indices, (mutations.h_num_populations+1)*sizeof(int));
+	cudaMalloc((void**)&d_new_mutation_Indices, 2*sizeof(int));
 
 	while((generation+1) <= final_generation){ //end of simulation
 		//cudaEventRecord(init_event,init_stream);
@@ -652,17 +652,17 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			int N = demography(pop,generation);
 			int F = FI(pop,generation);
 			//cudaStreamWaitEvent(pop_streams[pop],init_event,0);
-			migration_selection_drift<<<800,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<500,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
 		}
 		//----- end -----
 
 		//----- generate new mutations -----
 		calc_new_mutations_Index(mutations, mu_rate, demography, num_sites, seed, generation);
-		cudaMemcpyAsync(d_new_mutation_Indices, mutations.h_new_mutation_Indices, (mutations.h_num_populations+1)*sizeof(int), cudaMemcpyHostToDevice);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N = demography(pop,generation);
 			int prev_Index = mutations.h_new_mutation_Indices[pop];
 			int new_Index = mutations.h_new_mutation_Indices[pop+1];
+			//cudaMemcpyAsync(d_new_mutation_Indices, &mutations.h_new_mutation_Indices[pop], 2*sizeof(int), cudaMemcpyHostToDevice, pop_streams[pop]);
 			add_new_mutations<<<10,512,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, 1.f/N, pop, mutations.h_num_populations, generation);
 			cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		}
@@ -684,9 +684,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		//----- end -----
 
 		for(int pop1 = 0; pop1 < mutations.h_num_populations; pop1++){
-			//for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
-				//cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2],0);
-			//}
+			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
+				cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2],0);
+			}
 		}
 
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -779,7 +779,7 @@ int main(int argc, char **argv)
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2.5*pow(10.f,8);
 	float m = 0.01;
-	int num_pop = 1;
+	int num_pop = 3;
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
 
