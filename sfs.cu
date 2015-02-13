@@ -561,20 +561,20 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 }
 
 template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int generation, const int final_generation, const int compact_rate){
+__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
-	flag_segregating_mutations<<<50,1024>>>(d_flag, mutations.d_mutations_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length);
+	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, mutations.d_mutations_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length);
 
 	int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaFree(d_temp_storage);
 
 	int h_num_seg_mutations;
@@ -591,7 +591,12 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int3));
 
 	const dim3 gridsize(50,mutations.h_num_populations,1);
-	scatter_arrays<<<gridsize,1024>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	scatter_arrays<<<gridsize,1024,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	cudaEventRecord(control_events[0],control_streams[0]);
+
+	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
+		cudaStreamWaitEvent(pop_streams[pop],control_events[0],0);
+	}
 
 	cudaFree(mutations.d_mutations_freq);
 	cudaFree(mutations.d_mutations_ID);
@@ -626,14 +631,18 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	cudaStream_t * pop_streams = new cudaStream_t[2*mutations.h_num_populations];
 	cudaEvent_t * pop_events = new cudaEvent_t[2*mutations.h_num_populations];
 
-	cudaStream_t init_stream;
-	cudaEvent_t init_event;
-	cudaStreamCreate(&init_stream);
-	cudaEventCreateWithFlags(&init_event,cudaEventDisableTiming);
+	int num_control_streams = 3;
+	cudaStream_t * control_streams = new cudaStream_t[num_control_streams];;
+	cudaEvent_t * control_events = new cudaEvent_t[num_control_streams];;
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
 		cudaStreamCreate(&pop_streams[pop]);
 		cudaEventCreateWithFlags(&pop_events[pop],cudaEventDisableTiming);
+	}
+
+	for(int stream = 0; stream < num_control_streams; stream++){
+		cudaStreamCreate(&control_streams[stream]);
+		cudaEventCreateWithFlags(&control_events[stream],cudaEventDisableTiming);
 	}
 
 	int generation = 0;
@@ -691,12 +700,14 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
 				cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2+mutations.h_num_populations],0);
 			}
+			cudaStreamWaitEvent(control_streams[0],pop_events[pop1],0);
+			cudaStreamWaitEvent(control_streams[0],pop_events[pop1+mutations.h_num_populations],0);
 		}
 
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && sample_index < max_samples){
 			//----- compact before sampling if requested -----
-			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate); next_compact_generation = generation + compact_rate; }
+			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
 			//----- end -----
 			sim_struct::copy_sim_struct(time_samples[sample_index],  mutations);
 			sample_index++;
@@ -704,7 +715,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		//----- end -----
 
 		//----- compact every compact_rate generations and final generation -----
-		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate); next_compact_generation = generation + compact_rate;}
+		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;}
 		//----- end -----
 	}
 	//----- end -----
@@ -722,10 +733,14 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	//----- end -----
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaStreamDestroy(pop_streams[pop]); cudaEventDestroy(pop_events[pop]); }
+	for(int stream = 0; stream < num_control_streams; stream++){ cudaStreamDestroy(control_streams[stream]); cudaEventDestroy(control_events[stream]); }
+
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 	delete pop_streams;
 	delete pop_events;
+	delete control_streams;
+	delete control_events;
 
 	cudaDeviceSynchronize();
 
