@@ -373,20 +373,6 @@ struct sim_struct{
 
 	sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0) { d_mutations_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; d_prev_freq = NULL;}
 
-	static void copy_sim_struct(sim_struct & TO,  const sim_struct & FROM){
-		TO.h_num_populations = FROM.h_num_populations;
-		TO.h_array_Length = FROM.h_mutations_Index; //used for taking samples, only need the number of mutations
-		TO.h_mutations_Index = FROM.h_mutations_Index;
-
-		cudaMalloc((void**)&TO.d_mutations_freq, TO.h_num_populations*TO.h_array_Length*sizeof(float));
-		cudaMalloc((void**)&TO.d_mutations_ID, TO.h_array_Length*sizeof(float));
-
-		cudaMemcpy2DAsync(TO.d_mutations_freq, TO.h_mutations_Index*sizeof(float), FROM.d_mutations_freq, FROM.h_array_Length*sizeof(float), FROM.h_mutations_Index*sizeof(float), FROM.h_num_populations, cudaMemcpyDeviceToDevice);
-		cudaMemcpyAsync(TO.d_mutations_ID, FROM.d_mutations_ID, FROM.h_mutations_Index*sizeof(int3), cudaMemcpyDeviceToDevice);
-
-		//no need to copy over h_new_mutation_Indices or prev_freq as this function is used for sampling data
-	}
-
 	~sim_struct(){ cudaFree(d_mutations_freq); cudaFree(d_prev_freq); cudaFree(d_mutations_ID); if(h_new_mutation_Indices) { delete [] h_new_mutation_Indices; } }
 };
 
@@ -411,7 +397,7 @@ struct sim_result{
 		out.num_sites = num_sites;
 		out.total_generations = total_generations;
 		out.mutations_freq = new float[out.num_populations*out.num_mutations];
-		cudaMemcpyAsync(out.mutations_freq, mutations.d_mutations_freq, out.num_populations*out.num_mutations*sizeof(float), cudaMemcpyDeviceToHost);
+		cudaMemcpy2DAsync(out.mutations_freq, out.num_mutations*sizeof(float), mutations.d_mutations_freq, mutations.h_array_Length*sizeof(float), out.num_mutations*sizeof(float), out.num_populations, cudaMemcpyDeviceToHost);
 		out.mutations_ID = new mutID[out.num_mutations];
 		cudaMemcpyAsync(out.mutations_ID, mutations.d_mutations_ID, out.num_mutations*sizeof(int3), cudaMemcpyDeviceToHost);
 	}
@@ -624,7 +610,7 @@ struct no_sample{
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_migration, typename Functor_selection, typename Functor_timesample = no_sample>
 __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration m, const Functor_selection s, const float h, const Functor_inbreeding FI, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35){
 	sim_struct mutations;
-	sim_struct * time_samples = new sim_struct[max_samples+1];
+	sim_result * all_results = new sim_result[max_samples+1];
 
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
@@ -709,7 +695,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			//----- compact before sampling if requested -----
 			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
 			//----- end -----
-			sim_struct::copy_sim_struct(time_samples[sample_index],  mutations);
+			sim_result::store_sim_result(all_results[sample_index], mutations, num_sites, generation);
 			sample_index++;
 		}
 		//----- end -----
@@ -726,10 +712,8 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	printf("time elapsed generations: %f\n", elapsedTime);
 
-	//----- store time samples and final (compacted) generation on host -----
-	sim_struct::copy_sim_struct(time_samples[max_samples],  mutations);
-	sim_result * all_results = new sim_result[max_samples+1];
-	for(int i = 0; i <= max_samples; i++){ sim_result::store_sim_result(all_results[i], time_samples[i], num_sites, generation); }
+	//----- store final (compacted) generation on host -----
+	sim_result::store_sim_result(all_results[max_samples], mutations, num_sites, generation);
 	//----- end -----
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaStreamDestroy(pop_streams[pop]); cudaEventDestroy(pop_events[pop]); }
