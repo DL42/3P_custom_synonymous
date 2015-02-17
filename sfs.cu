@@ -32,32 +32,32 @@ using namespace r123;
 // Let M be the number of mantissa bits in Float.
 // If W>M  then the largest value retured is 1.0.
 // If W<=M then the largest value returned is the largest Float less than 1.0.
-__host__ __device__ float uint_float_01(unsigned int in){
+__host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
 	//(mostly) stolen from Philox code "uniform.hpp"
 	R123_CONSTEXPR float factor = float(1.)/(UINT_MAX + float(1.));
 	R123_CONSTEXPR float halffactor = float(0.5)*factor;
     return in*factor + halffactor;
 }
 
-__host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
+inline __host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-__host__ __device__ float4 exp(float4 f){ return make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w)); }
+inline __host__ __device__ float4 exp(float4 f){ return make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w)); }
 
-__host__ __device__ double4 expd(float4 d){ return make_double4(exp(double(d.x)),exp(double(d.y)),exp(double(d.z)),exp(double(d.w))); }
+inline __host__ __device__ double4 expd(float4 d){ return make_double4(exp(double(d.x)),exp(double(d.y)),exp(double(d.z)),exp(double(d.w))); }
 
-inline __host__ __device__ double4 operator*(int a, double4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
+inline __host__ __device__  double4 operator*(int a, double4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
 
-inline __host__ __device__ double4 operator*(double a, float4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
+inline __host__ __device__  double4 operator*(double a, float4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
 
-inline __host__ __device__ double4 operator*(double4 a, double4 b){ return make_double4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
+inline __host__ __device__  double4 operator*(double4 a, double4 b){ return make_double4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
 
-inline __host__ __device__ double4 operator+(double4 b, double a){ return make_double4(a + b.x, a + b.y, a + b.z, a + b.w); }
+inline __host__ __device__  double4 operator+(double4 b, double a){ return make_double4(a + b.x, a + b.y, a + b.z, a + b.w); }
 
-inline __host__ __device__ float4 operator/(double4 a, double4 b){ return make_float4(a.x/b.x, a.y/b.y, a.z/b.z, a.w/b.w); }
+inline __host__ __device__  float4 operator/(double4 a, double4 b){ return make_float4(a.x/b.x, a.y/b.y, a.z/b.z, a.w/b.w); }
 
-inline __host__ __device__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
+inline __host__ __device__  float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
-__host__ __device__  uint4 Philox(int k, int step, int seed, int population, int round){
+__host__ __device__ __forceinline__  uint4 Philox(int k, int step, int seed, int population, int round){
 	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
 	P rng;
 
@@ -76,7 +76,7 @@ __host__ __device__  uint4 Philox(int k, int step, int seed, int population, int
 
 
 
-__host__ __device__ int poiscdfinv(float p, float mean){
+__host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	float e = exp(-1 * mean);
 	float lambda_j = 1;
 	float factorial = 1;
@@ -104,7 +104,7 @@ __host__ __device__ int poiscdfinv(float p, float mean){
 	return j;
 }
 
-__host__ __device__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
+__host__ __device__ __forceinline__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
 //only for use when N is small
 	int j = 0;
 	int counter = 0;
@@ -128,7 +128,7 @@ __host__ __device__ int RandBinom(float p, float N, int k, int step, int seed, i
 	return j;
 }
 
-__host__ __device__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
+__host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
 
 	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
 	uint4 i = Philox(k, step, seed, population, 0);
@@ -137,21 +137,49 @@ __host__ __device__ int Rand1(float mean, float var, float p, float N, int k, in
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
-__device__ int Rand1(unsigned int i, float mean, float var, float N){
+__device__ __forceinline__ int Rand1(unsigned int i, float mean, float var, float N){
 	if(mean <= 10){ return poiscdfinv(uint_float_01(i), mean); }
 	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
-__device__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
+__device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
 	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
 
+template <typename Functor_selection>
+struct diploid_core_fun{
+	Functor_selection sel_coeff;
+	int N, pop, gen;
+	double h;
+	bool neg;
+
+	diploid_core_fun(): N(0), h(0), neg(false), pop(0), gen(0) {}
+	diploid_core_fun(Functor_selection xsel_coeff, int xN, double xh, bool xneg, int xpop, int xgen = 0): N(xN), h(xh), neg(xneg), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
+
+	__device__ __forceinline__ float operator()(float i){
+		int k = 1;
+		if(neg){ k = -1; }
+		double s = sel_coeff(pop, gen, (float)i);
+		return (float)exp(k*2*N*s*i*(2*h+(1-2*h)*i));
+	}
+};
+
+
+template<typename Functor_function>
+struct trapezoidal{
+	Functor_function fun;
+
+	trapezoidal() { }
+	trapezoidal(Functor_function xfun) { fun = xfun; }
+	__device__ __forceinline__ float operator()(float a, float b) const{ return (b-a)*(fun(a) + fun(b))/2; }
+};
+
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const int seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < (N-1)/4; id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
@@ -226,7 +254,7 @@ __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
 template <typename Functor_migration, typename Functor_selection>
-__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int population, const int num_populations, const int generation){
+__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float F, const float h, const int seed, const int population, const int num_populations, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -458,8 +486,12 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 	}
 }
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_selection>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection s, const int h, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
+__host__ __forceinline__ void integrate_diploid_mse(){
+
+}
+
+template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding>
+__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const int h, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
 
 	int numfreq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -478,7 +510,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		int N = demography(pop,0);
 		if(N <= 1){ continue; }
 		float mu = mu_rate(pop,0);
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, offset, mu, N, num_sites, s, h, seed, pop);
+		float F = FI(pop,0);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, offset, mu, N, num_sites, sel_coeff, h, F, seed, pop);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 
@@ -632,7 +665,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_migration, typename Functor_selection, typename Functor_timesample = no_sample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration m, const Functor_selection s, const float h, const Functor_inbreeding FI, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -667,7 +700,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
-		initialize_mse(mutations, mu_rate, demography, s, h, final_generation, num_sites, seed, compact_rate, pop_streams, pop_events, myDevice);
+		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, h, final_generation, num_sites, seed, compact_rate, pop_streams, pop_events, myDevice);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
@@ -676,7 +709,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	}
 	//----- end -----
 
-	//cout<<"initial num_mutations " << mutations.h_mutations_Index << endl;
+	cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
 
 	//----- simulation steps -----
 
@@ -698,7 +731,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			}
 			int F = FI(pop,generation);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, m, s, h, F, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 		}
 		//----- end -----
 
@@ -815,19 +848,19 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-    int N_chrom_pop = 2*pow(10.f,4); //constant population for now
+    int N_chrom_pop = 2*pow(10.f,5); //constant population for now
     float gamma = 0;
 	float s = gamma/(2.f*N_chrom_pop);
 	float h = 0.5;
 	float F = 1;
 	float mu = pow(10.f,-9); //per-site mutation rate
-	float L = 2.5*pow(10.f,8);
+	float L = 2*pow(10.f,7);
 	float m = 0.01;
 	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
 
-	sim_result * a = run_sim(mutation(mu), demography(N_chrom_pop), mig_prop_pop(m,num_pop), sel_coeff(s), h, inbreeding(F), total_number_of_generations, L, num_pop, seed);
+	sim_result * a = run_sim(mutation(mu), demography(N_chrom_pop), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed);
 
 	cudaEventRecord(stop, 0);
 	cudaEventSynchronize(stop);
