@@ -149,21 +149,35 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
 
+__device__ __forceinline__ float haploid(float i, int N, float s){
+		return (float)(1-exp(-1*(2*N*double(s))*(1-i)));
+}
+
+__device__ __forceinline__ double4 haploid(float4 i, int N, float s){
+		return (-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0);
+}
+
+__device__ __forceinline__ float diploid(float i, int N, float h, float s){
+		return (float)exp((double)(2*N*s*i*(2*h+(1-2*h)*i)));
+}
+
+__device__ __forceinline__ double4 diploid(float4 i, int N, float h, float s){
+		return expd(2*N*s*i*((1-2*h)*i)+2*h);
+}
+
 template <typename Functor_selection>
-struct diploid_core_fun{
+struct diploid_integrand{
 	Functor_selection sel_coeff;
 	int N, pop, gen;
-	double h;
-	bool neg;
+	float h;
 
-	diploid_core_fun(): N(0), h(0), neg(false), pop(0), gen(0) {}
-	diploid_core_fun(Functor_selection xsel_coeff, int xN, double xh, bool xneg, int xpop, int xgen = 0): N(xN), h(xh), neg(xneg), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
+	diploid_integrand(): N(0), h(0), pop(0), gen(0) {}
+	diploid_integrand(Functor_selection xsel_coeff, int xN, float xh, int xpop, int xgen = 0): N(xN), h(xh), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
 
-	__device__ __forceinline__ float operator()(float i){
-		int k = 1;
-		if(neg){ k = -1; }
-		double s = sel_coeff(pop, gen, (float)i);
-		return (float)exp(k*2*N*s*i*(2*h+(1-2*h)*i));
+	__device__ __forceinline__ float operator()(float i) const{
+		float s = sel_coeff(pop, gen, 0.5); //not meant to be used for frequency-dependent selection
+		//return (float)exp((double)(-1*2*N*s*i*(2*h+(1-2*h)*i)));
+		return diploid(i, N, h, s);
 	}
 };
 
@@ -176,6 +190,18 @@ struct trapezoidal{
 	trapezoidal(Functor_function xfun) { fun = xfun; }
 	__device__ __forceinline__ float operator()(float a, float b) const{ return (b-a)*(fun(a) + fun(b))/2; }
 };
+
+//generates an array of frequencies from 1 to 0 of frequencies at every step size
+__global__ void fill_diploid_freq(float * d_freq, const int num_freq, const float freq){
+	int myID = blockIdx.x*blockDim.x + threadIdx.x;
+
+	for(int id = myID; id < num_freq/4; id += blockDim.x*gridDim.x){
+		reinterpret_cast<float4*>(d_freq)[id] = 1.0+make_float4(-1*(4*id*freq),-1*(4*id*freq + 1),-1*(4*id*freq + 2),-1*(4*id*freq + 3));
+	}
+
+	int id = myID + num_freq/4*4;//all integers //only works if minimum of 3 threads are launched
+	if(id < num_freq){ d_freq[id] = 1.0 - id*freq; }
+}
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
@@ -269,7 +295,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		int4 j_mig_sel_drift = clamp(Rand4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
-	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
 		float i_mig = 0;
 		for(int pop = 0; pop < num_populations; pop++){
@@ -308,7 +334,7 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 		for(int pop = 0; pop < num_populations; pop++){ i *= boundary(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]); } //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 		reinterpret_cast<int4*>(flag)[id] = make_int4(!i.x,!i.y,!i.z,!i.w); //1 if allele is segregating in any population, 0 otherwise
 	}
-	int id = myID + mutations_Index/4 * 4;  //right now only works if minimum of 3 threads are launched
+	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
 		int i = 1;
 		for(int pop = 0; pop < num_populations; pop++){ i *= boundary(mutations_freq[pop*array_Length+id]); }
@@ -486,24 +512,44 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 	}
 }
 
-__host__ __forceinline__ void integrate_diploid_mse(){
+template <typename Functor_selection>
+__host__ __forceinline__ void integrate_diploid_mse(float * diploid_mse, const float mu, const int N, const Functor_selection sel_coeff, const float h, int pop, cudaStream_t pop_stream){
 
+	const int step_size = 1;
+	const float num_freq = step_size*N+1;
+	float * d_freq;
+	cudaMalloc((void**)&d_freq, num_freq*sizeof(float));
+
+	fill_diploid_freq<<<20,1024,0,pop_stream>>>(d_freq, num_freq, 1.f/(N*step_size)); //setup array frequency values to integrate over (upper integral from 1 to 0)
+
+	cudaMalloc((void**)&diploid_mse, num_freq*sizeof(float));
+	diploid_integrand<Functor_selection> f(sel_coeff, N, h, pop);
+	trapezoidal< diploid_integrand<Functor_selection> > trap(f);
+
+
+	void * d_temp_storage = NULL;
+	size_t temp_storage_bytes = 0;
+	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, 1.f, num_freq, pop_stream);
+	cudaMalloc(&d_temp_storage, temp_storage_bytes);
+	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, 1.f, num_freq, pop_stream);
+	cudaFree(d_temp_storage);
+	cudaFree(d_freq);
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const int h, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
+__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
 
-	int numfreq = 0; //number of frequencies
+	int num_freq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
 		int N = demography(pop,0);
 		if(N <= 1){ continue; }
-		numfreq += (int)(ceil((N - 1)/4.f)*4);
+		num_freq += (int)(ceil((N - 1)/4.f)*4);
 	} //adds a little padding to ensure distances between populations in array are a multiple of 4
 
 	int * d_freq_index;
-	cudaMalloc((void**)&d_freq_index, numfreq*sizeof(int));
+	cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int));
 	int * d_scan_index;
-	cudaMalloc((void**)&d_scan_index, numfreq*sizeof(int));
+	cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int));
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -522,9 +568,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, numfreq, pop_streams[0]);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, numfreq, pop_streams[0]);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]);
 	cudaFree(d_temp_storage);
 
 	cudaEventRecord(pop_events[0],pop_streams[0]);
@@ -535,8 +581,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	int prefix_sum_result;
 	int final_freq_count;
 	//final index is numfreq-1
-	cudaMemcpy(&prefix_sum_result, &d_scan_index[(numfreq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
-	cudaMemcpy(&final_freq_count, &d_freq_index[(numfreq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
+	cudaMemcpy(&prefix_sum_result, &d_scan_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
+	cudaMemcpy(&final_freq_count, &d_freq_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
 	int num_mutations = prefix_sum_result+final_freq_count;
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, num_sites, compact_rate, 0, final_generation);
 	//cout<<"initial length " << mutations.h_array_Length << endl;
