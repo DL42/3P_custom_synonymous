@@ -149,16 +149,16 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
 
-__device__ __forceinline__ float haploid(float i, int N, float s){
-		return (float)(1-exp(-1*(2*N*double(s))*(1-i)));
+__device__ __forceinline__ double haploid(float i, int N, float s){
+		return (1-exp((double)(-1*(2*N*s)*(1-i))));
 }
 
 __device__ __forceinline__ double4 haploid(float4 i, int N, float s){
 		return (-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0);
 }
 
-__device__ __forceinline__ float diploid(float i, int N, float h, float s){
-		return (float)exp((double)(2*N*s*i*(2*h+(1-2*h)*i)));
+__device__ __forceinline__ double diploid(double i, int N, float h, float s){ //takes in double from diploid_integrand, otherwise takes in float
+		return exp(2*N*s*i*(2*h+(1-2*h)*i));
 }
 
 __device__ __forceinline__ double4 diploid(float4 i, int N, float h, float s){
@@ -174,10 +174,9 @@ struct diploid_integrand{
 	diploid_integrand(): N(0), h(0), pop(0), gen(0) {}
 	diploid_integrand(Functor_selection xsel_coeff, int xN, float xh, int xpop, int xgen = 0): N(xN), h(xh), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
 
-	__device__ __forceinline__ float operator()(float i) const{
+	__device__ __forceinline__ double operator()(double i) const{
 		float s = sel_coeff(pop, gen, 0.5); //not meant to be used for frequency-dependent selection
-		//return (float)exp((double)(-1*2*N*s*i*(2*h+(1-2*h)*i)));
-		return diploid(i, N, h, s);
+		return diploid(i, N, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
 
@@ -188,18 +187,18 @@ struct trapezoidal{
 
 	trapezoidal() { }
 	trapezoidal(Functor_function xfun) { fun = xfun; }
-	__device__ __forceinline__ float operator()(float a, float b) const{ return (b-a)*(fun(a) + fun(b))/2; }
+	__device__ __forceinline__ double operator()(double a, double b) const{ return (b-a)*(fun(a) + fun(b))/2; }
 };
 
 //generates an array of frequencies from 1 to 0 of frequencies at every step size
-__global__ void fill_diploid_freq(float * d_freq, const int num_freq, const float freq){
+__global__ void fill_diploid_freq(double * d_freq, const int num_freq, const double freq){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
-	for(int id = myID; id < num_freq/4; id += blockDim.x*gridDim.x){
-		reinterpret_cast<float4*>(d_freq)[id] = 1.0+make_float4(-1*(4*id*freq),-1*(4*id*freq + 1),-1*(4*id*freq + 2),-1*(4*id*freq + 3));
+	for(int id = myID; id < num_freq/2; id += blockDim.x*gridDim.x){
+		reinterpret_cast<double2*>(d_freq)[id] = make_double2(1.0 - (2*id*freq),1.0 - (2*id*freq + 1));
 	}
 
-	int id = myID + num_freq/4*4;//all integers //only works if minimum of 3 threads are launched
+	int id = myID + num_freq/2*2; //all integers, with double 128-bit memory transfer maxed out at 2 transfers
 	if(id < num_freq){ d_freq[id] = 1.0 - id*freq; }
 }
 
@@ -213,7 +212,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, const int offse
 		float s = sel_coeff(population, 0, 0.5); //the equations below don't work for frequency-dependent selection anyway
 		float4 lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda =  2*mu*L*((-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0)/((-1*exp(-1*(2*N*double(s)))+1)*i*(-1.0*i+1.0))); }
+		else{ lambda =  2*mu*L*(haploid(i,N,s)/(haploid(0,N,s)*i*(-1.0*i+1.0))); }
 		reinterpret_cast<int4*>(freq_index)[offset/4 + id] = max(Rand4(lambda, lambda, make_float4(mu), L*N, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
 		//printf(" %d %d %d %f %f %f %f %f %f %f %f \r", myID, id, population, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
 	}
@@ -225,7 +224,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, const int offse
 		float s = sel_coeff(population, 0, 0.5);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda =  2*mu*L*(1-exp(-1*(2*N*double(s))*(1-i)))/((1-exp(-1*(2*N*double(s))))*i*(1-i)); }
+		else{ lambda =  2*mu*L*haploid(i,N,s)/(haploid(0,N,s)*i*(1-i)); }
 		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf(" %d %d %d %f %f\r", myID, id, population, i, lambda);
 	}else if(id >= (N-1) && id < next_offset){ freq_index[offset+id] = 0; } //ensures padding at end of population is set to 0
@@ -516,22 +515,22 @@ template <typename Functor_selection>
 __host__ __forceinline__ void integrate_diploid_mse(float * diploid_mse, const float mu, const int N, const Functor_selection sel_coeff, const float h, int pop, cudaStream_t pop_stream){
 
 	const int step_size = 1;
-	const float num_freq = step_size*N+1;
-	float * d_freq;
-	cudaMalloc((void**)&d_freq, num_freq*sizeof(float));
+	const int num_freq = step_size*N+1;
+	double * d_freq;
+	cudaMalloc((void**)&d_freq, num_freq*sizeof(double));
 
-	fill_diploid_freq<<<20,1024,0,pop_stream>>>(d_freq, num_freq, 1.f/(N*step_size)); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	fill_diploid_freq<<<20,1024,0,pop_stream>>>(d_freq, num_freq, (double)1.0/(N*step_size)); //setup array frequency values to integrate over (upper integral from 1 to 0)
 
-	cudaMalloc((void**)&diploid_mse, num_freq*sizeof(float));
+	cudaMalloc((void**)&diploid_mse, num_freq*sizeof(double));
 	diploid_integrand<Functor_selection> f(sel_coeff, N, h, pop);
 	trapezoidal< diploid_integrand<Functor_selection> > trap(f);
 
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, 1.f, num_freq, pop_stream);
+	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, (double)1.0, num_freq, pop_stream);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, 1.f, num_freq, pop_stream);
+	DeviceScan::ExclusiveScan(d_temp_storage, temp_storage_bytes, d_freq, diploid_mse, trap, (double)1.0, num_freq, pop_stream);
 	cudaFree(d_temp_storage);
 	cudaFree(d_freq);
 }
@@ -895,7 +894,7 @@ int main(int argc, char **argv)
     cudaEventRecord(start, 0);
 
     int N_chrom_pop = 2*pow(10.f,5); //constant population for now
-    float gamma = 0;
+    float gamma = -10;
 	float s = gamma/(2.f*N_chrom_pop);
 	float h = 0.5;
 	float F = 1;
