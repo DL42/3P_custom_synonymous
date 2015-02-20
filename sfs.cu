@@ -14,7 +14,6 @@
 #include <Random123/features/compilerfeatures.h>
 #define CUB_STDERR
 #include <cub/device/device_scan.cuh>
-#include <cub/device/device_select.cuh>
 
 using namespace std;
 using namespace cub;
@@ -158,11 +157,11 @@ __device__ __forceinline__ double4 haploid(float4 i, int N, float s){
 }
 
 __device__ __forceinline__ double diploid(double i, int N, float h, float s){ //takes in double from diploid_integrand, otherwise takes in float
-		return exp(2*N*s*i*(2*h+(1-2*h)*i));
+		return exp(N*s*i*(2*h+(1-2*h)*i));
 }
 
 __device__ __forceinline__ double4 diploid(float4 i, int N, float h, float s){
-		return expd(2*N*s*i*((1-2*h)*i)+2*h);
+		return expd(N*s*i*(((1-2*h)*i)+2*h));
 }
 
 template <typename Functor_selection>
@@ -799,6 +798,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
 	int myDevice;
 	cudaGetDevice(&myDevice);
+	cudaDeviceProp devProp;
+	cudaGetDeviceProperties(&devProp, myDevice);
+	int warpSize = devProp.warpSize;
 
 	sim_struct mutations;
 	sim_result * all_results = new sim_result[max_samples+1];
@@ -976,13 +978,13 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-    int N_chrom_pop = 2*pow(10.f,6); //constant population for now
+    int N_chrom_pop = 2*pow(10.f,5); //constant population for now
     float gamma = -20;
 	float s = gamma/(2.f*N_chrom_pop);
 	float h = 0.0;
-	float F = 0.0;
+	float F = 0.5;
 	float mu = pow(10.f,-9); //per-site mutation rate
-	float L = 2*pow(10.f,6);
+	float L = 2*pow(10.f,7);
 	float m = 0.01;
 	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,5);
