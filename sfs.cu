@@ -164,18 +164,22 @@ __device__ __forceinline__ double4 diploid(float4 i, int N, float h, float s){
 		return expd(N*s*i*(((1-2*h)*i)+2*h));
 }
 
+__device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from diploid_integrand, otherwise takes in float
+		return exp(N*s*i*((2*h+(1-2*h)*i)*(1-F) + F));
+}
+
 template <typename Functor_selection>
-struct diploid_integrand{
+struct mse_integrand{
 	Functor_selection sel_coeff;
 	int N, pop, gen;
-	float h;
+	float F, h;
 
-	diploid_integrand(): N(0), h(0), pop(0), gen(0) {}
-	diploid_integrand(Functor_selection xsel_coeff, int xN, float xh, int xpop, int xgen = 0): N(xN), h(xh), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
+	mse_integrand(): N(0), h(0), F(0), pop(0), gen(0) {}
+	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
 
 	__device__ __forceinline__ double operator()(double i) const{
 		float s = sel_coeff(pop, gen, 0.5); //not meant to be used for frequency-dependent selection
-		return diploid(i, N, h, -1*s); //exponent term in integrand is negative inverse
+		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
 
@@ -245,7 +249,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * diploi
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, double * diploid_integral, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float F, const float h, const int seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < (N-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
@@ -254,11 +258,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * diploi
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{
-			lambda =  2*mu*L*haploid(i,N,s)/(haploid(0,N,s)*i*(1-i));
-			if(F < 1 && h != 0.5){
-				float lambda_dip = 2*mu*L*diploid(i, N, h, s)*diploid_integral[id]/(diploid_integral[0]*i*(1-i));
-				lambda = lambda*F + (1-F)*lambda_dip;
-			}
+			lambda = 2*mu*L*mse(i, N, F, h, s)*mse_integral[id]/(mse_integral[0]*i*(1-i));
 		}
 		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf(" %d %d %d %f %f\r", myID, id, population, i, lambda);
@@ -552,7 +552,7 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 }
 
 template <typename Functor_selection>
-__host__ __forceinline__ double * integrate_diploid_mse(const int N, const Functor_selection sel_coeff, const float h, int pop, cudaStream_t pop_stream){
+__host__ __forceinline__ double * integrate_diploid_mse(const int N, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 
 	const int step_multiple = 1;
 	const int num_freq = step_multiple*N;
@@ -564,8 +564,8 @@ __host__ __forceinline__ double * integrate_diploid_mse(const int N, const Funct
 	cudaMalloc((void**)&d_mse_temp, num_freq*sizeof(double));
 	cudaMalloc((void**)&d_diploid_mse_integral, N*sizeof(double));
 
-	diploid_integrand<Functor_selection> f(sel_coeff, N, h, pop);
-	trapezoidal_upper< diploid_integrand<Functor_selection> > trap(f);
+	mse_integrand<Functor_selection> mse_fun(sel_coeff, N, F, h, pop);
+	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
 	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, num_freq, (double)1.0/(N*step_multiple), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 
@@ -634,8 +634,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		if(N <= 1){ continue; }
 		float mu = mu_rate(pop,0);
 		float F = FI(pop,0);
-		diploid_integral[pop] = integrate_diploid_mse(N, sel_coeff, h, pop, pop_streams[pop]);
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, diploid_integral[pop], offset, mu, N, num_sites, sel_coeff, h, F, seed, pop);
+		diploid_integral[pop] = integrate_diploid_mse(N, sel_coeff, F, h, pop, pop_streams[pop]);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, diploid_integral[pop], offset, mu, N, num_sites, sel_coeff, F, h, seed, pop);
 		offset += (int)(ceil((demography(pop,0) - 1)/4.f)*4);
 	}
 
@@ -971,6 +971,10 @@ __host__ __forceinline__ float ** trace_mutations(sim_result * sim, int generati
 	return NULL;
 }
 
+__host__ float test_selection(float i_mig, int N, float s, float h, float F){
+	return (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
+}
+
 int main(int argc, char **argv)
 {
     cudaEvent_t start, stop;
@@ -980,15 +984,21 @@ int main(int argc, char **argv)
 
     int N_chrom_pop = 2*pow(10.f,5); //constant population for now
     float gamma = -20;
-	float s = gamma/(2.f*N_chrom_pop);
-	float h = 0.0;
-	float F = 0.5;
+	float s = gamma/(N_chrom_pop);
+	float h = 0.5;
+	float F = 0.00;
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2*pow(10.f,7);
 	float m = 0.01;
 	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,5);
 	const int seed = 0xdecafbad;
+
+	float i = 0.2;
+	cout<<test_selection(i, N_chrom_pop, s, 0.5, 1.0)<<endl;
+	cout<<test_selection(i, N_chrom_pop, s, 0.5, 0.99)<<endl;
+	cout<<test_selection(i, N_chrom_pop, s, 0.5, 0.5)<<endl;
+	cout<<test_selection(i, N_chrom_pop, s, 0.5, 0.0)<<endl;
 
 	sim_result * a = run_sim(mutation(mu), demography(N_chrom_pop), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 
