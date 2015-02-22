@@ -200,10 +200,12 @@ __global__ void calculate_area(double * d_freq, const int num_freq, const double
 	for(int id = myID; id < num_freq; id += blockDim.x*gridDim.x){ d_freq[id] = trapezoidal((1.0 - id*step_size), step_size); }
 }
 
-__global__ void diploid_integral_array(double * mse_freq, const double * const all_freq, const int step_multiple, const int N){
+__global__ void reverse_array(double * array, const int N){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < N; id += blockDim.x*gridDim.x){
-		mse_freq[N - id - 1] = all_freq[step_multiple*id+(step_multiple-1)];
+	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
+		int temp = array[N - id - 1];
+		array[N - id - 1] = array[id];
+		array[id] = temp;
 	}
 }
 
@@ -535,8 +537,8 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 			int N = demography(pop,gen);
 			if(N == 0 || mutations.extinct[pop]){ continue; }
 			if(!mutations.haploid){ N *= 2; }
-			mutations.h_array_Length += mu_rate(pop,gen)*N*num_sites + 7*sqrtf(mu_rate(pop,gen)*N*num_sites);
-		} //maximum distance of floating point normal rng is <7 stdevs from mean
+			mutations.h_array_Length += mu_rate(pop,gen)*N*num_sites + 7*sqrtf(mu_rate(pop,gen)*N*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
+		}
 	}
 	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/32.f)*32); //replace with variable for warp size, coalesces memory access for multiple populations
 }
@@ -558,22 +560,17 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 }
 
 template <typename Functor_selection>
-__host__ __forceinline__ double * integrate_diploid_mse(const int N, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
-
-	const int step_multiple = 1;
-	const int num_freq = step_multiple*N;
+__host__ __forceinline__ double * integrate_mse(const int N, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 	double * d_freq;
-	double * d_mse_temp;
-	double * d_diploid_mse_integral;
+	double * d_mse_integral;
 
-	cudaMalloc((void**)&d_freq, num_freq*sizeof(double));
-	cudaMalloc((void**)&d_mse_temp, num_freq*sizeof(double));
-	cudaMalloc((void**)&d_diploid_mse_integral, N*sizeof(double));
-	int ploid = 2;
+	cudaMalloc((void**)&d_freq, N*sizeof(double));
+	cudaMalloc((void**)&d_mse_integral, N*sizeof(double));
+
 	mse_integrand<Functor_selection> mse_fun(sel_coeff, N, F, h, pop);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
-	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, num_freq, (double)1.0/(N*step_multiple), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, N, (double)1.0/(N), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 
 /*	double * h_array = new double[num_freq];
 	cudaMemcpy(h_array, d_freq, num_freq*sizeof(double), cudaMemcpyDeviceToHost);
@@ -592,14 +589,13 @@ __host__ __forceinline__ double * integrate_diploid_mse(const int N, const Funct
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_temp, num_freq, pop_stream);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, N, pop_stream);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_temp, num_freq, pop_stream);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, N, pop_stream);
 	cudaFree(d_temp_storage);
 	cudaFree(d_freq);
 
-	diploid_integral_array<<<10,1024,0,pop_stream>>>(d_diploid_mse_integral, d_mse_temp, step_multiple, N);
-	cudaFree(d_mse_temp);
+	reverse_array<<<10,1024,0,pop_stream>>>(d_mse_integral, N);
 
 /*	h_array = new double[N];
 	cudaMemcpy(h_array, d_diploid_mse_integral, N*sizeof(double), cudaMemcpyDeviceToHost);
@@ -615,7 +611,7 @@ __host__ __forceinline__ double * integrate_diploid_mse(const int N, const Funct
 
 	delete h_array;*/
 
-	return d_diploid_mse_integral;
+	return d_mse_integral;
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding>
@@ -633,7 +629,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int));
 	int * d_scan_index;
 	cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int));
-	double ** diploid_integral = new double *[mutations.h_num_populations];
+	double ** mse_integral = new double *[mutations.h_num_populations];
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -642,18 +638,18 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		if(N <= 1){ continue; }
 		float mu = mu_rate(pop,0);
 		float F = FI(pop,0);
-		diploid_integral[pop] = integrate_diploid_mse(N, sel_coeff, F, h, pop, pop_streams[pop]);
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, diploid_integral[pop], offset, mu, N, num_sites, sel_coeff, F, h, seed, pop);
+		mse_integral[pop] = integrate_mse(N, sel_coeff, F, h, pop, pop_streams[pop]);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N, num_sites, sel_coeff, F, h, seed, pop);
 		offset += (int)(ceil((N - 1)/4.f)*4);
 	}
 
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		cudaFree(diploid_integral[pop]);
+		cudaFree(mse_integral[pop]);
 		cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0);
 	}
 
-	delete [] diploid_integral;
+	delete [] mse_integral;
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
@@ -707,9 +703,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography>
 __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
-	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
+	//if prev_sim.num_mutations == 0 or num sites or num_populations or haploidy between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
-	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
+	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations && mutations.haploid == prev_sim.haploid);
 	if(use_prev_sim){
 		generation_shift = prev_sim.total_generations;
 		final_generation += generation_shift;
