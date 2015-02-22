@@ -528,32 +528,30 @@ struct sfs{
 	~sfs(){ if(frequency_spectrum){ delete[] frequency_spectrum; } if(frequency_age_spectrum){ delete[] frequency_age_spectrum; } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}
 };
 
-template <typename Functor_mu, typename Functor_dem>
-__host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_dem demography, const float num_sites, const int compact_rate, const int generation, const int final_generation){
+template <typename Functor_mu, typename Functor_dem, typename Functor_inbreeding>
+__host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_dem demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
 	mutations.h_mutations_Index = num_mutations;
 	mutations.h_array_Length = mutations.h_mutations_Index;
 	for(int gen = generation+1; gen <= (generation+compact_rate) && gen < final_generation; gen++){
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
-			int N = demography(pop,gen);
-			if(N == 0 || mutations.extinct[pop]){ continue; }
-			if(!mutations.haploid){ N *= 2; }
-			mutations.h_array_Length += mu_rate(pop,gen)*N*num_sites + 7*sqrtf(mu_rate(pop,gen)*N*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
+			int Nchrom_e = 2*demography(pop,generation)/(1+FI(pop,generation));
+			if(Nchrom_e == 0 || mutations.extinct[pop]){ continue; }
+			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
 		}
 	}
 	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/32.f)*32); //replace with variable for warp size, coalesces memory access for multiple populations
 }
 
-template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const float L, const int seed, const int generation){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
+__host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float L, const int seed, const int generation){
 	int num_new_mutations = 0;
 	mutations.h_new_mutation_Indices[0] = mutations.h_mutations_Index;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		int N = demography(pop, generation);
-		if(N == 0 || mutations.extinct[pop]){ continue; }
-		if(!mutations.haploid){ N *= 2; }
+		int Nchrom_e = 2*demography(pop,generation)/(1+FI(pop,generation));
+		if(Nchrom_e == 0 || mutations.extinct[pop]){ continue; }
 		float mu = mu_rate(pop, generation);
-		float lambda = mu*N*L;
-		int temp = max(Rand1(lambda, lambda, mu, N*L, 1, generation, seed, pop),0);
+		float lambda = mu*Nchrom_e*L;
+		int temp = max(Rand1(lambda, lambda, mu, Nchrom_e*L, 1, generation, seed, pop),0);
 		num_new_mutations += temp;
 		mutations.h_new_mutation_Indices[pop+1] = num_new_mutations + mutations.h_mutations_Index;
 	}
@@ -561,21 +559,18 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 
 template <typename Functor_selection>
 __host__ __forceinline__ double * integrate_mse(const bool haploid, const int N_ind, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
-	int N = N_ind;
-	float myF = F;
-	if(!haploid){ N *= 2; }
-	else{ myF = 1; }
+	int Nchrom_e = 2*N_ind/(1+F);
 
 	double * d_freq;
 	double * d_mse_integral;
 
-	cudaMalloc((void**)&d_freq, N*sizeof(double));
-	cudaMalloc((void**)&d_mse_integral, N*sizeof(double));
+	cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double));
+	cudaMalloc((void**)&d_mse_integral, Nchrom_e*sizeof(double));
 
-	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, myF, h, pop);
+	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
-	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, N, (double)1.0/(N), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 
 /*	double * h_array = new double[num_freq];
 	cudaMemcpy(h_array, d_freq, num_freq*sizeof(double), cudaMemcpyDeviceToHost);
@@ -594,13 +589,13 @@ __host__ __forceinline__ double * integrate_mse(const bool haploid, const int N_
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, N, pop_stream);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, N, pop_stream);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream);
 	cudaFree(d_temp_storage);
 	cudaFree(d_freq);
 
-	reverse_array<<<10,1024,0,pop_stream>>>(d_mse_integral, N);
+	reverse_array<<<10,1024,0,pop_stream>>>(d_mse_integral, Nchrom_e);
 
 /*	h_array = new double[N];
 	cudaMemcpy(h_array, d_diploid_mse_integral, N*sizeof(double), cudaMemcpyDeviceToHost);
@@ -676,7 +671,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaMemcpy(&prefix_sum_result, &d_scan_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
 	cudaMemcpy(&final_freq_count, &d_freq_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with host as result is used straight afterwards
 	int num_mutations = prefix_sum_result+final_freq_count;
-	set_Index_Length(mutations, num_mutations, mu_rate, demography, num_sites, compact_rate, 0, final_generation);
+	set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, num_sites, compact_rate, 0, final_generation);
 	//cout<<"initial length " << mutations.h_array_Length << endl;
 
 	cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
@@ -708,8 +703,8 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 }
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
-template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
+__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations or haploidy between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations && mutations.haploid == prev_sim.haploid);
@@ -721,7 +716,7 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 		for(int i = 0; i < mutations.h_num_populations; i++){ mutations.extinct[i] = prev_sim.extinct[i]; }
 	}
 
-		set_Index_Length(mutations, num_mutations, mu_rate, demography, num_sites, compact_rate, generation_shift, final_generation);
+		set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, num_sites, compact_rate, generation_shift, final_generation);
 		cout<<"initial length " << mutations.h_array_Length << endl;
 		cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
 		cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
@@ -742,8 +737,8 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 	}
 }
 
-template <typename Functor_mutation, typename Functor_demography>
-__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
+__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
@@ -765,7 +760,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	int old_mutations_Index = mutations.h_mutations_Index;
 	int old_array_Length = mutations.h_array_Length;
-	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, num_sites, compact_rate, generation, final_generation);
+	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, FI, num_sites, compact_rate, generation, final_generation);
 
 	float * d_temp;
 	int4 * d_temp2;
@@ -803,7 +798,7 @@ struct no_sample{
 	__host__ __forceinline__ int operator()(const int generation) const{ return 0; }
 };
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_migration, typename Functor_selection, typename Functor_timesample = no_sample>
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample = no_sample>
 __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
@@ -847,7 +842,7 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, num_sites, seed, compact_rate, pop_streams, pop_events);
+		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, num_sites, seed, compact_rate, pop_streams, pop_events);
 		//----- end -----
 	}
 	//----- end -----
@@ -881,7 +876,7 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 		//----- end -----
 
 		//----- generate new mutations -----
-		calc_new_mutations_Index(mutations, mu_rate, demography, num_sites, seed, generation);
+		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N = demography(pop,generation);
 			if((N <= 0) || mutations.extinct[pop]){ continue; }
@@ -918,7 +913,7 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && sample_index < max_samples){
 			//----- compact before sampling if requested -----
-			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
+			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
 			//----- end -----
 			sim_result::store_sim_result(all_results[sample_index], mutations, num_sites, generation, control_streams, control_events);
 			sample_index++;
@@ -926,7 +921,7 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 		//----- end -----
 
 		//----- compact every compact_rate generations and final generation -----
-		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;}
+		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;}
 		//----- end -----
 	}
 	//----- end -----
