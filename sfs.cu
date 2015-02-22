@@ -619,10 +619,10 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	int num_freq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		int N_chrom = demography(pop,0);
-		if(!mutations.haploid){ N_chrom *= 2; }
-		if(N_chrom <= 1){ continue; }
-		num_freq += (int)(ceil((N_chrom - 1)/4.f)*4);
+		float F = FI(pop,0);
+		int Nchrom_e = 2*demography(pop,0)/(1+F);
+		if(Nchrom_e <= 1){ continue; }
+		num_freq += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	} //adds a little padding to ensure distances between populations in array are a multiple of 4
 
 	int * d_freq_index;
@@ -633,20 +633,19 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
+		mse_integral[pop] = NULL;
 		int N_ind = demography(pop,0);
 		float mu = mu_rate(pop,0);
 		float F = FI(pop,0);
+		int Nchrom_e = 2*N_ind/(1+F);
+		if(Nchrom_e <= 1){ continue; }
 		mse_integral[pop] = integrate_mse(mutations.haploid, N_ind, sel_coeff, F, h, pop, pop_streams[pop]);
-		int N_chrom = N_ind;
-		if(!mutations.haploid){ N_chrom *= 2; }
-		else{ F = 1; }
-		if(N_chrom <= 1){ continue; }
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, N_chrom, num_sites, sel_coeff, F, h, seed, pop);
-		offset += (int)(ceil((N_chrom - 1)/4.f)*4);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
+		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	}
 
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		cudaFree(mse_integral[pop]);
+		if(mse_integral[pop]){ cudaFree(mse_integral[pop]); }
 		cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0);
 	}
@@ -682,11 +681,11 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	const dim3 gridsize(32,32,1);
 	offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		int N_chrom = demography(pop,0);
-		if(!mutations.haploid){ N_chrom *= 2; }
-		if(N_chrom <= 1){ continue; }
-		initialize_mse_mutation_array<<<gridsize,blocksize,0,pop_streams[pop]>>>(mutations.d_prev_freq, d_freq_index, d_scan_index, offset, N_chrom, pop, mutations.h_num_populations, mutations.h_array_Length);
-		offset += (int)(ceil((N_chrom - 1)/4.f)*4);
+		float F = FI(pop,0);
+		int Nchrom_e = 2*demography(pop,0)/(1+F);
+		if(Nchrom_e <= 1){ continue; }
+		initialize_mse_mutation_array<<<gridsize,blocksize,0,pop_streams[pop]>>>(mutations.d_prev_freq, d_freq_index, d_scan_index, offset, Nchrom_e, pop, mutations.h_num_populations, mutations.h_array_Length);
+		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	}
 
 	mse_set_mutID<<<50,1024,0,pop_streams[mutations.h_num_populations]>>>(mutations.d_mutations_ID, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_num_populations, mutations.h_array_Length, myDevice);
@@ -705,9 +704,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
 __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
-	//if prev_sim.num_mutations == 0 or num sites or num_populations or haploidy between two runs are not equivalent, don't copy (initialize to blank)
+	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
-	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations && mutations.haploid == prev_sim.haploid);
+	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
 	if(use_prev_sim){
 		generation_shift = prev_sim.total_generations;
 		final_generation += generation_shift;
@@ -815,7 +814,6 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
 	mutations.extinct = new bool[mutations.h_num_populations];
-	mutations.haploid = haploid;
 	cudaStream_t * pop_streams = new cudaStream_t[2*mutations.h_num_populations];
 	cudaEvent_t * pop_events = new cudaEvent_t[2*mutations.h_num_populations];
 
@@ -859,31 +857,31 @@ __host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutati
 
 		//----- migration, selection, drift -----
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
-			int N = demography(pop,generation);
+			int N_ind = demography(pop,generation);
 			if(mutations.extinct[pop]){ continue; }
-			if(N <= 0){
+			if(N_ind <= 0){
 				if(demography(pop,generation-1) > 0){ //previous generation, the population was alive
-					N = 0; //allow to go extinct
+					N_ind = 0; //allow to go extinct
 					mutations.extinct[pop] = true; //next generation will not process
 				} else{ continue; } //if population has not yet arisen, it will have a population size of 0, can simply not process
 			}
 			int F = FI(pop,generation);
-			if(!mutations.haploid){ N *= 2; }
-			else{ F = 1; }
+			int Nchrom_e = 2*N_ind/(1+F);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, N, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 		}
 		//----- end -----
 
 		//----- generate new mutations -----
 		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
-			int N = demography(pop,generation);
-			if((N <= 0) || mutations.extinct[pop]){ continue; }
+			int N_ind = demography(pop,generation);
+			if((N_ind <= 0) || mutations.extinct[pop]){ continue; }
+			int F = FI(pop,generation);
+			int Nchrom_e = 2*N_ind/(1+F);
+			float freq = 1.f/Nchrom_e;
 			int prev_Index = mutations.h_new_mutation_Indices[pop];
 			int new_Index = mutations.h_new_mutation_Indices[pop+1];
-			float freq;
-			if(mutations.haploid){ freq = 1.f/N; } else{ freq = 1.f/(2.f*N); }
 			add_new_mutations<<<10,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
 			cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]);
 		}
