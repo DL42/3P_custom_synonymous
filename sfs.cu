@@ -465,9 +465,8 @@ struct sim_struct{
 	int h_mutations_Index; //number of mutations in the population (last mutation is at h_mutations_Index-1)
 	int * h_new_mutation_Indices; //indices of new mutations, current age/freq index of mutations is at position 0, index for mutations in population 0 to be added to array is at position 1, etc ...
 	bool * extinct; //boolean if population has gone extinct
-	bool haploid; //boolean for ploidy
 
-	sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0), haploid(false) { d_mutations_freq = NULL; d_prev_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; extinct = NULL;}
+	sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0) { d_mutations_freq = NULL; d_prev_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; extinct = NULL;}
 
 	~sim_struct(){ cudaFree(d_mutations_freq); cudaFree(d_prev_freq); cudaFree(d_mutations_ID); if(h_new_mutation_Indices) { delete [] h_new_mutation_Indices; } if(extinct){ delete [] extinct; } }
 };
@@ -481,20 +480,18 @@ struct sim_result{
 	float * mutations_freq; //allele frequency of mutations in final generation
 	mutID * mutations_ID; //unique ID consisting of generation, threadID, and population
 	bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
-	bool haploid; //boolean for ploidy
 	int num_populations; //number of populations in freq array (array length, rows)
 	int num_mutations; //number of mutations in array (array length for age/freq, columns)
 	int num_sites; //number of sites in simulation
 	int total_generations; //number of generations in the simulation
 
-	sim_result(): num_populations(0), num_mutations(0), num_sites(0), total_generations(0), haploid(false) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; }
+	sim_result(): num_populations(0), num_mutations(0), num_sites(0), total_generations(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; }
 
 	static void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, int total_generations, cudaStream_t * control_streams, cudaEvent_t * control_events){
 		out.num_populations = mutations.h_num_populations;
 		out.num_mutations = mutations.h_mutations_Index;
 		out.num_sites = num_sites;
 		out.total_generations = total_generations;
-		out.haploid = mutations.haploid;
 		cudaMallocHost((void**)&out.mutations_freq,out.num_populations*out.num_mutations*sizeof(float)); //should allow for simultaneous transfer to host
 		cudaMemcpy2DAsync(out.mutations_freq, out.num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out.num_mutations*sizeof(float), out.num_populations, cudaMemcpyDeviceToHost, control_streams[1]); //removes padding
 		cudaMallocHost((void**)&out.mutations_ID, out.num_mutations*sizeof(mutID));
@@ -558,7 +555,7 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 }
 
 template <typename Functor_selection>
-__host__ __forceinline__ double * integrate_mse(const bool haploid, const int N_ind, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
+__host__ __forceinline__ double * integrate_mse(const int N_ind, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 	int Nchrom_e = 2*N_ind/(1+F);
 
 	double * d_freq;
@@ -639,7 +636,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		float F = FI(pop,0);
 		int Nchrom_e = 2*N_ind/(1+F);
 		if(Nchrom_e <= 1){ continue; }
-		mse_integral[pop] = integrate_mse(mutations.haploid, N_ind, sel_coeff, F, h, pop, pop_streams[pop]);
+		mse_integral[pop] = integrate_mse(N_ind, sel_coeff, F, h, pop, pop_streams[pop]);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
 		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	}
@@ -798,7 +795,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample = no_sample>
-__host__ __forceinline__ sim_result * run_sim(bool haploid, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -1000,9 +997,8 @@ int main(int argc, char **argv)
 	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,5);
 	const int seed = 0xdecafbad;
-	bool haploid = false;
 
-	sim_result * a = run_sim(haploid, mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 
 	//double * b = integrate_diploid_mse(N_chrom_pop, sel_coeff(-s), h, 0, 0);
 	//cudaFree(b);
