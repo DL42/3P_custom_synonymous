@@ -559,30 +559,15 @@ __host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, c
 }
 
 template <typename Functor_selection>
-__host__ __forceinline__ double * integrate_mse(const int N_ind, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
-	int Nchrom_e = 2*N_ind/(1+F);
-
+__host__ __forceinline__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 	double * d_freq;
-	double * d_mse_integral;
 
 	cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double));
-	cudaMalloc((void**)&d_mse_integral, Nchrom_e*sizeof(double));
 
 	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
 	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
-
-/*
-	double * h_array = new double[Nchrom_e];
-	cudaMemcpy(h_array, d_freq, Nchrom_e*sizeof(double), cudaMemcpyDeviceToHost);
-
-	for(int i = 0; i < 50; i++){ cout << h_array[i] << "\t" ; }
-	cout<<endl;
-	for(int i = 0; i < 50; i++){ cout << h_array[Nchrom_e-i-1]<<"\t"; }
-	cout<<endl;
-	//delete [] h_array;
-*/
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
@@ -593,16 +578,6 @@ __host__ __forceinline__ double * integrate_mse(const int N_ind, const Functor_s
 	cudaFree(d_freq);
 
 	reverse_array<<<10,1024,0,pop_stream>>>(d_mse_integral, Nchrom_e);
-
-/*	cudaMemcpy(h_array, d_mse_integral, Nchrom_e*sizeof(double), cudaMemcpyDeviceToHost);
-
-	for(int i = 0; i < 50; i++){ cout << h_array[i] << "\t" ; }
-	cout<<endl;
-	for(int i = 0; i < 50; i++){ cout << h_array[Nchrom_e-i-1]<<"\t"; }
-	cout<<endl;
-	delete [] h_array;*/
-
-	return d_mse_integral;
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding>
@@ -624,19 +599,19 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		mse_integral[pop] = NULL;
 		int N_ind = demography(pop,0);
 		float mu = mu_rate(pop,0);
 		float F = FI(pop,0);
 		int Nchrom_e = 2*N_ind/(1+F);
+		cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double));
 		if(Nchrom_e <= 1){ continue; }
-		mse_integral[pop] = integrate_mse(N_ind, sel_coeff, F, h, pop, pop_streams[pop]);
+		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
 		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	}
 
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
-		if(mse_integral[pop]){ cudaFree(mse_integral[pop]); }
+		cudaFree(mse_integral[pop]);
 		cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0);
 	}
@@ -980,9 +955,9 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-    float gamma = -20;
+    float gamma = 0;
 	float h = 0.5;
-	float F = 0.5;
+	float F = 1.0;
 	int N_ind = pow(10.f,5)*(1+F); //constant population for now
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
