@@ -175,10 +175,10 @@ struct mse_integrand{
 	float F, h;
 
 	mse_integrand(): N(0), h(0), F(0), pop(0), gen(0) {}
-	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { sel_coeff = xsel_coeff; }
+	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
 	__device__ __forceinline__ double operator()(double i) const{
-		float s = sel_coeff(pop, gen, 0.5); //not meant to be used for frequency-dependent selection
+		float s = sel_coeff(pop, gen, i);
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
@@ -188,7 +188,7 @@ template<typename Functor_function>
 struct trapezoidal_upper{
 	Functor_function fun;
 	trapezoidal_upper() { }
-	trapezoidal_upper(Functor_function xfun) { fun = xfun; }
+	trapezoidal_upper(Functor_function xfun): fun(xfun) { }
 	__device__ __forceinline__ double operator()(double a, double step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
 };
 
@@ -256,7 +256,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
-		float s = sel_coeff(population, 0, 0.5);
+		float s = sel_coeff(population, 0, i);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{
