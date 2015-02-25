@@ -763,8 +763,8 @@ struct no_sample{
 	__host__ __forceinline__ int operator()(const int generation) const{ return 0; }
 };
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample = no_sample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample = Functor_timesample(), int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 25, const int cuda_device = -1){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 45, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -835,7 +835,8 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			float F = FI(pop,generation);
 			int Nchrom_e = 2*N_ind/(1+F);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<300,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		}
 		//----- end -----
 
@@ -962,7 +963,7 @@ int main(int argc, char **argv)
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2*pow(10.f,7);
-	float m = 0.01;
+	float m = 0.00;
 	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,4);
 	const int seed = 0xdecafbad;
