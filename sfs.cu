@@ -533,7 +533,7 @@ template <typename Functor_mu, typename Functor_dem, typename Functor_inbreeding
 __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_dem demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
 	mutations.h_mutations_Index = num_mutations;
 	mutations.h_array_Length = mutations.h_mutations_Index;
-	for(int gen = generation+1; gen <= (generation+compact_rate) && gen < final_generation; gen++){
+	for(int gen = generation+1; gen <= (generation+compact_rate) && gen <= final_generation; gen++){
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int Nchrom_e = 2*demography(pop,generation)/(1+FI(pop,generation));
 			if(Nchrom_e == 0 || mutations.extinct[pop]){ continue; }
@@ -764,7 +764,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 45, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
