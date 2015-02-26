@@ -129,10 +129,21 @@ __device__ __forceinline__ int Rand1(unsigned int i, float mean, float var, floa
 }
 
 __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
-	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
+	//if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
+
+struct RandApprox4{
+	__device__ int4 operator()(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
+		uint4 i = Philox(k, step, seed, population, 0);
+		return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
+	}
+};
+
+typedef int4 (*RandDraw)(float4, float4, float4, float, int, int, int, int);
+
+__device__ RandDraw d_rand4 = Rand4;
 
 __device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
@@ -248,8 +259,8 @@ __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations
 
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
-template <typename Functor_migration, typename Functor_selection>
-__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float F, const float h, const int seed, const int population, const int num_populations, const int generation){
+template <typename Functor_random, typename Functor_migration, typename Functor_selection>
+__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, Functor_random draw4, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float F, const float h, const int seed, const int population, const int num_populations, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -261,7 +272,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
-		int4 j_mig_sel_drift = clamp(Rand4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
+		int4 j_mig_sel_drift = clamp(draw4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
@@ -745,6 +756,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	int next_compact_generation = generation + compact_rate;
 	int sample_index = 0;
 
+	RandDraw h_rand4;
+	cudaMemcpyFromSymbol(&h_rand4, d_rand4, sizeof(RandDraw));
+
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
 
@@ -761,7 +775,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			float F = FI(pop,generation);
 			int Nchrom_e = 2*N_ind/(1+F);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, RandApprox4(), mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 			cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		}
 		//----- end -----
@@ -776,7 +790,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			float freq = 1.f/Nchrom_e;
 			int prev_Index = mutations.h_new_mutation_Indices[pop];
 			int new_Index = mutations.h_new_mutation_Indices[pop+1];
-			add_new_mutations<<<10,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
+			add_new_mutations<<<20,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
 			cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]);
 		}
 		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
