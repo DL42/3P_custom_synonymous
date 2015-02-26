@@ -40,20 +40,6 @@ __host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
 
 inline __host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
-inline __host__ __device__ float4 exp(float4 f){ return make_float4(exp(f.x),exp(f.y),exp(f.z),exp(f.w)); }
-
-inline __host__ __device__ double4 expd(float4 d){ return make_double4(exp(double(d.x)),exp(double(d.y)),exp(double(d.z)),exp(double(d.w))); }
-
-inline __host__ __device__  double4 operator*(int a, double4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
-
-inline __host__ __device__  double4 operator*(double a, float4 b){ return make_double4(a * b.x, a * b.y, a * b.z, a * b.w); }
-
-inline __host__ __device__  double4 operator*(double4 a, double4 b){ return make_double4(a.x * b.x, a.y * b.y, a.z * b.z, a.w * b.w); }
-
-inline __host__ __device__  double4 operator+(double4 b, double a){ return make_double4(a + b.x, a + b.y, a + b.z, a + b.w); }
-
-inline __host__ __device__  float4 operator/(double4 a, double4 b){ return make_float4(a.x/b.x, a.y/b.y, a.z/b.z, a.w/b.w); }
-
 inline __host__ __device__  float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
 __host__ __device__ __forceinline__  uint4 Philox(int k, int step, int seed, int population, int round){
@@ -148,22 +134,6 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
 
-__device__ __forceinline__ double haploid(float i, int N, float s){
-		return (1-exp((double)(-1*(2*N*s)*(1-i))));
-}
-
-__device__ __forceinline__ double4 haploid(float4 i, int N, float s){
-		return (-1.0*expd(-1*(2*N*s)*(-1.f*i+1.0))+1.0);
-}
-
-__device__ __forceinline__ double diploid(double i, int N, float h, float s){ //takes in double from diploid_integrand, otherwise takes in float
-		return exp(N*s*i*(2*h+(1-2*h)*i));
-}
-
-__device__ __forceinline__ double4 diploid(float4 i, int N, float h, float s){
-		return expd(N*s*i*(((1-2*h)*i)+2*h));
-}
-
 __device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
 }
@@ -178,7 +148,7 @@ struct mse_integrand{
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
 	__device__ __forceinline__ double operator()(double i) const{
-		float s = sel_coeff(pop, gen, i);
+		float s = sel_coeff(pop, gen, i); //eventually may allow mse function to be set by user so as to allow for mse of frequency-dependent selection
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
@@ -192,7 +162,7 @@ struct trapezoidal_upper{
 	__device__ __forceinline__ double operator()(double a, double step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
 };
 
-//generates an array of frequencies from 1 to 0 of frequencies at every step size
+//generates an array of areas from 1 to 0 of frequencies at every step size
 template <typename Functor_Integrator>
 __global__ void calculate_area(double * d_freq, const int num_freq, const double step_size, Functor_Integrator trapezoidal){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
@@ -209,62 +179,18 @@ __global__ void reverse_array(double * array, const int N){
 	}
 }
 
-/*//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
-template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, double * diploid_integral, const int offset, const float mu, const int N, const float L, const Functor_selection sel_coeff, const float h, const float F, const int seed, const int population){
-	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-
-	for(int id = myID; id < (N-1)/4; id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
-		float4 i = make_float4((4*id + 1),(4*id + 2),(4*id + 3),(4*id + 4))/N;
-		float s = sel_coeff(population, 0, 0.5); //the equations below don't work for frequency-dependent selection anyway
-		float4 lambda;
-		if(s == 0){ lambda = 2*mu*L/i; }
-		else{
-			lambda =  2*mu*L*(haploid(i,N,s)/(haploid(0,N,s)*i*(-1.0*i+1.0)));
-			if(F < 1 && h != 0.5){
-				float4 lambda_dip = 2*mu*L*diploid(i, N, h, s)*reinterpret_cast<double4*>(diploid_integral)[id]/(diploid_integral[0]*i*(-1.0*i+1.0));
-				lambda = lambda*F + (1-F)*lambda_dip;
-			}
-		}
-		reinterpret_cast<int4*>(freq_index)[offset/4 + id] = max(Rand4(lambda, lambda, make_float4(mu), L*N, 0, id, seed, population),make_int4(0)); //round(lambda);//// ////mutations are poisson distributed in each frequency class
-		printf(" %d %d %d %f %f %f %f %f %f %f %f \r", myID, id, population, i.x, i.y, i.z, i.w, lambda.x, lambda.y, lambda.z, lambda.w);
-	}
-
-	int next_offset = (int)(ceil((N-1)/4.f)*4);
-	int id = myID + (N-1)/4*4; //all integers //right now only works if minimum of 3 threads are launched
-	if(id < (N-1)){
-		float i = (id+1.f)/N;
-		float s = sel_coeff(population, 0, 0.5);
-		float lambda;
-		if(s == 0){ lambda = 2*mu*L/i; }
-		else{
-			lambda =  2*mu*L*haploid(i,N,s)/(haploid(0,N,s)*i*(1-i));
-			if(F < 1 && h != 0.5){
-				float lambda_dip = 2*mu*L*diploid(i, N, h, s)*diploid_integral[id]/(diploid_integral[0]*i*(1-i));
-				lambda = lambda*F + (1-F)*lambda_dip;
-			}
-		}
-		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*N, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
-		printf(" %d %d %d %f %f\r", myID, id, population, i, lambda);
-	}else if(id >= (N-1) && id < next_offset){ freq_index[offset+id] = 0; } //ensures padding at end of population is set to 0
-}*/
-
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
 __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
+	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
 		float s = sel_coeff(population, 0, i);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{
-			//if(F == 1){ lambda = 2*mu*L*haploid(i,Nind,s)/(haploid(0,Nind,s)*i*(1-i)); }
-			//else{ lambda = 2*mu*L*mse(i, Nind, F, h, s)*mse_integral[id]/(mse_integral[0]*i*(1-i)); }
-			//if(F == 1){ s *= 2; }
-			lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_integral[0]*i*(1-i));
-		}
+		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*(1-i)); }  //cast to type double4 not allowed, so not using vector memory optimization
 		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*Nchrom, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf(" %d %d %d %f %f %f %f %f\r", myID, id, population, i, lambda, mse(i, Nind, F, h, s), mse_integral[id], mse_integral[0]);
 	}
@@ -835,7 +761,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			float F = FI(pop,generation);
 			int Nchrom_e = 2*N_ind/(1+F);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<300,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 			cudaEventRecord(pop_events[pop],pop_streams[pop]);
 		}
 		//----- end -----
