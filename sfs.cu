@@ -352,46 +352,98 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
-const int compact_threads = 1024;
+const int compact_threads = 256;
 __global__ void scatter_arrays2(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int gID =  blockIdx.x*blockDim.x + threadIdx.x; //global ID
 	int tID = threadIdx.x; //thread ID within block
 	int population = blockIdx.y;
-	__shared__ float row[compact_threads];
+	__shared__ float row[4*compact_threads];
 	__shared__ int start_index[1];
+	__shared__ int end_index[1];
+	float4 myResult;
 	int st_index;
-	int myFlag;
-	int index;
-	for(int id = gID; id < mutations_Index/*/compact_threads*compact_threads*/; id+= blockDim.x*gridDim.x){
+	int4 myFlag;
+	int4 index;
+	for(int id = gID; id < mutations_Index/4/*/compact_threads*compact_threads*/; id+= blockDim.x*gridDim.x){
 		//__syncthreads();
 		if(tID == 0){
-			index = scan_Index[id];
-			myFlag = flag[id];
-			start_index[0] = index;
-			st_index = index;
-			if(myFlag){ row[0] = mutations_freq[population*old_array_Length+id]; }
+			index = reinterpret_cast<const int4*>(scan_Index)[id];
+			myFlag = reinterpret_cast<const int4*>(flag)[id];
+			start_index[0] = index.x;
+			st_index = index.x;
+			myResult = reinterpret_cast<const float4*>(mutations_freq)[population*old_array_Length/4+id];
+			if(myFlag.x){ row[0] = myResult.x; }
+			if(myFlag.y){ row[index.y-st_index] = myResult.y; }
+			if(myFlag.z){ row[index.z-st_index] = myResult.z; }
+			if(myFlag.w){ row[index.w-st_index] = myResult.w; }
 		}
 		__syncthreads();
 		//if(tID == 0 && id == 182528){ printf("\nst%d: %d\t%d\t%d", myFlag, start_index[0], index, id); }
 		if(tID > 0){
-			myFlag = flag[id];
+			myFlag = reinterpret_cast<const int4*>(flag)[id];
 			st_index = start_index[0];
-			index = scan_Index[id];
-			if(myFlag){
-				//if(id >= 182528 && id <= 182534){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
-				row[index-st_index] = mutations_freq[population*old_array_Length+id];
+			index = reinterpret_cast<const int4*>(scan_Index)[id];
+			myResult = reinterpret_cast<const float4*>(mutations_freq)[population*old_array_Length/4+id];
+			if(myFlag.x){ row[index.x-st_index] = myResult.x; }
+			if(myFlag.y){ row[index.y-st_index] = myResult.y; }
+			if(myFlag.z){ row[index.z-st_index] = myResult.z; }
+			if(myFlag.w){ row[index.w-st_index] = myResult.w; }
+			if(tID == blockDim.x -1 || gID == mutations_Index/4 - 1){ end_index[0] = index.w + myFlag.w; }
+		}
+		__syncthreads();
+		int count = end_index[0] - st_index;
+		//if(tID == 0){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
+		//if(tID == 31){ printf("\n%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index.x, index.y, index.z, index.w, tID, id); }
+
+			//if(count < 10){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
+
+
+		if(4*tID < count){
+			new_mutations_freq[population*new_array_Length+st_index+4*tID] = row[4*tID];
+			if(4*tID+1 < count){
+				new_mutations_freq[population*new_array_Length+st_index+4*tID+1] = row[4*tID+1];
+				if(4*tID+2 < count){
+					new_mutations_freq[population*new_array_Length+st_index+4*tID+2] = row[4*tID+2];
+					if(4*tID+3 < count){
+						new_mutations_freq[population*new_array_Length+st_index+4*tID+3] = row[4*tID+3];
+					}
+				}
 			}
 		}
-		int count = __syncthreads_count((myFlag));
-		//if(tID == 0){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
-		//if(tID == 31){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
-		if(tID < count){
-			//if(count < 10){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
+
+/*		int rem = st_index & 0x3;
+		int offset = 0;
+		if(rem){ offset = 4 - rem; }
+
+		//below doesn't work
+		if(tID < offset && tID < count){
 			new_mutations_freq[population*new_array_Length+st_index+tID] = row[tID];
 		}
+
+		int tempID = 4*(tID-offset)+offset;
+		if(offset <= tID && (tempID+3) < count){
+			myResult.x = row[tempID];
+			myResult.y = row[tempID+1];
+			myResult.z = row[tempID+2];
+			myResult.w = row[tempID+3];
+			reinterpret_cast<float4*>(new_mutations_freq)[(population*new_array_Length+st_index+offset)/4+(tID-offset)] = myResult;
+		}
+
+		if((tempID + 3) >= count && tempID < count){
+			new_mutations_freq[population*new_array_Length+st_index+tempID] = row[tempID];
+			if((tempID + 1) < count){
+				new_mutations_freq[population*new_array_Length+st_index+tempID+1] = row[tempID+1];
+				if((tempID + 2) < count){ new_mutations_freq[population*new_array_Length+st_index+tempID+2] = row[tempID+2]; }
+			}
+		}*/
 		//if(id == mutations_Index-1){ printf("made it"); }
 	}
-
+	int id = gID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
+	if(id < mutations_Index){
+		if(flag[id]){
+			new_mutations_freq[population*new_array_Length+scan_Index[id]] = mutations_freq[population*old_array_Length+id];
+		}
+	}
 /*	int id = gID + mutations_Index/compact_threads * compact_threads;
 	if(id < mutations_Index){
 		if(flag[id]){
@@ -736,10 +788,10 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc((void**)&d_temp,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
 	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int4));
 
-	const dim3 gridsize(50,mutations.h_num_populations,1);
-	const dim3 gridsize2(50,mutations.h_num_populations,1);
-	//scatter_arrays<<<gridsize,1024,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-	scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	const dim3 gridsize(800,mutations.h_num_populations,1);
+	const dim3 gridsize2(800,mutations.h_num_populations,1);
+	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	//scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
 
 	cudaEventRecord(control_events[0],control_streams[0]);
 
@@ -977,7 +1029,7 @@ int main(int argc, char **argv)
 	float L = 2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
-	const int total_number_of_generations = pow(10.f,4);
+	const int total_number_of_generations = pow(10.f,4);//36;
 	const int seed = 0xdecafbad;
 
 	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
