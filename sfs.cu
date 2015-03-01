@@ -128,6 +128,16 @@ __device__ __forceinline__ int Rand1(unsigned int i, float mean, float var, floa
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
+__device__ __forceinline__ int Rand1y(unsigned int i, float mean, float var, float N){
+	bool m1 = (mean <= 10);
+	bool m2 = (mean >= N-10);
+	if(m1 || m2){
+		int pois = poiscdfinv(uint_float_01(i), mean*m1 + (N-mean)*m2);
+		return  pois*m1 + (N - pois)*m2;
+	}
+	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
+}
+
 __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
 	//if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
@@ -141,9 +151,16 @@ struct RandApprox4{
 	}
 };
 
+struct RandApprox4x{
+	__device__ int4 operator()(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
+		uint4 i = Philox(k, step, seed, population, 0);
+		return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
+	}
+};
+
 typedef int4 (*RandDraw)(float4, float4, float4, float, int, int, int, int);
 
-__device__ RandDraw d_rand4 = Rand4;
+__device__ const RandDraw d_rand4 = Rand4;
 
 __device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
@@ -272,7 +289,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
-		int4 j_mig_sel_drift = clamp(draw4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
+		int4 j_mig_sel_drift = clamp(Rand4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
