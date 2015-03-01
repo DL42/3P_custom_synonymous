@@ -342,13 +342,63 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	int population = blockIdx.y;
+	//is write-limited, vectorizing reads does not improve performance
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
 		if(flag[id]){
 			int index = scan_Index[id];
 			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
-			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
+			//if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
 		}
 	}
+}
+
+const int compact_threads = 1024;
+__global__ void scatter_arrays2(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
+	int gID =  blockIdx.x*blockDim.x + threadIdx.x; //global ID
+	int tID = threadIdx.x; //thread ID within block
+	int population = blockIdx.y;
+	__shared__ float row[compact_threads];
+	__shared__ int start_index[1];
+	int st_index;
+	int myFlag;
+	int index;
+	for(int id = gID; id < mutations_Index/*/compact_threads*compact_threads*/; id+= blockDim.x*gridDim.x){
+		//__syncthreads();
+		if(tID == 0){
+			index = scan_Index[id];
+			myFlag = flag[id];
+			start_index[0] = index;
+			st_index = index;
+			if(myFlag){ row[0] = mutations_freq[population*old_array_Length+id]; }
+		}
+		__syncthreads();
+		//if(tID == 0 && id == 182528){ printf("\nst%d: %d\t%d\t%d", myFlag, start_index[0], index, id); }
+		if(tID > 0){
+			myFlag = flag[id];
+			st_index = start_index[0];
+			index = scan_Index[id];
+			if(myFlag){
+				//if(id >= 182528 && id <= 182534){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
+				row[index-st_index] = mutations_freq[population*old_array_Length+id];
+			}
+		}
+		int count = __syncthreads_count((myFlag));
+		//if(tID == 0){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
+		//if(tID == 31){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
+		if(tID < count){
+			//if(count < 10){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
+			new_mutations_freq[population*new_array_Length+st_index+tID] = row[tID];
+		}
+		//if(id == mutations_Index-1){ printf("made it"); }
+	}
+
+/*	int id = gID + mutations_Index/compact_threads * compact_threads;
+	if(id < mutations_Index){
+		if(flag[id]){
+			index = scan_Index[id];
+			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
+		}
+	}*/
 }
 
 struct mig_prop
@@ -494,7 +544,7 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
 		}
 	}
-	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/((float)mutations.warp_size))*mutations.warp_size); //extra padding for coalesced global memory access
+	mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/((float)mutations.warp_size))*mutations.warp_size); //extra padding for coalesced global memory access, /one day warp sizes may not be multiples of 4
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
@@ -687,7 +737,10 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int4));
 
 	const dim3 gridsize(50,mutations.h_num_populations,1);
-	scatter_arrays<<<gridsize,1024,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	const dim3 gridsize2(50,mutations.h_num_populations,1);
+	//scatter_arrays<<<gridsize,1024,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+
 	cudaEventRecord(control_events[0],control_streams[0]);
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
@@ -717,8 +770,10 @@ struct no_sample{
 	__host__ __forceinline__ int operator()(const int generation) const{ return 0; }
 };
 
+#define cudaCheckErrors(expr) { int e = expr; if (e != cudaSuccess) { printf("error %d\n", e); throw 0; } }
+
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 38, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -808,7 +863,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			int prev_Index = mutations.h_new_mutation_Indices[pop];
 			int new_Index = mutations.h_new_mutation_Indices[pop+1];
 			add_new_mutations<<<20,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
-			cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]);
+			cudaCheckErrors(cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]));
 		}
 		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
 		//----- end -----
@@ -913,7 +968,7 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-    float gamma = 0;
+    float gamma = -200;
 	float h = 0.5;
 	float F = 1.0;
 	int N_ind = pow(10.f,5)*(1+F); //constant population for now
