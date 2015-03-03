@@ -393,50 +393,42 @@ __global__ void scatter_arrays2(float * new_mutations_freq, int4 * new_mutations
 		__syncthreads();
 		int count = end_index[0] - st_index;
 		//if(tID == 0){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
-		//if(tID == 31){ printf("\n%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index.x, index.y, index.z, index.w, tID, id); }
+		//if(tID == compact_threads-1){ printf("\n%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index.x, index.y, index.z, index.w, tID, id); }
 
 			//if(count < 10){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
 
 
-		if(4*tID < count){
-			new_mutations_freq[population*new_array_Length+st_index+4*tID] = row[4*tID];
-			if(4*tID+1 < count){
-				new_mutations_freq[population*new_array_Length+st_index+4*tID+1] = row[4*tID+1];
-				if(4*tID+2 < count){
-					new_mutations_freq[population*new_array_Length+st_index+4*tID+2] = row[4*tID+2];
-					if(4*tID+3 < count){
-						new_mutations_freq[population*new_array_Length+st_index+4*tID+3] = row[4*tID+3];
-					}
-				}
-			}
-		}
+//		if(4*tID < count){
+//			new_mutations_freq[population*new_array_Length+st_index+4*tID] = row[4*tID];
+//			if(4*tID+1 < count){
+//				new_mutations_freq[population*new_array_Length+st_index+4*tID+1] = row[4*tID+1];
+//				if(4*tID+2 < count){
+//					new_mutations_freq[population*new_array_Length+st_index+4*tID+2] = row[4*tID+2];
+//					if(4*tID+3 < count){
+//						new_mutations_freq[population*new_array_Length+st_index+4*tID+3] = row[4*tID+3];
+//					}
+//				}
+//			}
+//		}
 
-/*		int rem = st_index & 0x3;
+		int rem = st_index & 0x3; //equivalent to modulo 4
 		int offset = 0;
 		if(rem){ offset = 4 - rem; }
 
 		//below doesn't work
 		if(tID < offset && tID < count){
 			new_mutations_freq[population*new_array_Length+st_index+tID] = row[tID];
+			//if(tID == compact_threads-1){ printf("\n1: %d\t%d\t%d\t%d\t%d",count, st_index, offset, tID, id); }
 		}
 
-		int tempID = 4*(tID-offset)+offset;
-		if(offset <= tID && (tempID+3) < count){
-			myResult.x = row[tempID];
-			myResult.y = row[tempID+1];
-			myResult.z = row[tempID+2];
-			myResult.w = row[tempID+3];
-			reinterpret_cast<float4*>(new_mutations_freq)[(population*new_array_Length+st_index+offset)/4+(tID-offset)] = myResult;
+		int tempID = 4*tID+offset;//falls short when there aren't enough threads
+		if((tempID+3) < count){
+			reinterpret_cast<float4*>(new_mutations_freq)[(population*new_array_Length+st_index+offset)/4+tID] = make_float4(row[tempID],row[tempID+1],row[tempID+2],row[tempID+3]);
+			//if(tID == compact_threads-1){ printf("\n2: %d\t%d\t%d\t%d\t%d\t%d",count, st_index, offset, tID, tempID, id); }
 		}
 
-		if((tempID + 3) >= count && tempID < count){
-			new_mutations_freq[population*new_array_Length+st_index+tempID] = row[tempID];
-			if((tempID + 1) < count){
-				new_mutations_freq[population*new_array_Length+st_index+tempID+1] = row[tempID+1];
-				if((tempID + 2) < count){ new_mutations_freq[population*new_array_Length+st_index+tempID+2] = row[tempID+2]; }
-			}
-		}*/
-		//if(id == mutations_Index-1){ printf("made it"); }
+		tempID = tID + offset + (count-offset)/4*4;
+		if(tempID < count){ new_mutations_freq[population*new_array_Length+st_index+tempID] = row[tempID]; }
 	}
 	int id = gID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
@@ -790,8 +782,8 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	const dim3 gridsize(800,mutations.h_num_populations,1);
 	const dim3 gridsize2(800,mutations.h_num_populations,1);
-	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-	//scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	//scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
 
 	cudaEventRecord(control_events[0],control_streams[0]);
 
@@ -1020,7 +1012,7 @@ int main(int argc, char **argv)
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
 
-    float gamma = -200;
+    float gamma = 0;
 	float h = 0.5;
 	float F = 1.0;
 	int N_ind = pow(10.f,5)*(1+F); //constant population for now
@@ -1029,7 +1021,7 @@ int main(int argc, char **argv)
 	float L = 2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
-	const int total_number_of_generations = pow(10.f,4);//36;
+	const int total_number_of_generations = pow(10.f,4);//50;//36;//
 	const int seed = 0xdecafbad;
 
 	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
