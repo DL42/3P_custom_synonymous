@@ -120,21 +120,24 @@ __host__ __device__ __forceinline__ int RandBinom(float p, float N, int k, int s
 	return j;
 }
 
+//faster on home GPU if inlined
 __host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, float N, int k, int step, int seed, int population){
 
-	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
+	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); } //for some reason compiler on home GPU inlines function with this line, but not without it
 	uint4 i = Philox(k, step, seed, population, 0);
 	if(mean <= 6){ return poiscdfinv(uint_float_01(i.x), mean); }
 	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
+//faster on home GPU if don't inline!
 __device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N){
 	if(mean <= 6){ return poiscdfinv(uint_float_01(i), mean); }
 	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
+//faster on home GPU if inlined
 __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
 	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
@@ -303,6 +306,7 @@ __device__ int boundary(float freq){
 	return (freq <= 0.f || freq >= 1.f);
 }
 
+//this is wrong for multiple populations - all (extant?) populations must be fixed or lost for an allele to be discarded
 __global__ void flag_segregating_mutations(int * flag, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
