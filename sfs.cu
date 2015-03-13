@@ -61,32 +61,51 @@ __host__ __device__ __forceinline__  uint4 Philox(int k, int step, int seed, int
 
 
 
+__host__ __device__ __forceinline__ void pois_iter(float j, float mean, float e, float & factorial, float & lambda_j, float & sum, float & cdf){
+	lambda_j *= mean;
+	factorial*= j;
+	sum += lambda_j/factorial;
+	cdf = e*sum;
+}
+
 __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	float e = exp(-1 * mean);
 	float lambda_j = 1;
 	float factorial = 1;
-	int j = 0;
 
 	float sum = lambda_j/factorial;
 	float cdf = e*sum;
-	if(cdf >= p){ return j; }
+	if(cdf >= p){ return 0; }
+	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
+	pois_iter(1.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 1; }
+	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
+	pois_iter(2.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 2; }
+	pois_iter(3.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 3; }
+	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
+	pois_iter(4.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 4; }
+	pois_iter(5.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 5; }
+	pois_iter(6.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 6; }
+	pois_iter(7.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 7; }
+	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
+	pois_iter(8.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 8; }
+	pois_iter(9.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 9; }
+	pois_iter(10.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 10; }
+	pois_iter(11.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 11; }
+	pois_iter(12.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 12; }
+	pois_iter(13.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 13; }
+	pois_iter(14.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 14; }
+	pois_iter(15.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 15; }
+	pois_iter(16.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 16; }
+	pois_iter(17.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 17; }
+	pois_iter(18.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 18; }
+	pois_iter(19.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 19; }
+	pois_iter(20.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 20; }
+	pois_iter(21.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 21; }
+	pois_iter(22.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 22; }
+	pois_iter(23.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 23; }
+	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
 
-	j = 1;
-	lambda_j = mean;
-	sum += lambda_j/factorial;
-	cdf = e*sum;
-	if(cdf >= p){ return j; }
-	float end = mean + 7*sqrtf(mean);
-	j = 2;
-	for(j = 2; j < end; j++){ //stops after the cdf surpasses p or j exceeds 7*standard deviation+mean (testing reveals rarely gets there anyway when putting in 1 for p)
-		lambda_j *= mean;
-		factorial*= j;
-		sum += lambda_j/factorial;
-		cdf = e*sum;
-		if(cdf >= p){ return j; }
-	}
-
-	return j;
+	return 24;
 }
 
 __host__ __device__ __forceinline__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
@@ -117,14 +136,14 @@ __host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, fl
 
 	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
 	uint4 i = Philox(k, step, seed, population, 0);
-	if(mean <= 10){ return poiscdfinv(uint_float_01(i.x), mean); }
-	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= 5){ return poiscdfinv(uint_float_01(i.x), mean); }
+	else if(mean >= N-5){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
-__device__ __forceinline__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 10){ return poiscdfinv(uint_float_01(i), mean); }
-	else if(mean >= N-10){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
+__device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N){
+	if(mean <= 5){ return poiscdfinv(uint_float_01(i), mean); }
+	else if(mean >= N-5){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
@@ -782,8 +801,8 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	const dim3 gridsize(800,mutations.h_num_populations,1);
 	const dim3 gridsize2(800,mutations.h_num_populations,1);
-	//scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-	scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	//scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
 
 	cudaEventRecord(control_events[0],control_streams[0]);
 
