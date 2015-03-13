@@ -59,53 +59,41 @@ __host__ __device__ __forceinline__  uint4 Philox(int k, int step, int seed, int
 	return u.i;
 }
 
-
-
-__host__ __device__ __forceinline__ void pois_iter(float j, float mean, float e, float & factorial, float & lambda_j, float & sum, float & cdf){
-	lambda_j *= mean;
-	factorial*= j;
-	sum += lambda_j/factorial;
-	cdf = e*sum;
+__host__ __device__ __forceinline__ void pois_iter(float j, float mean, float & emu, float & cdf){
+	emu *= mean/j;
+	cdf += emu;
 }
 
 __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
-	float e = exp(-1 * mean);
-	float lambda_j = 1;
-	float factorial = 1;
-
-	float sum = lambda_j/factorial;
-	float cdf = e*sum;
+	float emu = expf(-1 * mean);
+	float cdf = emu;
 	if(cdf >= p){ return 0; }
-	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
-	pois_iter(1.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 1; }
-	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
-	pois_iter(2.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 2; }
-	pois_iter(3.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 3; }
-	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
-	pois_iter(4.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 4; }
-	pois_iter(5.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 5; }
-	pois_iter(6.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 6; }
-	pois_iter(7.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 7; }
-	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
-	pois_iter(8.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 8; }
-	pois_iter(9.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 9; }
-	pois_iter(10.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 10; }
-	pois_iter(11.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 11; }
-	pois_iter(12.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 12; }
-	pois_iter(13.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 13; }
-	pois_iter(14.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 14; }
-	pois_iter(15.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 15; }
-	pois_iter(16.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 16; }
-	pois_iter(17.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 17; }
-	pois_iter(18.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 18; }
-	pois_iter(19.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 19; }
-	pois_iter(20.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 20; }
-	pois_iter(21.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 21; }
-	pois_iter(22.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 22; }
-	pois_iter(23.f, mean, e, factorial, lambda_j, sum, cdf); if(cdf >= p){ return 23; }
-	//printf("%f\t%f\t%f\t%f\n", factorial, lambda_j, sum, cdf);
 
-	return 24;
+	pois_iter(1.f, mean, emu, cdf); if(cdf >= p){ return 1; }
+	pois_iter(2.f, mean, emu, cdf); if(cdf >= p){ return 2; }
+	pois_iter(3.f, mean, emu, cdf); if(cdf >= p){ return 3; }
+	pois_iter(4.f, mean, emu, cdf); if(cdf >= p){ return 4; }
+	pois_iter(5.f, mean, emu, cdf); if(cdf >= p){ return 5; }
+	pois_iter(6.f, mean, emu, cdf); if(cdf >= p){ return 6; }
+	pois_iter(7.f, mean, emu, cdf); if(cdf >= p){ return 7; }
+	pois_iter(8.f, mean, emu, cdf); if(cdf >= p){ return 8; }
+	pois_iter(9.f, mean, emu, cdf); if(cdf >= p){ return 9; }
+	pois_iter(10.f, mean, emu, cdf); if(cdf >= p){ return 10; }
+	pois_iter(11.f, mean, emu, cdf); if(cdf >= p){ return 11; }
+	pois_iter(12.f, mean, emu, cdf); if(cdf >= p){ return 12; }
+	pois_iter(13.f, mean, emu, cdf); if(cdf >= p){ return 13; }
+	pois_iter(14.f, mean, emu, cdf); if(cdf >= p){ return 14; }
+	pois_iter(15.f, mean, emu, cdf); if(cdf >= p){ return 15; }
+	pois_iter(16.f, mean, emu, cdf); if(cdf >= p){ return 16; }
+	pois_iter(17.f, mean, emu, cdf); if(cdf >= p){ return 17; }
+	pois_iter(18.f, mean, emu, cdf); if(cdf >= p){ return 18; }
+	pois_iter(19.f, mean, emu, cdf); if(cdf >= p){ return 19; }
+	pois_iter(20.f, mean, emu, cdf); if(cdf >= p){ return 20; }
+	pois_iter(21.f, mean, emu, cdf); if(cdf >= p){ return 21; }
+	pois_iter(22.f, mean, emu, cdf); if(cdf >= p){ return 22; }
+	pois_iter(23.f, mean, emu, cdf); if(cdf >= p){ return 23; }
+
+	return 24; //limit for mean <= 6, 32 limit for mean <= 10, max float between 0 and 1 is 0.99999999
 }
 
 __host__ __device__ __forceinline__ int RandBinom(float p, float N, int k, int step, int seed, int population, int start_round){
@@ -136,14 +124,14 @@ __host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, fl
 
 	if(N <= 50){ return RandBinom(p, N, k, step, seed, population, 0); }
 	uint4 i = Philox(k, step, seed, population, 0);
-	if(mean <= 5){ return poiscdfinv(uint_float_01(i.x), mean); }
-	else if(mean >= N-5){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= 6){ return poiscdfinv(uint_float_01(i.x), mean); }
+	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
 __device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 5){ return poiscdfinv(uint_float_01(i), mean); }
-	else if(mean >= N-5){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= 6){ return poiscdfinv(uint_float_01(i), mean); }
+	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }
 
@@ -158,7 +146,7 @@ __device__ __forceinline__ int Rand1y(unsigned int i, float mean, float var, flo
 }
 
 __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int k, int step, int seed, int population){
-	//if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
+	if(N <= 50){ return make_int4(RandBinom(p.x, N, k, step, seed, population, 0),RandBinom(p.y, N, k, step, seed, population, N),RandBinom(p.z, N, k, step, seed, population, 2*N),RandBinom(p.w, N, k, step, seed, population, 3*N)); }
 	uint4 i = Philox(k, step, seed, population, 0);
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
@@ -366,102 +354,9 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 		if(flag[id]){
 			int index = scan_Index[id];
 			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
-			//if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
+			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
 		}
 	}
-}
-
-const int compact_threads = 256;
-__global__ void scatter_arrays2(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
-	int gID =  blockIdx.x*blockDim.x + threadIdx.x; //global ID
-	int tID = threadIdx.x; //thread ID within block
-	int population = blockIdx.y;
-	__shared__ float row[4*compact_threads];
-	__shared__ int start_index[1];
-	__shared__ int end_index[1];
-	float4 myResult;
-	int st_index;
-	int4 myFlag;
-	int4 index;
-	for(int id = gID; id < mutations_Index/4/*/compact_threads*compact_threads*/; id+= blockDim.x*gridDim.x){
-		//__syncthreads();
-		if(tID == 0){
-			index = reinterpret_cast<const int4*>(scan_Index)[id];
-			myFlag = reinterpret_cast<const int4*>(flag)[id];
-			start_index[0] = index.x;
-			st_index = index.x;
-			myResult = reinterpret_cast<const float4*>(mutations_freq)[population*old_array_Length/4+id];
-			if(myFlag.x){ row[0] = myResult.x; }
-			if(myFlag.y){ row[index.y-st_index] = myResult.y; }
-			if(myFlag.z){ row[index.z-st_index] = myResult.z; }
-			if(myFlag.w){ row[index.w-st_index] = myResult.w; }
-		}
-		__syncthreads();
-		//if(tID == 0 && id == 182528){ printf("\nst%d: %d\t%d\t%d", myFlag, start_index[0], index, id); }
-		if(tID > 0){
-			myFlag = reinterpret_cast<const int4*>(flag)[id];
-			st_index = start_index[0];
-			index = reinterpret_cast<const int4*>(scan_Index)[id];
-			myResult = reinterpret_cast<const float4*>(mutations_freq)[population*old_array_Length/4+id];
-			if(myFlag.x){ row[index.x-st_index] = myResult.x; }
-			if(myFlag.y){ row[index.y-st_index] = myResult.y; }
-			if(myFlag.z){ row[index.z-st_index] = myResult.z; }
-			if(myFlag.w){ row[index.w-st_index] = myResult.w; }
-			if(tID == blockDim.x -1 || gID == mutations_Index/4 - 1){ end_index[0] = index.w + myFlag.w; }
-		}
-		__syncthreads();
-		int count = end_index[0] - st_index;
-		//if(tID == 0){ printf("\nst%d: %d\t%d\t%d\t%d", myFlag, start_index[0], st_index, index, id); }
-		//if(tID == compact_threads-1){ printf("\n%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index.x, index.y, index.z, index.w, tID, id); }
-
-			//if(count < 10){ printf("\n%d\t%d\t%d\t%d\t%d\t%d",count, start_index[0], st_index, index, tID, id); }
-
-
-//		if(4*tID < count){
-//			new_mutations_freq[population*new_array_Length+st_index+4*tID] = row[4*tID];
-//			if(4*tID+1 < count){
-//				new_mutations_freq[population*new_array_Length+st_index+4*tID+1] = row[4*tID+1];
-//				if(4*tID+2 < count){
-//					new_mutations_freq[population*new_array_Length+st_index+4*tID+2] = row[4*tID+2];
-//					if(4*tID+3 < count){
-//						new_mutations_freq[population*new_array_Length+st_index+4*tID+3] = row[4*tID+3];
-//					}
-//				}
-//			}
-//		}
-
-		int rem = st_index & 0x3; //equivalent to modulo 4
-		int offset = 0;
-		if(rem){ offset = 4 - rem; }
-
-		//below doesn't work
-		if(tID < offset && tID < count){
-			new_mutations_freq[population*new_array_Length+st_index+tID] = row[tID];
-			//if(tID == compact_threads-1){ printf("\n1: %d\t%d\t%d\t%d\t%d",count, st_index, offset, tID, id); }
-		}
-
-		int tempID = 4*tID+offset;//falls short when there aren't enough threads
-		if((tempID+3) < count){
-			reinterpret_cast<float4*>(new_mutations_freq)[(population*new_array_Length+st_index+offset)/4+tID] = make_float4(row[tempID],row[tempID+1],row[tempID+2],row[tempID+3]);
-			//if(tID == compact_threads-1){ printf("\n2: %d\t%d\t%d\t%d\t%d\t%d",count, st_index, offset, tID, tempID, id); }
-		}
-
-		tempID = tID + offset + (count-offset)/4*4;
-		if(tempID < count){ new_mutations_freq[population*new_array_Length+st_index+tempID] = row[tempID]; }
-	}
-	int id = gID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
-	if(id < mutations_Index){
-		if(flag[id]){
-			new_mutations_freq[population*new_array_Length+scan_Index[id]] = mutations_freq[population*old_array_Length+id];
-		}
-	}
-/*	int id = gID + mutations_Index/compact_threads * compact_threads;
-	if(id < mutations_Index){
-		if(flag[id]){
-			index = scan_Index[id];
-			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
-		}
-	}*/
 }
 
 struct mig_prop
@@ -800,9 +695,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int4));
 
 	const dim3 gridsize(800,mutations.h_num_populations,1);
-	const dim3 gridsize2(800,mutations.h_num_populations,1);
 	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-	//scatter_arrays2<<<gridsize2,compact_threads,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
 
 	cudaEventRecord(control_events[0],control_streams[0]);
 
@@ -836,7 +729,7 @@ struct no_sample{
 #define cudaCheckErrors(expr) { int e = expr; if (e != cudaSuccess) { printf("error %d\n", e); throw 0; } }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 38, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 68, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
