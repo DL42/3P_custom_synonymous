@@ -271,7 +271,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
-		int4 j_mig_sel_drift = clamp(Rand4(mean,(-1.f*i_mig_sel + 1.0)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
+		int4 j_mig_sel_drift = clamp(Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
