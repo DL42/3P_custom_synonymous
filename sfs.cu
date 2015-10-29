@@ -720,6 +720,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 		cudaStreamWaitEvent(pop_streams[pop],control_events[0],0);
 	}
 
+	cudaStreamWaitEvent(control_streams[1],control_events[0],0);
+	cudaStreamWaitEvent(control_streams[2],control_events[0],0);
+
 	cudaFree(mutations.d_prev_freq);
 	cudaFree(mutations.d_mutations_ID);
 
