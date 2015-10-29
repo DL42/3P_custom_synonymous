@@ -298,27 +298,43 @@ __global__ void add_new_mutations(float * mutations_freq, int4 * mutations_ID, c
 	}
 }
 
-__device__ int4 boundary(float4 freq){
-	return make_int4((freq.x <= 0.f || freq.x >= 1.f), (freq.y <= 0.f || freq.y >= 1.f), (freq.z <= 0.f || freq.z >= 1.f), (freq.w <= 0.f || freq.w >= 1.f));
+__device__ int4 boundary_0(float4 freq){
+	return make_int4((freq.x <= 0.f), (freq.y <= 0.f), (freq.z <= 0.f), (freq.w <= 0.f));
 }
 
-__device__ int boundary(float freq){
-	return (freq <= 0.f || freq >= 1.f);
+__device__ int boundary_0(float freq){
+	return (freq <= 0.f);
 }
 
-//this is wrong for multiple populations - all (extant?) populations must be fixed or lost for an allele to be discarded
+__device__ int4 boundary_1(float4 freq){
+	return make_int4((freq.x >= 1.f), (freq.y >= 1.f), (freq.z >= 1.f), (freq.w >= 1.f));
+}
+
+__device__ int boundary_1(float freq){
+	return (freq >= 1.f);
+}
+
+//all (extant? non-zero?) populations must be fixed or lost for an allele to be discarded, what to do about accumulating fixed differences in non-migrating multiple populations?
 __global__ void flag_segregating_mutations(int * flag, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		int4 i = make_int4(1);
-		for(int pop = 0; pop < num_populations; pop++){ i *= boundary(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]); } //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
-		reinterpret_cast<int4*>(flag)[id] = make_int4(!i.x,!i.y,!i.z,!i.w); //1 if allele is segregating in any population, 0 otherwise
+		int4 zero = make_int4(1);
+		int4 one = make_int4(1);
+		for(int pop = 0; pop < num_populations; pop++){
+			zero *= boundary_0(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
+			one *= boundary_1(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]);
+		}
+		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
-		int i = 1;
-		for(int pop = 0; pop < num_populations; pop++){ i *= boundary(mutations_freq[pop*array_Length+id]); }
-		flag[id] = !i; //1 if allele is segregating in any population, 0 otherwise
+		int zero = 1;
+		int one = 1;
+		for(int pop = 0; pop < num_populations; pop++){
+			zero *= boundary_0(mutations_freq[pop*array_Length+id]);
+			one *= boundary_1(mutations_freq[pop*array_Length+id]);
+		}
+		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
 	}
 }
 
@@ -907,8 +923,8 @@ int main(int argc, char **argv)
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2*pow(10.f,7);
-	float m = 0.00;
-	int num_pop = 1;
+	float m = 0.10;
+	int num_pop = 2;
 	const int total_number_of_generations = pow(10.f,4);//50;//36;//
 	const int seed = 0xdecafbad;
 
