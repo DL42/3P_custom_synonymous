@@ -335,47 +335,6 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
-__device__ int warp_bcast(int v, int leader) { return __shfl(v, leader); }
-
-__device__ int atomicAggInc(int *ctr, int lane_id) {
-  int mask = __ballot(1);
-  // select the leader (the first active thread in warp)
-  int leader = __ffs(mask) - 1;
-
-  // leader does the update
-  int res;
-  if(lane_id == leader) { res = atomicAdd(ctr, __popc(mask)); } //returns old value of counter to res
-  // broadcast result
-  res = warp_bcast(res, leader);
-  // each thread computes its own value
-  return res + __popc(mask & ((1 << lane_id) - 1));
-} // atomicAggInc
-
-__global__ void filter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, int * count, int old_mutations_Index, int num_populations, const int array_Length, int warp_size) {
-  int myID = blockIdx.x*blockDim.x + threadIdx.x;
-  int lane_ID = threadIdx.x % warp_size;
-  for(int id = myID; id < old_mutations_Index; id+= blockDim.x*gridDim.x){
-	  int i = 1;
-	  for(int pop = 0; pop < num_populations; pop++){ i *= boundary(mutations_freq[pop*array_Length+id]); }
-	  if(!i){
-	   int index = atomicAggInc(count, lane_ID);
-	   for(int pop = 0; pop < num_populations; pop++){
-	   	   new_mutations_freq[pop*array_Length+index] = mutations_freq[pop*array_Length+id];
-	   }
-	   new_mutations_ID[index] = mutations_ID[id];
-	  }
-  }
-}
-
-__global__ void copy_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int new_mutations_Index, const int new_array_Length, const int old_array_Length){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	int population = blockIdx.y - 1;
-	for(int id = myID; id < new_mutations_Index; id+= blockDim.x*gridDim.x){
-		if(population < 0){ new_mutations_ID[id] = mutations_ID[id]; }
-		else{ new_mutations_freq[population*new_array_Length+id] =  mutations_freq[population*old_array_Length+id]; }
-	}
-}
-
 struct mig_prop
 {
 	float m;
@@ -731,53 +690,6 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	cudaFree(d_flag);
 	cudaFree(d_scan_Index);
-
-	cudaFree(mutations.d_mutations_freq);
-	cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-}
-
-template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void compact2(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
-	int * d_count;
-	cudaMalloc((void**)&d_count,sizeof(int));
-	cudaMemset(d_count,0,sizeof(int));
-	float * d_temp;
-	int4 * d_temp2;
-	cudaMalloc((void**)&d_temp,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int4));
-
-	filter_arrays<<<100,1024,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_count, mutations.h_mutations_Index, mutations.h_num_populations, mutations.h_array_Length, mutations.warp_size);
-	int h_num_seg_mutations;
-	cudaMemcpy(&h_num_seg_mutations, d_count, sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
-	cudaFree(d_count);
-	//cout<<endl<<h_num_seg_mutations;
-	int old_array_Length = mutations.h_array_Length;
-	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, FI, num_sites, compact_rate, generation, final_generation);
-
-	cudaFree(mutations.d_prev_freq);
-	cudaFree(mutations.d_mutations_ID);
-
-	if(old_array_Length > mutations.h_array_Length){
-		mutations.d_prev_freq = d_temp;
-		mutations.d_mutations_ID = d_temp2;
-		mutations.h_array_Length = old_array_Length;
-	}else{
-		cudaMalloc((void**)&mutations.d_prev_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-		cudaMalloc((void**)&mutations.d_mutations_ID,mutations.h_array_Length*sizeof(int4));
-
-		const dim3 gridsize(800,mutations.h_num_populations+1,1);
-		copy_arrays<<<gridsize,256,0,control_streams[0]>>>(mutations.d_prev_freq, mutations.d_mutations_ID, d_temp, d_temp2, mutations.h_mutations_Index, mutations.h_array_Length, old_array_Length);
-		cudaFree(d_temp);
-		cudaFree(d_temp2);
-	}
-
-	cudaEventRecord(control_events[0],control_streams[0]);
-
-	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
-		cudaStreamWaitEvent(pop_streams[pop],control_events[0],0);
-	}
-
-
 
 	cudaFree(mutations.d_mutations_freq);
 	cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
