@@ -321,8 +321,9 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 		int4 zero = make_int4(1);
 		int4 one = make_int4(1);
 		for(int pop = 0; pop < num_populations; pop++){
-			zero *= boundary_0(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
-			one *= boundary_1(reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id]);
+			float4 i = reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id];
+			zero *= boundary_0(i); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
+			one *= boundary_1(i);
 		}
 		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
 	}
@@ -331,8 +332,9 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 		int zero = 1;
 		int one = 1;
 		for(int pop = 0; pop < num_populations; pop++){
-			zero *= boundary_0(mutations_freq[pop*array_Length+id]);
-			one *= boundary_1(mutations_freq[pop*array_Length+id]);
+			float i = mutations_freq[pop*array_Length+id];
+			zero *= boundary_0(i);
+			one *= boundary_1(i);
 		}
 		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
 	}
@@ -923,8 +925,8 @@ int main(int argc, char **argv)
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
 	float L = 2*pow(10.f,7);
-	float m = 0.10;
-	int num_pop = 2;
+	float m = 0.00;
+	int num_pop = 1;
 	const int total_number_of_generations = pow(10.f,4);//50;//36;//
 	const int seed = 0xdecafbad;
 
