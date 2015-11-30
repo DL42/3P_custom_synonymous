@@ -633,7 +633,6 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 		generation_shift = prev_sim.total_generations;
 		final_generation += generation_shift;
 		num_mutations = prev_sim.num_mutations;
-		mutations.extinct = new bool[mutations.h_num_populations];
 		for(int i = 0; i < mutations.h_num_populations; i++){ mutations.extinct[i] = prev_sim.extinct[i]; }
 	}
 
@@ -741,6 +740,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
 	mutations.extinct = new bool[mutations.h_num_populations];
+	for(int i = 0; i < mutations.h_num_populations; i++){ mutations.extinct[i] = 0; } //some compilers won't default to 0
 	mutations.warp_size  = devProp.warpSize;
 
 	cudaStream_t * pop_streams = new cudaStream_t[2*mutations.h_num_populations];
