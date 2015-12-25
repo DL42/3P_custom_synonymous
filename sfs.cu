@@ -725,7 +725,7 @@ struct no_sample{
 #define cudaCheckErrors(expr) { int e = expr; if (e != cudaSuccess) { printf("error %d\n", e); throw 0; } }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 20, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -775,7 +775,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	}
 	//----- end -----
 
-	//cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
+	cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
 
 	//----- simulation steps -----
 
@@ -922,15 +922,17 @@ int main(int argc, char **argv)
 	int N_ind = pow(10.f,5)*(1+F); //constant population for now
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
+	int total_number_of_generations = pow(10.f,4);//50;//36;//
 	float L = 2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
 	const int seed = 0xdecafbad;
 
-	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, 2*pow(10.f,5), L, num_pop, seed, no_sample(), 0, true);
+	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	delete [] a;
 
-	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, 2*pow(10.f,5), L, num_pop, seed, no_sample(), 0, true);
+/*	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -938,8 +940,8 @@ int main(int argc, char **argv)
     float elapsedTime;
     int num_iter = 10;
 
-    const int total_number_of_generations = pow(10.f,3);//pow(10.f,4);//50;//36;//
-    L = 50*2*pow(10.f,7);
+    total_number_of_generations = pow(10.f,4);
+    L = 1*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -958,7 +960,7 @@ int main(int argc, char **argv)
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
+	printf("time elapsed: %f\n\n", elapsedTime/num_iter);*/
 
 	cudaDeviceReset();
 }
