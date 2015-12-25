@@ -204,10 +204,6 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*Nchrom, 0, id, seed, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 		//printf(" %d %d %d %f %f %f %f %f\r", myID, id, population, i, lambda, mse(i, Nind, F, h, s), mse_integral[id], mse_integral[0]);
 	}
-
-	int next_offset = (int)(ceil((Nchrom-1)/4.f)*4);
-	int id = myID + (Nchrom-1)/4*4; //all integers //right now only works if minimum of 3 threads are launched
-	if(id >= (Nchrom-1) && id < next_offset){ freq_index[offset+id] = 0; } //ensures padding at end of population is set to 0
 }
 
 //fills in mutation array using the freq and scan indices
@@ -544,7 +540,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		float F = FI(pop,0);
 		int Nchrom_e = 2*demography(pop,0)/(1+F);
 		if(Nchrom_e <= 1){ continue; }
-		num_freq += (int)(ceil((Nchrom_e - 1)/4.f)*4);
+		num_freq += (Nchrom_e - 1);
 	} //adds a little padding to ensure distances between populations in array are a multiple of 4
 
 	int * d_freq_index;
@@ -563,7 +559,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		if(Nchrom_e <= 1){ continue; }
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
-		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
+		offset += (Nchrom_e - 1);
 	}
 
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
