@@ -314,7 +314,7 @@ __device__ int boundary_1(float freq){
 	return (freq >= 1.f);
 }
 
-//all (extant? non-zero?) populations must be fixed or lost for an allele to be discarded, what to do about accumulating fixed differences in non-migrating multiple populations?
+//change so all (extant? non-zero?) populations must be fixed or lost for an allele to be discarded, tests indicate accumulating mutations in non-migrating populations, not much of a problem
 __global__ void flag_segregating_mutations(int * flag, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -432,7 +432,7 @@ struct sim_struct{
 };
 
 struct mutID{
-	int generation,population,threadID,device; //generation mutations appeared in simulation, population in which mutation first arose, ID that generated mutation, Device that generated mutation
+	int generation,population,threadID,device; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, Device that generated mutation
 };
 
 //for final sim result output
@@ -466,7 +466,7 @@ struct sim_result{
 		//1 round of migration_selection_drift and add_new_mutations can be done simultaneously with above as they change d_mutations_freq array, not d_prev_freq
 	}
 
-	~sim_result(){ if(mutations_freq){ cudaFree(mutations_freq); } if(mutations_ID){ cudaFree(mutations_ID); } if(extinct){ delete [] extinct; } }
+	~sim_result(){ if(mutations_freq){ cudaFreeHost(mutations_freq); } if(mutations_ID){ cudaFreeHost(mutations_ID); } if(extinct){ delete [] extinct; } }
 };
 
 
@@ -762,6 +762,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 
 	int generation = 0;
 	int final_generation = num_generations;
+
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
@@ -838,6 +839,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 
 		swap_freq_pointers(mutations);
 
+
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && sample_index < max_samples){
 			//----- compact before sampling if requested -----
@@ -864,10 +866,10 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaStreamDestroy(pop_streams[pop]); cudaEventDestroy(pop_events[pop]); }
 	for(int stream = 0; stream < num_control_streams; stream++){ cudaStreamDestroy(control_streams[stream]); cudaEventDestroy(control_events[stream]); }
 
-	delete pop_streams;
-	delete pop_events;
-	delete control_streams;
-	delete control_events;
+	delete [] pop_streams;
+	delete [] pop_events;
+	delete [] control_streams;
+	delete [] control_events;
 
 	return all_results;
 }
