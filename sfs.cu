@@ -354,6 +354,38 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
+template <typename Functor_demography, typename Functor_inbreeding, typename Functor_migration, typename Functor_selection>
+__global__ void scatter_arrays_migration_selection_drift(float * new_mutations_freq, int4 * new_mutations_ID, const Functor_demography demography, const Functor_inbreeding FI, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float h, const int seed, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length, const int generation){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	int population = blockIdx.y;
+
+	float F = FI(population,generation);
+	int N = 2*demography(population,generation)/(1+F);
+
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
+		if(flag[id]){
+			int index = scan_Index[id];
+			if(N == 0){
+				new_mutations_freq[population*new_array_Length+index] = 0;
+			}
+			else{
+				float i_mig = 0;
+				for(int pop = 0; pop < blockDim.y; pop++){
+					float i = mutations_freq[pop*old_array_Length+id]; //allele frequency in previous population
+					i_mig += mig_prop(pop,population,generation)*i;
+				}
+				float s = sel_coeff(population,generation,i_mig);
+				float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
+				float mean = i_mig_sel*N; //expected allele count in new generation
+				int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
+				new_mutations_freq[population*new_array_Length+index] = float(j_mig_sel_drift)/N; //final allele freq in new generation
+			}
+
+			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
+		}
+	}
+}
+
 struct mig_prop
 {
 	float m;
