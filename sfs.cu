@@ -808,7 +808,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	}
 	//----- end -----
 
-	cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
+	//cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
 
 	//----- simulation steps -----
 
@@ -965,7 +965,7 @@ int main(int argc, char **argv)
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	delete [] a;
 
-/*	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -993,7 +993,7 @@ int main(int argc, char **argv)
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	printf("time elapsed: %f\n\n", elapsedTime/num_iter);*/
+	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
 
 	cudaDeviceReset();
 }
