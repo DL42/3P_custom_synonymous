@@ -277,7 +277,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			float i = prev_freq[pop*array_Length+id]; //allele frequency in previous population
 			i_mig += mig_prop(pop,population,generation)*i;
 		}
-		float s = sel_coeff(0,generation,i_mig);
+		float s = sel_coeff(population,generation,i_mig);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float mean = i_mig_sel*N; //expected allele count in new generation
 		int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
