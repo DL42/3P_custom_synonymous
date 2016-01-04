@@ -341,62 +341,6 @@ __global__ void flag_segregating_mutations(int * flag, const Functor_demography 
 	}
 }
 
-//tests indicate accumulating mutations in non-migrating populations, not much of a problem
-template <typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding>
-__global__ void flag_segregating_mutations_migration_selection_drift(int * flag, float * mutations_freq, float * const prev_freq, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int seed, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		int4 zero = make_int4(1);
-		int4 one = make_int4(1);
-
-		for(int population = 0; population < num_populations; population++){
-			float F = FI(population,generation);
-			int N = 2*demography(population,generation)/(1+F);
-			if(demography(population,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
-				float4 i_mig = make_float4(0);
-				for(int pop = 0; pop < num_populations; pop++){
-					float4 i = reinterpret_cast<float4*>(prev_freq)[pop*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably divisible by 32 or warp_size)!!!!!!
-					i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function
-				}
-				float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
-				float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
-				float4 mean = i_mig_sel*N; //expected allele count in new generation
-				int4 j_mig_sel_drift = clamp(Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
-				float4 new_i = make_float4(j_mig_sel_drift)/N;
-				reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = new_i;
-				zero *= boundary_0(new_i); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
-				one *= boundary_1(new_i);
-			}
-		}
-		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
-	}
-	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
-	if(id < mutations_Index){
-		int zero = 1;
-		int one = 1;
-		for(int population = 0; population < num_populations; population++){
-			float F = FI(population,generation);
-			int N = 2*demography(population,generation)/(1+F);
-			if(demography(population,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
-				float i_mig = 0;
-				for(int pop = 0; pop < num_populations; pop++){
-					float i = prev_freq[pop*array_Length+id]; //allele frequency in previous population
-					i_mig += mig_prop(pop,population,generation)*i;
-				}
-				float s = sel_coeff(population,generation,i_mig);
-				float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
-				float mean = i_mig_sel*N; //expected allele count in new generation
-				int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
-				float new_i = float(j_mig_sel_drift)/N;
-				mutations_freq[population*array_Length+id] = new_i; //final allele freq in new generation
-				zero *= boundary_0(new_i);
-				one *= boundary_1(new_i);
-			}
-		}
-		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
-	}
-}
-
 __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	int population = blockIdx.y;
@@ -750,12 +694,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
-	if(generation == final_generation || taking_sample){
-		flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
-	}else{
-		//flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
-		flag_segregating_mutations_migration_selection_drift<<<500,128,0,control_streams[0]>>>(d_flag, mutations.d_mutations_freq, mutations.d_prev_freq, demography, mig_prop, sel_coeff, FI, h, seed, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation+1);
-	}
+	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
 
 	int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
@@ -787,8 +726,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	}else{
 		//cout<<generation<<" ";
 		//scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-		scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-		//scatter_arrays_migration_selection_drift<<<gridsize,128,0,control_streams[0]>>>(d_temp, d_temp2, demography, mig_prop, sel_coeff, FI, h, seed, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length, generation+1);
+		scatter_arrays_migration_selection_drift<<<gridsize,128,0,control_streams[0]>>>(d_temp, d_temp2, demography, mig_prop, sel_coeff, FI, h, seed, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length, generation+1);
 		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation+1);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N_ind = demography(pop,generation+1);
