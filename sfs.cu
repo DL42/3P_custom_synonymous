@@ -341,61 +341,6 @@ __global__ void flag_segregating_mutations(int * flag, const Functor_demography 
 	}
 }
 
-//tests indicate accumulating mutations in non-migrating populations, not much of a problem
-template <typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding>
-__global__ void flag_segregating_mutations_migration_selection_drift(int * flag, float * mutations_freq, float * const prev_freq, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int seed, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
-		int4 zero = make_int4(1);
-		int4 one = make_int4(1);
-
-		for(int population = 0; population < num_populations; population++){
-			float F = FI(population,generation);
-			int N = 2*demography(population,generation)/(1+F);
-			if(demography(population,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
-				float4 i_mig = make_float4(0);
-				for(int pop = 0; pop < num_populations; pop++){
-					float4 i = reinterpret_cast<float4*>(prev_freq)[pop*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably divisible by 32 or warp_size)!!!!!!
-					i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function
-				}
-				float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
-				float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
-				float4 mean = i_mig_sel*N; //expected allele count in new generation
-				int4 j_mig_sel_drift = clamp(Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
-				float4 new_i = make_float4(j_mig_sel_drift)/N;
-				reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = new_i;
-				zero *= boundary_0(new_i); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
-				one *= boundary_1(new_i);
-			}
-		}
-		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
-	}
-	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
-	if(id < mutations_Index){
-		int zero = 1;
-		int one = 1;
-		for(int population = 0; population < num_populations; population++){
-			float F = FI(population,generation);
-			int N = 2*demography(population,generation)/(1+F);
-			if(demography(population,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
-				float i_mig = 0;
-				for(int pop = 0; pop < num_populations; pop++){
-					float i = prev_freq[pop*array_Length+id]; //allele frequency in previous population
-					i_mig += mig_prop(pop,population,generation)*i;
-				}
-				float s = sel_coeff(population,generation,i_mig);
-				float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
-				float mean = i_mig_sel*N; //expected allele count in new generation
-				int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
-				float new_i = float(j_mig_sel_drift)/N;
-				mutations_freq[population*array_Length+id] = new_i; //final allele freq in new generation
-				zero *= boundary_0(new_i);
-				one *= boundary_1(new_i);
-			}
-		}
-		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
-	}
-}
 
 __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -405,37 +350,6 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 		if(flag[id]){
 			int index = scan_Index[id];
 			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
-			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
-		}
-	}
-}
-
-template <typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding>
-__global__ void scatter_arrays_migration_selection_drift(float * new_mutations_freq, int4 * new_mutations_ID, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int seed, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length, const int generation){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	int population = blockIdx.y;
-
-	float F = FI(population,generation);
-	int N = 2*demography(population,generation)/(1+F);
-
-	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
-		if(flag[id]){
-			int index = scan_Index[id];
-			if(N == 0){
-				new_mutations_freq[population*new_array_Length+index] = 0;//mutations_freq[population*old_array_Length+id];//
-			}
-			else{
-				float i_mig = 0;
-				for(int pop = 0; pop < blockDim.y; pop++){
-					float i = mutations_freq[pop*old_array_Length+id]; //allele frequency in previous population
-					i_mig += mig_prop(pop,population,generation)*i;
-				}
-				float s = sel_coeff(population,generation,i_mig);
-				float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
-				float mean = i_mig_sel*N; //expected allele count in new generation
-				int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,(id + 2),generation,seed,population), 0, N);
-				new_mutations_freq[population*new_array_Length+index] = float(j_mig_sel_drift)/N; //mutations_freq[population*old_array_Length+id];//final allele freq in new generation
-			}
 			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
 		}
 	}
@@ -745,17 +659,12 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 	}
 }
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding>
-__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int seed, const float num_sites, const int generation, const int final_generation, const bool taking_sample, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
+__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const bool taking_sample, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
-	if(generation == final_generation || taking_sample){
-		flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
-	}else{
-		//flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
-		flag_segregating_mutations_migration_selection_drift<<<500,128,0,control_streams[0]>>>(d_flag, mutations.d_mutations_freq, mutations.d_prev_freq, demography, mig_prop, sel_coeff, FI, h, seed, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation+1);
-	}
+	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
 
 	int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
@@ -782,27 +691,8 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	const dim3 gridsize(800,mutations.h_num_populations,1);
 
-	if(generation == final_generation || taking_sample){
-		scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-	}else{
-		//cout<<generation<<" ";
-		//scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-		scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_mutations_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-		//scatter_arrays_migration_selection_drift<<<gridsize,128,0,control_streams[0]>>>(d_temp, d_temp2, demography, mig_prop, sel_coeff, FI, h, seed, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length, generation+1);
-		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation+1);
-		for(int pop = 0; pop < mutations.h_num_populations; pop++){
-			int N_ind = demography(pop,generation+1);
-			if((N_ind <= 0) || mutations.extinct[pop]){ continue; }
-			float F = FI(pop,generation+1);
-			int Nchrom_e = 2*N_ind/(1+F);
-			float freq = 1.f/Nchrom_e;
-			int prev_Index = mutations.h_new_mutation_Indices[pop];
-			int new_Index = mutations.h_new_mutation_Indices[pop+1];
-			add_new_mutations<<<20,512,0,pop_streams[pop+mutations.h_num_populations]>>>(d_temp, d_temp2, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation+1, 0);
-			//cudaCheckErrors(cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]));
-		}
-		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
-	}
+	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+
 	cudaEventRecord(control_events[0],control_streams[0]);
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
@@ -894,46 +784,44 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 
 	int next_compact_generation = generation + compact_rate;
 	int sample_index = 0;
-	bool just_compacted = false;
+
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
 
-		if(!just_compacted){
-			//----- migration, selection, drift -----
-			for(int pop = 0; pop < mutations.h_num_populations; pop++){
-				int N_ind = demography(pop,generation);
-				if(mutations.extinct[pop]){ continue; }
-				if(N_ind <= 0){
-					if(demography(pop,generation-1) > 0){ //previous generation, the population was alive
-						N_ind = 0; //allow to go extinct
-						mutations.extinct[pop] = true; //next generation will not process
-					} else{ continue; } //if population has not yet arisen, it will have a population size of 0, can simply not process
-				}
-				float F = FI(pop,generation);
-				int Nchrom_e = 2*N_ind/(1+F);
-				//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-				migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
-
-				cudaEventRecord(pop_events[pop],pop_streams[pop]);
+		//----- migration, selection, drift -----
+		for(int pop = 0; pop < mutations.h_num_populations; pop++){
+			int N_ind = demography(pop,generation);
+			if(mutations.extinct[pop]){ continue; }
+			if(N_ind <= 0){
+				if(demography(pop,generation-1) > 0){ //previous generation, the population was alive
+					N_ind = 0; //allow to go extinct
+					mutations.extinct[pop] = true; //next generation will not process
+				} else{ continue; } //if population has not yet arisen, it will have a population size of 0, can simply not process
 			}
-			//----- end -----
+			float F = FI(pop,generation);
+			int Nchrom_e = 2*N_ind/(1+F);
+			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 
-			//----- generate new mutations -----
-			calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
-			for(int pop = 0; pop < mutations.h_num_populations; pop++){
-				int N_ind = demography(pop,generation);
-				if((N_ind <= 0) || mutations.extinct[pop]){ continue; }
-				float F = FI(pop,generation);
-				int Nchrom_e = 2*N_ind/(1+F);
-				float freq = 1.f/Nchrom_e;
-				int prev_Index = mutations.h_new_mutation_Indices[pop];
-				int new_Index = mutations.h_new_mutation_Indices[pop+1];
-				add_new_mutations<<<20,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
-				cudaCheckErrors(cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]));
-			}
-			mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
-			//----- end -----
-		}else{ swap_freq_pointers(mutations); }
+			cudaEventRecord(pop_events[pop],pop_streams[pop]);
+		}
+		//----- end -----
+
+		//----- generate new mutations -----
+		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
+		for(int pop = 0; pop < mutations.h_num_populations; pop++){
+			int N_ind = demography(pop,generation);
+			if((N_ind <= 0) || mutations.extinct[pop]){ continue; }
+			float F = FI(pop,generation);
+			int Nchrom_e = 2*N_ind/(1+F);
+			float freq = 1.f/Nchrom_e;
+			int prev_Index = mutations.h_new_mutation_Indices[pop];
+			int new_Index = mutations.h_new_mutation_Indices[pop+1];
+			add_new_mutations<<<20,512,0,pop_streams[pop+mutations.h_num_populations]>>>(mutations.d_mutations_freq, mutations.d_mutations_ID, prev_Index, new_Index, mutations.h_array_Length, freq, pop, mutations.h_num_populations, generation, myDevice);
+			cudaCheckErrors(cudaEventRecord(pop_events[pop+mutations.h_num_populations],pop_streams[pop+mutations.h_num_populations]));
+		}
+		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
+		//----- end -----
 
 		for(int pop1 = 0; pop1 < mutations.h_num_populations; pop1++){
 			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
@@ -959,19 +847,16 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && sample_index < max_samples){
 			//----- compact before sampling if requested -----
-			//when testing this, check if I need to swap the mutations freq pointers to make sure it doesn't screw up
-			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography,  mig_prop, sel_coeff, FI, h, seed, num_sites, generation, final_generation, true, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
+			//when testing this, check if I need to swap the mutations freq pointers to make sure compact doesn't screw up which mutation array needs to be where (especially if 2 compacts are performed in a row: sample + compact_rate
+			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, true, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
 			//----- end -----
 			sim_result::store_sim_result(all_results[sample_index], mutations, num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
-		just_compacted = false;
+
 		//----- compact every compact_rate generations and final generation -----
-		if(generation == next_compact_generation || generation == final_generation){
-			compact(mutations, mu_rate, demography,  mig_prop, sel_coeff, FI, h, seed, num_sites, generation, final_generation, false, compact_rate, control_streams, control_events, pop_streams);
-			next_compact_generation = generation + compact_rate;
-			just_compacted = true;
+		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, false, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;
 		}
 		//----- end -----
 	}
