@@ -311,7 +311,7 @@ __device__ int boundary_1(float freq){
 }
 
 //tests indicate accumulating mutations in non-migrating populations, not much of a problem
-template <typename Functor_demography>
+/*template <typename Functor_demography>
 __global__ void flag_segregating_mutations(int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -328,6 +328,23 @@ __global__ void flag_segregating_mutations(int * flag, const Functor_demography 
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
+		int zero = 1;
+		int one = 1;
+		for(int pop = 0; pop < num_populations; pop++){
+			if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
+				float i = mutations_freq[pop*array_Length+id];
+				zero *= boundary_0(i);
+				one *= boundary_1(i);
+			}
+		}
+		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
+	}
+}*/
+
+template <typename Functor_demography>
+__global__ void flag_segregating_mutations(int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
 		int zero = 1;
 		int one = 1;
 		for(int pop = 0; pop < num_populations; pop++){
@@ -400,7 +417,7 @@ struct inbreeding
 {
 	float F;
 	inbreeding(float F) : F(F){ }
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation) const{
+	__host__ __forceinline__ float operator()(const int population, const int generation) const{
 		return F;
 	}
 };
