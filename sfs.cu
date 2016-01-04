@@ -310,16 +310,19 @@ __device__ int boundary_1(float freq){
 	return (freq >= 1.f);
 }
 
-//change so all (extant? non-zero?) populations must be fixed or lost for an allele to be discarded, tests indicate accumulating mutations in non-migrating populations, not much of a problem
-__global__ void flag_segregating_mutations(int * flag, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length){
+//tests indicate accumulating mutations in non-migrating populations, not much of a problem
+template <typename Functor_demography>
+__global__ void flag_segregating_mutations(int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
 		int4 zero = make_int4(1);
 		int4 one = make_int4(1);
 		for(int pop = 0; pop < num_populations; pop++){
-			float4 i = reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id];
-			zero *= boundary_0(i); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
-			one *= boundary_1(i);
+			if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
+				float4 i = reinterpret_cast<const float4*>(mutations_freq)[pop*array_Length/4+id];
+				zero *= boundary_0(i); //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
+				one *= boundary_1(i);
+			}
 		}
 		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
 	}
@@ -328,9 +331,11 @@ __global__ void flag_segregating_mutations(int * flag, const float * const mutat
 		int zero = 1;
 		int one = 1;
 		for(int pop = 0; pop < num_populations; pop++){
-			float i = mutations_freq[pop*array_Length+id];
-			zero *= boundary_0(i);
-			one *= boundary_1(i);
+			if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
+				float i = mutations_freq[pop*array_Length+id];
+				zero *= boundary_0(i);
+				one *= boundary_1(i);
+			}
 		}
 		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
 	}
@@ -385,7 +390,7 @@ struct demography
 {
 	int N;
 	demography(int N) : N(N){ }
-	__host__ __forceinline__ int operator()(const int population, const int generation) const{
+	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const{
 		return N;
 	}
 };
@@ -394,7 +399,7 @@ struct inbreeding
 {
 	float F;
 	inbreeding(float F) : F(F){ }
-	__host__ __forceinline__ float operator()(const int population, const int generation) const{
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation) const{
 		return F;
 	}
 };
@@ -481,8 +486,8 @@ struct sfs{
 	~sfs(){ if(frequency_spectrum){ delete[] frequency_spectrum; } if(frequency_age_spectrum){ delete[] frequency_age_spectrum; } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}
 };
 
-template <typename Functor_mu, typename Functor_dem, typename Functor_inbreeding>
-__host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_dem demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
+template <typename Functor_mu, typename Functor_demography, typename Functor_inbreeding>
+__host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
 	mutations.h_mutations_Index = num_mutations;
 	mutations.h_array_Length = mutations.h_mutations_Index;
 	for(int gen = generation+1; gen <= (generation+compact_rate) && gen <= final_generation; gen++){
@@ -625,7 +630,7 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
-	if(use_prev_sim){
+	if(prev_sim.num_mutations != 0 && use_prev_sim){
 		generation_shift = prev_sim.total_generations;
 		final_generation += generation_shift;
 		num_mutations = prev_sim.num_mutations;
@@ -658,7 +663,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
-	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length);
+	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
 
 	int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
