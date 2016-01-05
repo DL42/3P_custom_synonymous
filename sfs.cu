@@ -752,9 +752,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
+	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaFree(d_temp_storage);
 
 	int h_num_seg_mutations;
@@ -859,7 +859,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	}
 	//----- end -----
 
-	//cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
+	cout<< endl <<"initial num_mutations " << mutations.h_mutations_Index;
 
 	//----- simulation steps -----
 
@@ -1009,7 +1009,7 @@ int main(int argc, char **argv)
 	int N_ind = pow(10.f,5)*(1+F); //constant population for now
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = pow(10.f,4);//50;//36;//
+	int total_number_of_generations = 36;//pow(10.f,4);//50;//
 	float L = 2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
@@ -1019,7 +1019,7 @@ int main(int argc, char **argv)
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	delete [] a;
 
-	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+/*	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -1047,7 +1047,7 @@ int main(int argc, char **argv)
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
+	printf("time elapsed: %f\n\n", elapsedTime/num_iter);*/
 
 	cudaDeviceReset();
 }
