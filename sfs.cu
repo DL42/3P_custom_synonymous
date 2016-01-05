@@ -341,25 +341,45 @@ __global__ void flag_segregating_mutations(int * flag, const Functor_demography 
 	}
 }*/
 
+__device__ inline int lane_id(int warp_size){ return threadIdx.x % warp_size; }
+
 template <typename Functor_demography>
-__global__ void flag_segregating_mutations(int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
+__global__ void flag_segregating_mutations(int * flag, int * counter, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation, const int warp_size){
+//adapted from https://www.csuohio.edu/engineering/sites/csuohio.edu.engineering/files/Research_Day_2015_EECS_Poster_14.pdf
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
+	for(int id = myID; id < (mutations_Index >> 5); id+= blockDim.x*gridDim.x){
 		int zero = 1;
 		int one = 1;
-		for(int pop = 0; pop < num_populations; pop++){
-			if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
-				float i = mutations_freq[pop*array_Length+id];
-				zero *= boundary_0(i);
-				one *= boundary_1(i);
+		int lnID = lane_id(warp_size);
+		int warpID = id >> 5;
+
+		int mask;
+		int cnt;
+
+		for(int j = 0; j < 32; j++){
+			for(int pop = 0; pop < num_populations; pop++){
+				if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
+					float i = mutations_freq[pop*array_Length+(warpID<<10)+(j<<5)+lnID];
+					zero *= boundary_0(i);
+					one *= boundary_1(i);
+				}
 			}
+
+			mask = _ballot(!(zero+one));
+
+			if(lnID == 0) flag[(warpID<<5)+j] = mask; //1 if allele is segregating in any population, 0 otherwise
+			if(lnID == j) cnt = _popc(mask);
 		}
-		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
+
+		//warp shuffle reduction (sum) of 1024 elements
+#pragma unroll
+		for(int offset = 16; offset > 0; offset >>= 1) cnt += _shfl_down(cnt,offset);
+		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
 }
 
 
-__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
+/*__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	int population = blockIdx.y;
 	//is write-limited, vectorizing reads does not improve performance
@@ -368,6 +388,48 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 			int index = scan_Index[id];
 			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
 			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
+		}
+	}
+}*/
+
+__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length, const int warp_size){
+//adapted from https://www.csuohio.edu/engineering/sites/csuohio.edu.engineering/files/Research_Day_2015_EECS_Poster_14.pdf
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	int population = blockIdx.y;
+
+	for(int id = myID; id < (mutations_Index >> 5); id+= blockDim.x*gridDim.x){
+		int lnID = lane_id(warp_size);
+		int warpID = id >> 5;
+
+		int predmask;
+		int cnt;
+
+		for(int i = 0; i < 32; i++){
+			//not sure why this has to be in a loop, each thread in the warp should simply be able to load its reg independently
+			if(lnID == i){
+				predmask = flag[(warpID<<5)+i];
+				cnt = __popc(predmask);
+			}
+		}
+
+		//parallel prefix sum
+#pragma unroll
+		for(int offset = 1; offset < 32; offset<<=1){
+			int n = __shfl_up(cnt, offset);
+			if(lnID >= offset) cnt += n;
+		}
+
+		int global_index = 0;
+		if(warpID > 0) global_index = scan_Index[warpID - 1];
+
+		for(int i = 0; i < 32; i++){
+			int mask = __shfl(predmask, i); //broadcast from thread i
+			int sub_group_index = 0;
+			if(i > 0) sub_group_index = __shfl(cnt, i-1);
+			if(mask & (1 << lnID)){
+				new_mutations_freq[population*new_array_Length + global_index + sub_group_index + __popc(mask & ((1 << lnID) - 1))] = mutations_freq[population*old_array_Length+(warpID<<10)+(i<<5)+lnID];
+				if(population == 0){ new_mutations_ID[global_index + sub_group_index + __popc(mask & ((1 << lnID) - 1))] = mutations_ID[(warpID<<10)+(i<<5)+lnID]; }
+			}
 		}
 	}
 }
@@ -681,7 +743,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	int * d_flag;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
 
-	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
+	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation, mutations.warp_size);
 
 	int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
