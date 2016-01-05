@@ -365,15 +365,15 @@ __global__ void flag_segregating_mutations(int * flag, int * counter, const Func
 				}
 			}
 
-			mask = _ballot(!(zero+one));
+			mask = __ballot(!(zero+one));
 
 			if(lnID == 0) flag[(warpID<<5)+j] = mask; //1 if allele is segregating in any population, 0 otherwise
-			if(lnID == j) cnt = _popc(mask);
+			if(lnID == j) cnt = __popc(mask);
 		}
 
 		//warp shuffle reduction (sum) of 1024 elements
 #pragma unroll
-		for(int offset = 16; offset > 0; offset >>= 1) cnt += _shfl_down(cnt,offset);
+		for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
 		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
 }
@@ -741,18 +741,20 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
 __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const bool taking_sample, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
 	int * d_flag;
+	int * d_count;
 	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
+	cudaMalloc((void**)&d_count,(mutations.h_mutations_Index>>10)*sizeof(int));
 
-	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation, mutations.warp_size);
+	flag_segregating_mutations<<<50,128,0,control_streams[0]>>>(d_flag, d_count, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation, mutations.warp_size);
 
 	int * d_scan_Index;
-	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
+	cudaMalloc((void**)&d_scan_Index,(mutations.h_mutations_Index>>10)*sizeof(int));
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
+	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
 	cudaFree(d_temp_storage);
 
 	int h_num_seg_mutations;
@@ -770,7 +772,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	const dim3 gridsize(800,mutations.h_num_populations,1);
 
-	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
+	scatter_arrays<<<gridsize,128,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length, mutations.warp_size);
 
 	cudaEventRecord(control_events[0],control_streams[0]);
 
