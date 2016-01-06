@@ -383,14 +383,14 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 
 			if(lnID == 0) {
 				flag[(warpID<<5)+j] = mask; //1 if allele is segregating in any population, 0 otherwise
-				//cnt += __popc(mask);
+				cnt += __popc(mask);
 			}
-			if(lnID == j) cnt += __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Doubt it.
+			//if(lnID == j) cnt += __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Doubt it. Testing says no
 		}
 
 		//warp shuffle reduction (sum) of 1024 elements
-#pragma unroll
-		for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
+//#pragma unroll
+		//for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
 		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
 }
@@ -421,13 +421,16 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 		unsigned int predmask;
 		unsigned int cnt;
 
-		for(int i = 0; i < 32; i++){
-			//not sure why this has to be in a loop, each thread in the warp should simply be able to load its reg independently
+/*		for(int i = 0; i < 32; i++){
+			//not sure why this has to be in a loop, each thread in the warp should simply be able to load its reg independently. Testing says my version faster
 			if(lnID == i){
 				predmask = flag[(warpID<<5)+i];
 				cnt = __popc(predmask);
 			}
-		}
+		}*/
+
+		predmask = flag[(warpID<<5)+lnID];
+		cnt = __popc(predmask);
 
 		//parallel prefix sum
 #pragma unroll
@@ -825,7 +828,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaStreamWaitEvent(control_streams[1],control_events[0],0);
 	cudaStreamWaitEvent(control_streams[2],control_events[0],0);
 
-	cudaCheckErrors(cudaFree(mutations.d_prev_freq));
+	cudaFree(mutations.d_prev_freq);
 	cudaFree(mutations.d_mutations_ID);
 
 	mutations.d_prev_freq = d_temp;
@@ -1050,7 +1053,7 @@ int main(int argc, char **argv)
 	float s = gamma/(2*N_ind);
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = 36;//pow(10.f,4);//50;//
-	float L = 2*pow(10.f,7);
+	float L = 1*2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
 	const int seed = 0xdecafbad;
@@ -1059,7 +1062,8 @@ int main(int argc, char **argv)
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	delete [] a;
 
-	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	cout<< (39 >> 5);
+/*	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -1076,9 +1080,9 @@ int main(int argc, char **argv)
 
 	for(int i = 0; i < num_iter; i++){
 		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
-		//if(i==0){
-			//cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl;
-		//}
+		if(i==0){
+			cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl;
+		}
 		delete [] b;
 	}
 
@@ -1089,7 +1093,7 @@ int main(int argc, char **argv)
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
+	printf("time elapsed: %f\n\n", elapsedTime/num_iter);*/
 
 	cudaDeviceReset();
 }
