@@ -366,7 +366,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 		int warpID = id >> 5;
 
 		unsigned int mask;
-		unsigned int cnt = 0;
+		unsigned int cnt=0;//;//
 
 		for(int j = 0; j < 32; j++){
 			int zero = 1;
@@ -385,12 +385,13 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 				flag[(warpID<<5)+j] = mask; //1 if allele is segregating in any population, 0 otherwise
 				cnt += __popc(mask);
 			}
-			//if(lnID == j) cnt += __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Doubt it. Testing says no
+			//if(lnID == j) cnt = __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Doubt it. Testing says no
 		}
 
 		//warp shuffle reduction (sum) of 1024 elements
 //#pragma unroll
 		//for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
+
 		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
 }
@@ -1089,7 +1090,7 @@ int main(int argc, char **argv)
     int num_iter = 2;
 
     total_number_of_generations = pow(10.f,4);
-    L = 200*2*pow(10.f,7);
+    L = 300*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
