@@ -774,12 +774,12 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	int temp_mut_index = (((mutations.h_mutations_Index>>10)+1)<<10);
 
-	pad1024<<<mutations.h_num_populations,1024>>>(mutations.d_prev_freq,mutations.h_array_Length,temp_mut_index,mutations.h_mutations_Index);
+	pad1024<<<mutations.h_num_populations,1024,0,control_streams[0]>>>(mutations.d_prev_freq,mutations.h_array_Length,temp_mut_index,mutations.h_mutations_Index);
 	mutations.h_mutations_Index = temp_mut_index;
 	cudaMalloc((void**)&d_flag,(temp_mut_index>>5)*sizeof(unsigned int));
 	cudaMalloc((void**)&d_count,(temp_mut_index>>10)*sizeof(unsigned int));
 
-	flag_segregating_mutations<<<50,128,0,control_streams[0]>>>(d_flag, d_count, demography, mutations.d_prev_freq, mutations.h_num_populations, temp_mut_index, mutations.h_array_Length, generation, mutations.warp_size);
+	flag_segregating_mutations<<<800,128,0,control_streams[0]>>>(d_flag, d_count, demography, mutations.d_prev_freq, mutations.h_num_populations, temp_mut_index, mutations.h_array_Length, generation, mutations.warp_size);
 
 	unsigned int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index,(temp_mut_index>>10)*sizeof(unsigned int));
@@ -841,7 +841,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 65, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -1059,7 +1059,7 @@ int main(int argc, char **argv)
     int num_iter = 10;
 
     total_number_of_generations = pow(10.f,4);
-    L = 0.3*2*pow(10.f,7);
+    L = 1*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
