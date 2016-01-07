@@ -328,7 +328,7 @@ __device__ int boundary_1(float freq){
 template <typename Functor_demography>
 __global__ void flag_segregating_mutations(unsigned int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
+	for(int id = myID; id < (mutations_Index/4); id+= blockDim.x*gridDim.x){
 		int4 zero = make_int4(1);
 		int4 one = make_int4(1);
 		for(int pop = 0; pop < num_populations; pop++){
@@ -340,7 +340,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, const Functor_de
 		}
 		reinterpret_cast<int4*>(flag)[id] = make_int4(!(zero.x+one.x),!(zero.y+one.y),!(zero.z+one.z),!(zero.w+one.w)); //1 if allele has not hit either boundary in any population, 0 otherwise
 	}
-	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
+	int id = myID + ((mutations_Index/4) * 4);  //only works if minimum of 3 threads are launched
 	if(id < mutations_Index){
 		int zero = 1;
 		int one = 1;
@@ -455,9 +455,10 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
-__global__ void pad1024(float* mut_freq, int new_size, int old_size){
+__global__ void pad1024(float* mut_freq, int array_length, int new_mut_index, int old_mut_index){
 	int tID = threadIdx.x;
-	if(tID + old_size < new_size){ mut_freq[tID + old_size] = 0; }
+	int population = blockIdx.x;
+	if(tID + old_mut_index < new_mut_index){ mut_freq[population*array_length + tID + old_mut_index] = 0; }
 }
 
 struct mig_prop
@@ -773,7 +774,7 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	int temp_mut_index = (((mutations.h_mutations_Index>>10)+1)<<10);
 
-	pad1024<<<1,1024>>>(mutations.d_prev_freq,temp_mut_index,mutations.h_mutations_Index);
+	pad1024<<<mutations.h_num_populations,1024>>>(mutations.d_prev_freq,mutations.h_array_Length,temp_mut_index,mutations.h_mutations_Index);
 	mutations.h_mutations_Index = temp_mut_index;
 	cudaMalloc((void**)&d_flag,(temp_mut_index>>5)*sizeof(unsigned int));
 	cudaMalloc((void**)&d_count,(temp_mut_index>>10)*sizeof(unsigned int));
@@ -840,7 +841,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 10, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 65, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -1055,10 +1056,10 @@ int main(int argc, char **argv)
 
     cudaEvent_t start, stop;
     float elapsedTime;
-    int num_iter = 2;
+    int num_iter = 10;
 
     total_number_of_generations = pow(10.f,4);
-    L = 200*2*pow(10.f,7);
+    L = 0.3*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
