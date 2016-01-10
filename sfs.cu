@@ -387,7 +387,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 				flag[(warpID<<5)+j] = mask;
 				cnt += __popc(mask);
 			}
-			//if(lnID == j) cnt = __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Testing says not really, roughly same speed, might be faster
+			//if(lnID == j) cnt = __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Testing says not really, roughly same speed, might be faster/slower
 		}
 
 		//warp shuffle reduction (sum) of 1024 elements
@@ -397,7 +397,6 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
 }
-
 
 /*__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const int * const flag, const int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -641,7 +640,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		int Nchrom_e = 2*demography(pop,0)/(1+F);
 		if(Nchrom_e <= 1){ continue; }
 		num_freq += (Nchrom_e - 1);
-	} //adds a little padding to ensure distances between populations in array are a multiple of 4
+	}
 
 	int * d_freq_index;
 	cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int));
@@ -825,7 +824,7 @@ struct no_sample{
 };
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 15, const int cuda_device = -1){
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaGetDeviceCount(&cudaDeviceCount);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaSetDevice(cuda_device); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -1041,16 +1040,17 @@ int main(int argc, char **argv)
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
+    int compact_rate = 35;
 
-    total_number_of_generations = pow(10.f,4);
-    L = 300*2*pow(10.f,7);
+    total_number_of_generations = pow(10.f,3);
+    L = 1*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}
@@ -1064,5 +1064,6 @@ int main(int argc, char **argv)
 
 	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
 
+	cudaDeviceSynchronize();
 	cudaDeviceReset();
 }
