@@ -411,12 +411,12 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 	}
 }*/
 
-__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const unsigned int * const flag, const unsigned int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length, const int warp_size){
+__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const unsigned int * const flag, const unsigned int * const scan_Index, const int padded_mut_Index, const int new_array_Length, const int old_array_Length, const int warp_size){
 //adapted from https://www.csuohio.edu/engineering/sites/csuohio.edu.engineering/files/Research_Day_2015_EECS_Poster_14.pdf
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	int population = blockIdx.y;
 
-	for(int id = myID; id < (mutations_Index >> 5); id+= blockDim.x*gridDim.x){
+	for(int id = myID; id < (padded_mut_Index >> 5); id+= blockDim.x*gridDim.x){
 		int lnID = threadIdx.x % warp_size;
 		int warpID = id >> 5;
 
