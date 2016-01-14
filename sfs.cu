@@ -19,7 +19,7 @@ using namespace std;
 using namespace cub;
 using namespace r123;
 
-#define __DEBUG__ false
+#define __DEBUG__ true
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
@@ -509,7 +509,7 @@ struct mutation
 	}
 };
 
-#define cudaCheckErrors(expr1,expr2) { cudaError_t e = expr1; int g = expr2; if (e != cudaSuccess) { printf("error %d %s\tfile %s\tline %d\tgeneration %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g); throw 0; } }
+#define cudaCheckErrors(expr1,expr2) { cudaError_t e = expr1; int g = expr2; if (e != cudaSuccess) { printf("error %d %s\tfile %s\tline %d\tgeneration %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g); exit(1); } }
 
 //for internal function passing
 struct sim_struct{
@@ -596,8 +596,8 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
 		}
 	}
-    mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/((float)mutations.warp_size))*mutations.warp_size); //extra padding for coalesced global memory access, /one day warp sizes may not be multiples of 4
-	//mutations.h_array_Length = (int)(mutations.h_array_Length/mutations.warp_size + 1*(mutations.h_array_Length%mutations.warp_size!=0))*mutations.warp_size; //extra padding for coalesced global memory access, /watch out: one day warp sizes may not be multiples of 4
+
+	mutations.h_array_Length = (int)(mutations.h_array_Length/mutations.warp_size + 1*(mutations.h_array_Length%mutations.warp_size!=0))*mutations.warp_size; //extra padding for coalesced global memory access, /watch out: one day warp sizes may not be multiples of 4
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
@@ -724,6 +724,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaCheckErrors(cudaPeekAtLastError(),0);
 
 	mse_set_mutID<<<50,1024,0,pop_streams[mutations.h_num_populations]>>>(mutations.d_mutations_ID, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_num_populations, mutations.h_array_Length, myDevice);
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
 
 	for(int pop = 0; pop <= mutations.h_num_populations; pop++){
 		cudaEventRecord(pop_events[pop],pop_streams[pop]);
