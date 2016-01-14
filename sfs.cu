@@ -307,25 +307,25 @@ __global__ void add_new_mutations(float * mutations_freq, int4 * mutations_ID, c
 	}
 }
 
-__device__ int4 boundary_0(float4 freq){
+/*__device__ int4 boundary_0(float4 freq){
 	return make_int4((freq.x <= 0.f), (freq.y <= 0.f), (freq.z <= 0.f), (freq.w <= 0.f));
-}
+}*/
 
 __device__ int boundary_0(float freq){
 	return (freq <= 0.f);
 }
 
-__device__ int4 boundary_1(float4 freq){
+/*__device__ int4 boundary_1(float4 freq){
 	return make_int4((freq.x >= 1.f), (freq.y >= 1.f), (freq.z >= 1.f), (freq.w >= 1.f));
-}
+}*/
 
 __device__ int boundary_1(float freq){
 	return (freq >= 1.f);
 }
 
 //tests indicate accumulating mutations in non-migrating populations, not much of a problem
-template <typename Functor_demography>
-__global__ void flag_segregating_mutations(unsigned int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
+/*template <typename Functor_demography>
+__global__ void flag_segregating_mutations_old(unsigned int * flag, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int mutations_Index, const int array_Length, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < (mutations_Index/4); id+= blockDim.x*gridDim.x){
 		int4 zero = make_int4(1);
@@ -353,6 +353,19 @@ __global__ void flag_segregating_mutations(unsigned int * flag, const Functor_de
 		flag[id] = !(zero+one); //1 if allele is segregating in any population, 0 otherwise
 	}
 }
+
+__global__ void scatter_arrays_old(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const unsigned int * const flag, const unsigned int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	int population = blockIdx.y;
+	//is write-limited, vectorizing reads does not improve performance
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
+		if(flag[id]){
+			int index = scan_Index[id];
+			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
+			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
+		}
+	}
+}*/
 
 //tests indicate accumulating mutations in non-migrating populations, not much of a problem
 template <typename Functor_demography>
@@ -394,19 +407,6 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 //		for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
 
 		if(lnID == 0) counter[warpID] = cnt; //store sum
-	}
-}
-
-__global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_ID, const float * const mutations_freq, const int4 * const mutations_ID, const unsigned int * const flag, const unsigned int * const scan_Index, const int mutations_Index, const int new_array_Length, const int old_array_Length){
-	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	int population = blockIdx.y;
-	//is write-limited, vectorizing reads does not improve performance
-	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
-		if(flag[id]){
-			int index = scan_Index[id];
-			new_mutations_freq[population*new_array_Length+index] = mutations_freq[population*old_array_Length+id];
-			if(population == 0){ new_mutations_ID[index] = mutations_ID[id]; }
-		}
 	}
 }
 
@@ -811,61 +811,6 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaFree(d_scan_Index);
 	cudaFree(d_count);
 
-	cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-}
-
-template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void compact_old(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
-	unsigned int * d_flag;
-	cudaMalloc((void**)&d_flag,mutations.h_mutations_Index*sizeof(int));
-
-	flag_segregating_mutations<<<50,1024,0,control_streams[0]>>>(d_flag, demography, mutations.d_prev_freq, mutations.h_num_populations, mutations.h_mutations_Index, mutations.h_array_Length, generation);
-
-	unsigned int * d_scan_Index;
-	cudaMalloc((void**)&d_scan_Index, mutations.h_mutations_Index*sizeof(int));
-
-	void * d_temp_storage = NULL;
-	size_t temp_storage_bytes = 0;
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
-	cudaMalloc(&d_temp_storage, temp_storage_bytes);
-	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_flag, d_scan_Index, mutations.h_mutations_Index, control_streams[0]);
-	cudaFree(d_temp_storage);
-
-	int h_num_seg_mutations;
-	cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[mutations.h_mutations_Index-1], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
-	h_num_seg_mutations += 1; //doesn't need to be h_num_seg_mutations += d_flag[mutations.h_mutations_Index-1] as last mutation in index will be new, so d_flag[mutations.h_mutations_Index-1] = 1
-
-	int old_mutations_Index = mutations.h_mutations_Index;
-	int old_array_Length = mutations.h_array_Length;
-	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, FI, num_sites, compact_rate, generation, final_generation);
-
-	float * d_temp;
-	int4 * d_temp2;
-	cudaMalloc((void**)&d_temp,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
-	cudaMalloc((void**)&d_temp2,mutations.h_array_Length*sizeof(int4));
-
-	const dim3 gridsize(800,mutations.h_num_populations,1);
-	scatter_arrays<<<gridsize,256,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, old_mutations_Index, mutations.h_array_Length, old_array_Length);
-
-	cudaEventRecord(control_events[0],control_streams[0]);
-
-	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
-		cudaStreamWaitEvent(pop_streams[pop],control_events[0],0);
-	}
-
-	cudaStreamWaitEvent(control_streams[1],control_events[0],0);
-	cudaStreamWaitEvent(control_streams[2],control_events[0],0);
-
-	cudaFree(mutations.d_prev_freq);
-	cudaFree(mutations.d_mutations_ID);
-
-	mutations.d_prev_freq = d_temp;
-	mutations.d_mutations_ID = d_temp2;
-
-	cudaFree(d_flag);
-	cudaFree(d_scan_Index);
-
-	cudaFree(mutations.d_mutations_freq);
 	cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
 }
 
