@@ -19,6 +19,8 @@ using namespace std;
 using namespace cub;
 using namespace r123;
 
+#define __DEBUG__ false
+
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
 // optimize it down to an int-to-float conversion followed by a multiply
@@ -594,7 +596,8 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
 		}
 	}
-	mutations.h_array_Length = (int)(mutations.h_array_Length/mutations.warp_size + 1*(mutations.h_array_Length%mutations.warp_size!=0))*mutations.warp_size; //extra padding for coalesced global memory access, /watch out: one day warp sizes may not be multiples of 4
+    mutations.h_array_Length = (int)(ceil(mutations.h_array_Length/((float)mutations.warp_size))*mutations.warp_size); //extra padding for coalesced global memory access, /one day warp sizes may not be multiples of 4
+	//mutations.h_array_Length = (int)(mutations.h_array_Length/mutations.warp_size + 1*(mutations.h_array_Length%mutations.warp_size!=0))*mutations.warp_size; //extra padding for coalesced global memory access, /watch out: one day warp sizes may not be multiples of 4
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
@@ -664,6 +667,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		offset += (Nchrom_e - 1);
 	}
 
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
+
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
 		cudaFree(mse_integral[pop]);
 		cudaEventRecord(pop_events[pop],pop_streams[pop]);
@@ -678,6 +684,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
 	DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]);
 	cudaFree(d_temp_storage);
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
 
 	cudaEventRecord(pop_events[0],pop_streams[0]);
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -697,6 +706,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 	cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
 	cudaMalloc((void**)&mutations.d_mutations_ID, mutations.h_array_Length*sizeof(int4));
 
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
+
 	const dim3 blocksize(4,256,1);
 	const dim3 gridsize(32,32,1);
 	offset = 0;
@@ -707,6 +719,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		initialize_mse_mutation_array<<<gridsize,blocksize,0,pop_streams[pop]>>>(mutations.d_prev_freq, d_freq_index, d_scan_index, offset, Nchrom_e, pop, mutations.h_num_populations, mutations.h_array_Length);
 		offset += (int)(ceil((Nchrom_e - 1)/4.f)*4);
 	}
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
 
 	mse_set_mutID<<<50,1024,0,pop_streams[mutations.h_num_populations]>>>(mutations.d_mutations_ID, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_num_populations, mutations.h_array_Length, myDevice);
 
@@ -719,6 +734,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	cudaFree(d_freq_index);
 	cudaFree(d_scan_index);
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),0);
 }
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
@@ -760,6 +778,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	unsigned int * d_flag;
 	unsigned int * d_count;
 
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
+
 	int padded_mut_index = (((mutations.h_mutations_Index>>10)+1*(mutations.h_mutations_Index%1024!=0))<<10);
 
 	cudaFree(mutations.d_mutations_freq);
@@ -767,6 +788,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc((void**)&d_count,(padded_mut_index>>10)*sizeof(unsigned int));
 
 	flag_segregating_mutations<<<800,128,0,control_streams[0]>>>(d_flag, d_count, demography, mutations.d_prev_freq, mutations.h_num_populations, padded_mut_index, mutations.h_mutations_Index, mutations.h_array_Length, generation, mutations.warp_size);
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 
 	unsigned int * d_scan_Index;
 	cudaMalloc((void**)&d_scan_Index,(padded_mut_index>>10)*sizeof(unsigned int));
@@ -777,6 +801,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaMalloc(&d_temp_storage, temp_storage_bytes);
 	DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]);
 	cudaFree(d_temp_storage);
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 
 	int h_num_seg_mutations;
 	cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[(padded_mut_index>>10)-1], sizeof(int), cudaMemcpyDeviceToHost); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
@@ -792,6 +819,8 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	const dim3 gridsize(800,mutations.h_num_populations,1);
 	scatter_arrays<<<gridsize,128,0,control_streams[0]>>>(d_temp, d_temp2, mutations.d_prev_freq, mutations.d_mutations_ID, d_flag, d_scan_Index, padded_mut_index, mutations.h_array_Length, old_array_Length, mutations.warp_size);
 
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 	cudaEventRecord(control_events[0],control_streams[0]);
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
@@ -812,6 +841,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 	cudaFree(d_count);
 
 	cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float));
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 }
 
 __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
@@ -882,6 +914,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	int next_compact_generation = generation + compact_rate;
 	int sample_index = 0;
 
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
+
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
 		//----- migration, selection, drift -----
@@ -902,6 +937,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		}
 		//----- end -----
 
+		if(__DEBUG__){ cudaDeviceSynchronize(); }
+		cudaCheckErrors(cudaPeekAtLastError(),generation);
+
 		//----- generate new mutations -----
 		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -917,6 +955,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		}
 		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
 		//----- end -----
+
+		if(__DEBUG__){ cudaDeviceSynchronize(); }
+		cudaCheckErrors(cudaPeekAtLastError(),generation);
 
 		for(int pop1 = 0; pop1 < mutations.h_num_populations; pop1++){
 			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
@@ -950,6 +991,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 		}
 		//----- end -----
 
+		if(__DEBUG__){ cudaDeviceSynchronize(); }
+		cudaCheckErrors(cudaPeekAtLastError(),generation);
+
 		//----- compact every compact_rate generations and final generation -----
 		if(generation == next_compact_generation || generation == final_generation){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;  }
 		//----- end -----
@@ -959,6 +1003,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	//----- store final (compacted) generation on host -----
 	sim_result::store_sim_result(all_results[max_samples], mutations, num_sites, generation, control_streams, control_events);
 	//----- end -----
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 
 	cudaStreamSynchronize(control_streams[1]); //wait for writes to host to finish
 	cudaStreamSynchronize(control_streams[2]);
@@ -970,6 +1017,9 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	delete [] pop_events;
 	delete [] control_streams;
 	delete [] control_events;
+
+	if(__DEBUG__){ cudaDeviceSynchronize(); }
+	cudaCheckErrors(cudaPeekAtLastError(),generation);
 
 	return all_results;
 }
@@ -1039,10 +1089,12 @@ int main(int argc, char **argv)
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    int compact_rate = 15;
+    int compact_rate = 60;
+    num_pop = 2;
+    m = 0.0;
 
     total_number_of_generations = pow(10.f,3);
-    L = 300*2*pow(10.f,7);
+    L = 1*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
