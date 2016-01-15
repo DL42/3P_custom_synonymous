@@ -509,7 +509,7 @@ struct mutation
 	}
 };
 
-#define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { printf("error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
+#define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
 #define cudaCheckErrorsAsync(expr1,expr2,expr3) { cudaCheckErrors(expr1,expr2,expr3); if(__DEBUG__){ cudaCheckErrors(cudaDeviceSynchronize(),expr2,expr3); } }
 
 //for internal function passing
@@ -630,9 +630,9 @@ __host__ __forceinline__ void integrate_mse(double * d_mse_integral, const int N
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream, __DEBUG__),0,pop);
+	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),0,pop);
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream, __DEBUG__),0,pop);
+	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),0,pop);
 	cudaCheckErrorsAsync(cudaFree(d_freq),0,pop);
 
@@ -681,9 +681,9 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0], __DEBUG__),0,-1);
+	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),0,-1);
-	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0], __DEBUG__),0,-1);
+	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),0,-1);
 
 	cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
@@ -783,9 +783,9 @@ __host__ __forceinline__ void compact(sim_struct & mutations, const Functor_muta
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0], __DEBUG__),generation,-1);
+	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),generation,-1);
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0], __DEBUG__),generation,-1);
+	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),generation,-1);
 
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,-1);
@@ -1059,7 +1059,7 @@ int main(int argc, char **argv)
     m = 0.0;
 
     total_number_of_generations = pow(10.f,3);
-    L = 400*2*pow(10.f,7);
+    L = 1*2*pow(10.f,7);
 
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
