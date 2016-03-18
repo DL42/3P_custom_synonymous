@@ -369,7 +369,7 @@ __global__ void scatter_arrays_old(float * new_mutations_freq, int4 * new_mutati
 	}
 }*/
 
-//tests indicate accumulating mutations in non-migrating populations, not much of a problem
+//tests indicate accumulating mutations in non-migrating populations is not much of a problem
 template <typename Functor_demography>
 __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * counter, const Functor_demography demography, const float * const mutations_freq, const int num_populations, const int padded_mut_Index, const int mutations_Index, const int array_Length, const int generation, const int warp_size){
 //adapted from https://www.csuohio.edu/engineering/sites/csuohio.edu.engineering/files/Research_Day_2015_EECS_Poster_14.pdf
@@ -401,12 +401,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 				flag[(warpID<<5)+j] = mask;
 				cnt += __popc(mask);
 			}
-			//if(lnID == j) cnt = __popc(mask); //this line + warp shuffle reduction seems unnecessary, faster? Testing says not really, roughly same speed, might be faster/slower
 		}
-
-		//warp shuffle reduction (sum) of 1024 elements
-//#pragma unroll
-//		for(int offset = 16; offset > 0; offset >>= 1) cnt += __shfl_down(cnt,offset);
 
 		if(lnID == 0) counter[warpID] = cnt; //store sum
 	}
@@ -490,6 +485,16 @@ struct demography
 	}
 };
 
+
+struct dominance
+{
+	float h;
+	dominance() : h(0) {}
+	dominance(float h) : h(h){ }
+	__host__ __forceinline__ float operator()(const int population, const int generation) const{
+		return h;
+	}
+};
 
 struct inbreeding
 {
@@ -640,8 +645,8 @@ __host__ __forceinline__ void integrate_mse(double * d_mse_integral, const int N
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 }
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance>
+__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int final_generation, const float num_sites, const int seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
 
 	int num_freq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -663,6 +668,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 		float mu = mu_rate(pop,0);
 		float F = FI(pop,0);
 		int Nchrom_e = 2*N_ind/(1+F);
+		float h = dominance(pop,0);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
@@ -837,8 +843,8 @@ struct no_sample{
 	__host__ __forceinline__ int operator()(const int generation) const{ return 0; }
 };
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const float h, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_timesample>
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1){
 	int cudaDeviceCount;
 	cudaCheckErrorsAsync(cudaGetDeviceCount(&cudaDeviceCount),-1,-1);
 	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaCheckErrors(cudaSetDevice(cuda_device),-1,-1); } //unless user specifies, driver auto-magically selects free GPU to run on
@@ -879,7 +885,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
-		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, h, final_generation, num_sites, seed, compact_rate, pop_streams, pop_events, myDevice);
+		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, num_sites, seed, compact_rate, pop_streams, pop_events, myDevice);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
@@ -909,6 +915,7 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 			}
 			float F = FI(pop,generation);
 			int Nchrom_e = 2*N_ind/(1+F);
+			float h = dominance(pop,generation);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
 			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 			cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,pop);
@@ -1043,11 +1050,11 @@ int main(int argc, char **argv)
 	int num_pop = 1;
 	const int seed = 0xdecafbad;
 
-	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	delete [] a;
 
-	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
+	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -1066,7 +1073,7 @@ int main(int argc, char **argv)
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), h, total_number_of_generations, L, num_pop, seed, no_sample(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed, no_sample(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}
