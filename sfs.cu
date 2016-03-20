@@ -881,16 +881,6 @@ __host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, co
 	return all_results;
 }
 
-struct neutral
-{
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const{ return 0; }
-};
-
-struct no_mig
-{
-	__device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const{ return pop_FROM == pop_TO; }
-};
-
 __host__ __forceinline__ sim_result sequencing_sample(sim_result sim, int * population, int * num_samples, const int seed){
 	//neutral neu;
 	//no_mig mig;
