@@ -230,7 +230,7 @@ __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
 		for(int pop = 0; pop < num_populations; pop++){
 			if(mutations_freq[pop*array_Length+id] > 0){
-				mutations_ID[id] = make_int4(0,id,pop,device);//age: eventually will replace where mutations have age <= 0 (age before sim start)//threadID//population
+				mutations_ID[id] = make_int4(0,pop,id,device);//age: eventually will replace where mutations have age <= 0 (age before sim start)//threadID//population
 				break; //assumes mutations are only in one population at start
 			}
 		}
