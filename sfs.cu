@@ -14,13 +14,13 @@
 #include <Random123/features/compilerfeatures.h>
 #include <cub/device/device_scan.cuh>
 
-#include "mutation.cuh"
-#include "dominance.cuh"
-#include "inbreeding.cuh"
-#include "sample.cuh"
-#include "selection.cuh"
-#include "migration.cuh"
-#include "demography.cuh"
+#include "mutation.h"
+#include "dominance.h"
+#include "inbreeding.h"
+#include "sample.h"
+#include "selection.h"
+#include "migration.h"
+#include "demography.h"
 
 using namespace std;
 using namespace cub;
