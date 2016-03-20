@@ -392,21 +392,13 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
-struct mig_prop
-{
-	float m;
-	mig_prop(float m) : m(m){ }
-	__device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const{
-		if(pop_FROM == pop_TO){ return 1-m; }
-		return m;
-	}
-};
-
-struct mig_prop_pop
+struct const_migration
 {
 	float m;
 	int num_pop;
-	mig_prop_pop(float m, int n) : m(m), num_pop(n){ }
+	const_migration() : m(0), num_pop(0){ }
+	const_migration(int n) : m(0), num_pop(n){ }
+	const_migration(float m, int n) : m(m), num_pop(n){ }
 	__device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 		if(pop_FROM == pop_TO){ return 1-(num_pop-1)*m; }
 		return (num_pop > 1) * m;
@@ -414,52 +406,59 @@ struct mig_prop_pop
 };
 
 
-struct sel_coeff
+struct const_selection
 {
 	float s;
-	sel_coeff() : s(0) {}
-	sel_coeff(float s) : s(s){ }
+	const_selection() : s(0) {}
+	const_selection(float s) : s(s){ }
 	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const{
 		return s;
 	}
 };
 
-struct demography
+struct const_demography
 {
 	int N;
-	demography(int N) : N(N){ }
+	const_demography() : N(0){ }
+	const_demography(int N) : N(N){ }
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const{
 		return N;
 	}
 };
 
-
-struct dominance
+struct const_dominance
 {
 	float h;
-	dominance() : h(0) {}
-	dominance(float h) : h(h){ }
+	const_dominance() : h(0) {}
+	const_dominance(float h) : h(h){ }
 	__host__ __forceinline__ float operator()(const int population, const int generation) const{
 		return h;
 	}
 };
 
-struct inbreeding
+struct const_inbreeding
 {
 	float F;
-	inbreeding(float F) : F(F){ }
+	const_inbreeding() : F(0){ }
+	const_inbreeding(float F) : F(F){ }
 	__host__ __forceinline__ float operator()(const int population, const int generation) const{
 		return F;
 	}
 };
 
-struct mutation
+struct const_mutation
 {
 	float mu;
-	mutation(float mu) : mu(mu){ }
+	const_mutation() : mu(0){ }
+	const_mutation(float mu) : mu(mu){ }
 	__host__ __forceinline__ float operator()(const int population, const int generation) const{
 		return mu;
 	}
+};
+
+struct no_sample
+{
+	__host__ __forceinline__ int operator()(const int generation) const{ return 0; }
 };
 
 #define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
@@ -1000,14 +999,23 @@ int main(int argc, char **argv)
 	float L = 1*2*pow(10.f,7);
 	float m = 0.00;
 	int num_pop = 1;
-	const int seed2 = 0xdecafbad;
-	const int seed1 = 0xbeeff00d;
+	int seed1 = 0xbeeff00d;
+	int seed2 = 0xdecafbad;
 
-	sim_result * a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
+	sim_result * a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
+	int x = 60000;
+	for(int i = x; i < (x+10); i++){
+		cout<<"mutation freq: " << a[0].mutations_freq[i] << endl;
+		cout<<"generation of mutation: " << a[0].mutations_ID[i].generation << endl;
+		cout<<"thread of mutation: " << a[0].mutations_ID[i].threadID << endl;
+		cout<<"population of mutation: " << a[0].mutations_ID[i].population << endl;
+		cout<<"device of mutation: " << a[0].mutations_ID[i].device << endl;
+		cout<<endl;
+	}
 	delete [] a;
 
-	a = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
+	a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
 	delete [] a;
 
 
@@ -1026,7 +1034,7 @@ int main(int argc, char **argv)
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(mutation(mu), demography(N_ind), mig_prop_pop(m,num_pop), sel_coeff(s), inbreeding(F), dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}
