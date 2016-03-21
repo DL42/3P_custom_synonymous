@@ -29,6 +29,3 @@ __host__ __forceinline__ float ** trace_mutations(sim_result * sim, int generati
 
 	return NULL;
 }
-
-sfs::sfs(): num_populations(0), num_sites(0), total_generations(0) {frequency_spectrum = NULL; frequency_age_spectrum = NULL; populations = NULL; num_samples = NULL;}
-sfs::~sfs(){ if(frequency_spectrum){ delete[] frequency_spectrum; } if(frequency_age_spectrum){ delete[] frequency_age_spectrum; } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}

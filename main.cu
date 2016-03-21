@@ -39,7 +39,6 @@ int main(int argc, char **argv)
 	a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
 	delete [] a;
 
-
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
