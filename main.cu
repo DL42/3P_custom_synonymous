@@ -2,7 +2,8 @@
 #include "sfs_api.h"
 
 #include <iostream>
-#include <cuda_runtime.h>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
 

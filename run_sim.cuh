@@ -2,151 +2,23 @@
 #define RUN_SIM_CUH_
 
 #include <stdio.h>
-#include <stdlib.h>
-#include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <math.h>
-#include <limits>
-#include <sys/time.h>
+#include <limits.h>
 
 #include <cuda_runtime.h>
 #include <helper_math.h>
-#include <Random123/philox.h>
-#include <Random123/features/compilerfeatures.h>
 #include <cub/device/device_scan.cuh>
 
 #include "sim_results.h"
+#include "rand.cuh"
 
 using namespace cub;
-using namespace r123;
 
 #define __DEBUG__ false
-
-// uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
-// by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
-// optimize it down to an int-to-float conversion followed by a multiply
-// and an add, which might be fused, depending on the architecture.
-//
-// If the input is a uniformly distributed integer, then the
-// result is a uniformly distributed floating point number in [0, 1].
-// The result is never exactly 0.0.
-// The smallest value returned is 2^-W.
-// Let M be the number of mantissa bits in Float.
-// If W>M  then the largest value retured is 1.0.
-// If W<=M then the largest value returned is the largest Float less than 1.0.
-__host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
-	//(mostly) stolen from Philox code "uniform.hpp"
-	R123_CONSTEXPR float factor = float(1.)/(UINT_MAX + float(1.));
-	R123_CONSTEXPR float halffactor = float(0.5)*factor;
-    return in*factor + halffactor;
-}
 
 inline __host__ __device__ int4 round(float4 f){ return make_int4(round(f.x), round(f.y), round(f.z), round(f.w)); }
 
 inline __host__ __device__  float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
-
-__host__ __device__ __forceinline__  uint4 Philox(int2 seed, int k, int step, int population, int round){
-	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
-	P rng;
-
-	P::key_type key = {{seed.x, seed.y}}; //random int to set key space + seed
-	P::ctr_type count = {{k, step, population, round}};
-
-	union {
-		P::ctr_type c;
-		uint4 i;
-	}u;
-
-	u.c = rng(count, key);
-
-	return u.i;
-}
-
-__host__ __device__ __forceinline__ void pois_iter(float j, float mean, float & emu, float & cdf){
-	emu *= mean/j;
-	cdf += emu;
-}
-
-__host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
-	float emu = expf(-1 * mean);
-	float cdf = emu;
-	if(cdf >= p){ return 0; }
-
-	pois_iter(1.f, mean, emu, cdf); if(cdf >= p){ return 1; }
-	pois_iter(2.f, mean, emu, cdf); if(cdf >= p){ return 2; }
-	pois_iter(3.f, mean, emu, cdf); if(cdf >= p){ return 3; }
-	pois_iter(4.f, mean, emu, cdf); if(cdf >= p){ return 4; }
-	pois_iter(5.f, mean, emu, cdf); if(cdf >= p){ return 5; }
-	pois_iter(6.f, mean, emu, cdf); if(cdf >= p){ return 6; }
-	pois_iter(7.f, mean, emu, cdf); if(cdf >= p){ return 7; }
-	pois_iter(8.f, mean, emu, cdf); if(cdf >= p){ return 8; }
-	pois_iter(9.f, mean, emu, cdf); if(cdf >= p){ return 9; }
-	pois_iter(10.f, mean, emu, cdf); if(cdf >= p){ return 10; }
-	pois_iter(11.f, mean, emu, cdf); if(cdf >= p){ return 11; }
-	pois_iter(12.f, mean, emu, cdf); if(cdf >= p){ return 12; }
-	pois_iter(13.f, mean, emu, cdf); if(cdf >= p){ return 13; }
-	pois_iter(14.f, mean, emu, cdf); if(cdf >= p){ return 14; }
-	pois_iter(15.f, mean, emu, cdf); if(cdf >= p){ return 15; }
-	pois_iter(16.f, mean, emu, cdf); if(cdf >= p){ return 16; }
-	pois_iter(17.f, mean, emu, cdf); if(cdf >= p){ return 17; }
-	pois_iter(18.f, mean, emu, cdf); if(cdf >= p){ return 18; }
-	pois_iter(19.f, mean, emu, cdf); if(cdf >= p){ return 19; }
-	pois_iter(20.f, mean, emu, cdf); if(cdf >= p){ return 20; }
-	pois_iter(21.f, mean, emu, cdf); if(cdf >= p){ return 21; }
-	pois_iter(22.f, mean, emu, cdf); if(cdf >= p){ return 22; }
-	pois_iter(23.f, mean, emu, cdf); if(cdf >= p){ return 23; }
-
-	return 24; //limit for mean <= 6, 32 limit for mean <= 10, max float between 0 and 1 is 0.99999999
-}
-
-__host__ __device__ __forceinline__ int RandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
-//only for use when N is small
-	int j = 0;
-	int counter = 0;
-
-	union {
-		uint h[4];
-		uint4 i;
-	}u;
-
-	while(counter < N){
-		u.i = Philox(seed, k, step, population, start_round+counter);
-
-		int counter2 = 0;
-		while(counter < N && counter2 < 4){
-			if(uint_float_01(u.h[counter2]) <= p){ j++; }
-			counter++;
-			counter2++;
-		}
-	}
-
-	return j;
-}
-
-//faster on home GPU if inlined
-__host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, float N, int2 seed, int k, int step, int population){
-
-	if(N <= 50){ return RandBinom(p, N, seed, k, step, population, 0); } //for some reason compiler on home GPU inlines function with this line, but not without it
-	uint4 i = Philox(seed, k, step, population, 0);
-	if(mean <= 6){ return poiscdfinv(uint_float_01(i.x), mean); }
-	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
-	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
-}
-
-//faster on home GPU if don't inline!
-__device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 6){ return poiscdfinv(uint_float_01(i), mean); }
-	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
-	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
-}
-
-//faster on home GPU if inlined
-__device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int2 seed, int k, int step, int population){
-	if(N <= 50){ return make_int4(RandBinom(p.x, N, seed, k, step, population, 0),RandBinom(p.y, N, seed, k, step, population, N),RandBinom(p.z, N, seed, k, step, population, 2*N),RandBinom(p.w, N, seed, k, step, population, 3*N)); }
-	uint4 i = Philox(seed, k, step, population, 0);
-	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
-}
 
 __device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
@@ -166,7 +38,6 @@ struct mse_integrand{
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
-
 
 template<typename Functor_function>
 struct trapezoidal_upper{
@@ -248,10 +119,10 @@ __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations
 }
 
 __global__ void sum_Device_array_bit(unsigned int * array, int num){
-	//int sum = 0;
+//	int sum = 0;
 	for(int i = 0; i < num; i++){
 		//if(i%1000 == 0){ printf("\n"); }
-		//unsigned int n = array[i];
+		unsigned int n = array[i];
 		while (n) {
 		    if (n & 1)
 		    	sum+=1;
@@ -417,7 +288,7 @@ struct sim_struct{
 };
 
 template <typename Functor_selection>
-__host__ __forceinline__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
+__host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 	double * d_freq;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double)),0,pop);
@@ -441,7 +312,7 @@ __host__ __forceinline__ void integrate_mse(double * d_mse_integral, const int N
 }
 
 template <typename Functor_mu, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
+__host__ void set_Index_Length(sim_struct & mutations, const int num_mutations, const Functor_mu mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, const int generation, const int final_generation){
 	mutations.h_mutations_Index = num_mutations;
 	mutations.h_array_Length = mutations.h_mutations_Index;
 	for(int gen = generation+1; gen <= (generation+compact_rate) && gen <= final_generation; gen++){
@@ -456,7 +327,7 @@ __host__ __forceinline__ void set_Index_Length(sim_struct & mutations, const int
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance>
-__host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int final_generation, const float num_sites, const int2 seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
+__host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int final_generation, const float num_sites, const int2 seed, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events, const int myDevice){
 
 	int num_freq = 0; //number of frequencies
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -548,7 +419,7 @@ __host__ __forceinline__ void initialize_mse(sim_struct & mutations, const Funct
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
@@ -581,7 +452,7 @@ __host__ __forceinline__ void init_blank_prev_run(sim_struct & mutations, int & 
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
+__host__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const int generation, const int final_generation, const int compact_rate, cudaStream_t * control_streams, cudaEvent_t * control_events, cudaStream_t * pop_streams){
 	unsigned int * d_flag;
 	unsigned int * d_count;
 
@@ -664,7 +535,7 @@ __host__ void store_sim_result(sim_result & out, sim_struct & mutations, int num
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float L, const int2 seed, const int generation){
+__host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float L, const int2 seed, const int generation){
 	int num_new_mutations = 0;
 	mutations.h_new_mutation_Indices[0] = mutations.h_mutations_Index;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -685,7 +556,7 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_timesample>
-__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
+__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
 	int2 seed;
 	seed.x = seed1;
 	seed.y = seed2;

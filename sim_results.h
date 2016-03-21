@@ -23,7 +23,6 @@ struct sim_result{
 	int total_generations; //number of generations in the simulation
 
 	sim_result();
-//	static void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, int total_generations, cudaStream_t * control_streams, cudaEvent_t * control_events);
 	~sim_result();
 };
 
