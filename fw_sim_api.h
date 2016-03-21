@@ -78,6 +78,7 @@ struct no_sample
 };
 /* ----- end of sampling functions ----- */
 
+/* ----- importing functor implementations ----- */
 #include "mutation.cuh"
 #include "selection.cuh"
 #include "dominance.cuh"
@@ -85,5 +86,15 @@ struct no_sample
 #include "migration.cuh"
 #include "inbreeding.cuh"
 #include "sample.cuh"
+/* ----- end importing functor implementations ----- */
+
+/* ----- importing run_sim  ----- */
+#include "sim_results.h"
+
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_timesample>
+__host__ __forceinline__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1);
+
+#include "run_sim.cuh"
+/* ----- end importing run_sim ----- */
 
 #endif /* FW_SIM_API_H_ */

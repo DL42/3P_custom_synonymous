@@ -1,5 +1,10 @@
 #include "fw_sim_api.h"
-#include "sfs.cuh"
+#include "sfs_api.h"
+
+#include <iostream>
+#include <cuda_runtime.h>
+
+using namespace std;
 
 int main(int argc, char **argv)
 {
