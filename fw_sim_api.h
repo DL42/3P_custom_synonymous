@@ -7,6 +7,7 @@
 
 #ifndef FW_SIM_API_H_
 #define FW_SIM_API_H_
+#include <cuda_runtime.h>
 
 /* ----- mutation models ----- */
 struct const_mutation
