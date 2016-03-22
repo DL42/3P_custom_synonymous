@@ -1,4 +1,4 @@
-#include "sfs_api.h"
+#include "sfs.h"
 
 
 __host__ __forceinline__ sim_result sequencing_sample(sim_result sim, int * population, int * num_samples, const int seed){

@@ -1,12 +1,12 @@
 /*
- * sfs_api.h
+ * sfs.h
  *
  *  Created on: Mar 20, 2016
  *      Author: dlawrie
  */
 
-#ifndef SFS_API_H_
-#define SFS_API_H_
+#ifndef SFS_H_
+#define SFS_H_
 #include <cuda_runtime.h>
 #include "data_structs.h"
 
@@ -22,4 +22,4 @@ __host__ __forceinline__ sfs temporal_site_frequency_spectrum(sim_result sim, in
 //can track an individual mutation or groups of mutation by specifying when the mutation was "born", in which population, with what threadID
 __host__ __forceinline__ float ** trace_mutations(sim_result * sim, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1);
 
-#endif /* SFS_API_H_ */
+#endif /* SFS_H_ */

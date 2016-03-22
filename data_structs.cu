@@ -22,7 +22,7 @@ void sim_result::store_sim_result(sim_result & out, sim_struct & mutations, int 
 	//1 round of migration_selection_drift and add_new_mutations can be done simultaneously with above as they change d_mutations_freq array, not d_prev_freq
 }
 
-sim_result::~sim_result(){ if(mutations_freq){ cudaFreeHost(mutations_freq); } if(mutations_ID){ cudaFreeHost(mutations_ID); } if(extinct){ delete [] extinct; } }
+sim_result::~sim_result(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } }
 
 
 sim_struct::sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0), warp_size(0) { d_mutations_freq = NULL; d_prev_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; h_extinct = NULL;}

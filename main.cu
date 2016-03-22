@@ -1,15 +1,14 @@
-#include "fw_sim_api.h"
-#include "sfs_api.h"
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
+
+#include "GO_Fish.h"
+#include "sfs.h"
 
 using namespace std;
 
 int main(int argc, char **argv)
 {
-
     float gamma = 0;
 	float h = 0.5;
 	float F = 1.0;
