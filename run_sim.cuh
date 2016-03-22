@@ -1,3 +1,9 @@
+/*
+ * run_sim.cuh
+ *
+ *      Author: David Lawrie
+ */
+
 #ifndef RUN_SIM_CUH_
 #define RUN_SIM_CUH_
 

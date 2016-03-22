@@ -1,8 +1,7 @@
 /*
  * demography.cuh
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef DEMOGRAPHY_CUH_

@@ -1,8 +1,14 @@
+/*
+ * main.cu
+ *
+ *      Author: David Lawrie
+ */
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
 
-#include "GO_Fish.h"
+#include "go_fish.h"
 #include "sfs.h"
 
 using namespace std;

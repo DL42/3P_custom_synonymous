@@ -1,8 +1,7 @@
 /*
- * fw_sim_api.h
+ * go_fish.h
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef FW_SIM_API_H_

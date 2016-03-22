@@ -1,8 +1,7 @@
 /*
  * mutation.cuh
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef MUTATION_CUH_

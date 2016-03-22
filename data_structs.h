@@ -1,14 +1,14 @@
 /*
  * data_structs.h
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef DATA_STRUCTS_H_
 #define DATA_STRUCTS_H_
 
 #include <stdio.h>
+#include <cuda_runtime.h>
 
 /* ----- cuda error checking ----- */
 #define __DEBUG__ false

@@ -1,8 +1,7 @@
 /*
  * sfs.h
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef SFS_H_

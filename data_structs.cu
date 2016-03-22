@@ -1,3 +1,9 @@
+/*
+ * data_structs.cu
+ *
+ *      Author: David Lawrie
+ */
+
 #include "data_structs.h"
 
 sim_result::sim_result(): num_populations(0), num_mutations(0), num_sites(0), total_generations(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; }

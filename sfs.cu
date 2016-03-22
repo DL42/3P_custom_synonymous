@@ -1,3 +1,9 @@
+/*
+ * sfs.cu
+ *
+ *      Author: David Lawrie
+ */
+
 #include "sfs.h"
 
 sfs::sfs(): num_populations(0), num_sites(0), total_generations(0) {frequency_spectrum = NULL; frequency_age_spectrum = NULL; populations = NULL; num_samples = NULL;}

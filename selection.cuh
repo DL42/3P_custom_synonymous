@@ -1,8 +1,7 @@
 /*
  * selection.cuh
  *
- *  Created on: Mar 20, 2016
- *      Author: dlawrie
+ *      Author: David Lawrie
  */
 
 #ifndef SELECTION_CUH_
