@@ -263,6 +263,24 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
+//for internal simulation function passing
+struct sim_struct{
+	//device arrays
+	float * d_mutations_freq; //allele frequency of current mutations
+	float * d_prev_freq; // meant for storing frequency values so changes in previous populations' frequencies don't affect later populations' migration
+	int4 * d_mutations_ID;  //generation mutations appeared in simulation, ID that generated mutation, population that mutation first arose, device simulation was run on
+
+	int h_num_populations; //number of populations (# rows for freq)
+	int h_array_Length; //full length of the mutation array, total number of mutations across all populations (# columns for freq)
+	int h_mutations_Index; //number of mutations in the population (last mutation is at h_mutations_Index-1)
+	int * h_new_mutation_Indices; //indices of new mutations, current age/freq index of mutations is at position 0, index for mutations in population 0 to be added to array is at position 1, etc ...
+	bool * h_extinct; //boolean if population has gone extinct
+	int warp_size; //device warp size, determines the amount of extra padding on array to allow for memory coalscence
+
+	sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0), warp_size(0) { d_mutations_freq = NULL; d_prev_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; h_extinct = NULL;}
+	~sim_struct(){ cudaCheckErrorsAsync(cudaFree(d_mutations_freq),-1,-1); cudaCheckErrorsAsync(cudaFree(d_prev_freq),-1,-1); cudaCheckErrorsAsync(cudaFree(d_mutations_ID),-1,-1); if(h_new_mutation_Indices) { delete [] h_new_mutation_Indices; } if(h_extinct){ delete [] h_extinct; } }
+};
+
 template <typename Functor_selection>
 __host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
 	double * d_freq;
@@ -511,6 +529,26 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 	mutations.d_mutations_freq = temp;
 }
 
+void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, int total_generations, cudaStream_t * control_streams, cudaEvent_t * control_events){
+	out.num_populations = mutations.h_num_populations;
+	out.num_mutations = mutations.h_mutations_Index;
+	out.num_sites = num_sites;
+	out.total_generations = total_generations;
+	cudaCheckErrors(cudaMallocHost((void**)&out.mutations_freq,out.num_populations*out.num_mutations*sizeof(float)),total_generations,-1); //should allow for simultaneous transfer to host
+	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out.mutations_freq, out.num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out.num_mutations*sizeof(float), out.num_populations, cudaMemcpyDeviceToHost, control_streams[1]),total_generations,-1); //removes padding
+	cudaCheckErrors(cudaMallocHost((void**)&out.mutations_ID, out.num_mutations*sizeof(mutID)),total_generations,-1);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(out.mutations_ID, mutations.d_mutations_ID, out.num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[2]),total_generations,-1); //mutations array is 1D
+	out.extinct = new bool[out.num_populations];
+	for(int i = 0; i < out.num_populations; i++){ out.extinct[i] = mutations.h_extinct[i]; }
+
+
+	cudaCheckErrorsAsync(cudaEventRecord(control_events[1],control_streams[1]),total_generations,-1);
+	cudaCheckErrorsAsync(cudaEventRecord(control_events[2],control_streams[2]),total_generations,-1);
+	cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],control_events[1],0),total_generations,-1); //if compacting is about to happen, don't compact until results are compiled
+	cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],control_events[2],0),total_generations,-1);
+	//1 round of migration_selection_drift and add_new_mutations can be done simultaneously with above as they change d_mutations_freq array, not d_prev_freq
+}
+
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_timesample>
 __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
 	int2 seed;
@@ -639,7 +677,7 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 			//when testing this, check if I need to swap the mutations freq pointers to make sure compact doesn't screw up which mutation array needs to be where (especially if 2 compacts are performed in a row: sample + compact_rate)
 			if(take_sample(generation) > 1){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate; }
 			//----- end -----
-			sim_result::store_sim_result(all_results[sample_index], mutations, num_sites, generation, control_streams, control_events);
+			store_sim_result(all_results[sample_index], mutations, num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
@@ -651,7 +689,7 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 	//----- end -----
 
 	//----- store final (compacted) generation on host -----
-	sim_result::store_sim_result(all_results[max_samples], mutations, num_sites, generation, control_streams, control_events);
+	store_sim_result(all_results[max_samples], mutations, num_sites, generation, control_streams, control_events);
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); }; //wait for writes to host to finish

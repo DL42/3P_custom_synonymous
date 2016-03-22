@@ -10,6 +10,19 @@
 #include <cuda_runtime.h>
 #include "data_structs.h"
 
+struct sfs{
+	int * frequency_spectrum;
+	int ** frequency_age_spectrum;
+	int * populations; //which populations are in SFS
+	int * num_samples; //number of samples taken for each population
+	int num_populations;
+	int num_sites;
+	int total_generations; //number of generations in the simulation
+
+	sfs();
+	~sfs();
+};
+
 __host__ __forceinline__ sim_result sequencing_sample(sim_result sim, int * population, int * num_samples, const int seed);
 
 //multi-population sfs
