@@ -1,7 +1,8 @@
 /*
- * run_sim.cuh
+ * go_fish_impl.cuh
  *
  *      Author: David Lawrie
+ *      implementation of template functions for GO Fish simulation
  */
 
 #ifndef RUN_SIM_CUH_
@@ -15,8 +16,7 @@
 #include <helper_math.h>
 #include <cub/device/device_scan.cuh>
 
-#include "data_structs.h"
-#include "rand.cuh"
+#include "shared.h"
 
 using namespace cub;
 

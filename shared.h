@@ -1,12 +1,18 @@
 /*
- * rand.cuh
+ * shared.h
  *
  *      Author: David Lawrie
+ *      for structures and functions used by both go_fish and by sfs
  */
 
-#ifndef RAND_CUH_
-#define RAND_CUH_
+#ifndef SHARED_H_
+#define SHARED_H_
 
+#include <stdio.h>
+#include <cuda_runtime.h>
+#include <helper_math.h>
+
+/* ----- random number generation ----- */
 #include <Random123/philox.h>
 #include <Random123/features/compilerfeatures.h>
 
@@ -110,7 +116,6 @@ __host__ __device__ __forceinline__ int RandBinom(float p, float N, int2 seed, i
 	return j;
 }
 
-//faster on home GPU if inlined
 __host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, float N, int2 seed, int k, int step, int population){
 
 	if(N <= 50){ return RandBinom(p, N, seed, k, step, population, 0); } //for some reason compiler on home GPU inlines function with this line, but not without it
@@ -120,18 +125,40 @@ __host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, fl
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
-//faster on home GPU if don't inline!
-__device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N){
-	if(mean <= 6){ return poiscdfinv(uint_float_01(i), mean); }
-	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
-	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
-}
+//faster on 780M if don't inline!
+__device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N);
 
-//faster on home GPU if inlined
 __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int2 seed, int k, int step, int population){
 	if(N <= 50){ return make_int4(RandBinom(p.x, N, seed, k, step, population, 0),RandBinom(p.y, N, seed, k, step, population, N),RandBinom(p.z, N, seed, k, step, population, 2*N),RandBinom(p.w, N, seed, k, step, population, 3*N)); }
 	uint4 i = Philox(seed, k, step, population, 0);
 	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
 }
+/* ----- end random number generation ----- */
 
-#endif /* RAND_CUH_ */
+/* ----- cuda error checking ----- */
+#define __DEBUG__ false
+#define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
+#define cudaCheckErrorsAsync(expr1,expr2,expr3) { cudaCheckErrors(expr1,expr2,expr3); if(__DEBUG__){ cudaCheckErrors(cudaDeviceSynchronize(),expr2,expr3); } }
+/* ----- end of cuda error checking ----- */
+
+/* ----- sim result output ----- */
+struct mutID{
+	int generation,population,threadID,device; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, device that generated mutation
+};
+
+//for final sim result output
+struct sim_result{
+	float * mutations_freq; //allele frequency of mutations in final generation
+	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
+	bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
+	int num_populations; //number of populations in freq array (array length, rows)
+	int num_mutations; //number of mutations in array (array length for age/freq, columns)
+	int num_sites; //number of sites in simulation
+	int total_generations; //number of generations in the simulation
+
+	sim_result();
+	~sim_result();
+};
+/* ----- end sim result output ----- */
+
+#endif /* SHARED_H_ */
