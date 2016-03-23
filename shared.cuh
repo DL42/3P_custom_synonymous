@@ -143,7 +143,7 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 
 /* ----- sim result output ----- */
 struct mutID{
-	int generation,population,threadID,preserved; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, flag to preserve mutation in simulation (not filter out if lost or fixed)
+	int generation,population,threadID,preserve; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, flag to preserve mutation in simulation (not filter out if lost or fixed)
 };
 
 //for final sim result output
@@ -154,7 +154,7 @@ struct sim_result{
 	int num_populations; //number of populations in freq array (array length, rows)
 	int num_mutations; //number of mutations in array (array length for age/freq, columns)
 	int num_sites; //number of sites in simulation
-	int total_generations; //number of generations in the simulation
+	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	sim_result();
 	~sim_result();

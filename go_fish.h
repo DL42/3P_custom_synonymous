@@ -70,10 +70,17 @@ struct const_inbreeding
 };
 /* ----- end of inbreeding models ----- */
 
+/* ----- preserving functions ----- */
+struct no_preserve
+{
+	__host__ __forceinline__ bool operator()(const int generation) const;
+};
+/* ----- end of preserving functions ----- */
+
 /* ----- sampling functions ----- */
 struct no_sample
 {
-	__host__ __forceinline__ int operator()(const int generation) const;
+	__host__ __forceinline__ bool operator()(const int generation) const;
 };
 /* ----- end of sampling functions ----- */
 
@@ -84,14 +91,15 @@ struct no_sample
 #include "demography.cuh"
 #include "migration.cuh"
 #include "inbreeding.cuh"
+#include "preserve.cuh"
 #include "sample.cuh"
 /* ----- end importing functor implementations ----- */
 
 /* ----- importing run_sim  ----- */
 #include "shared.cuh"
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_timesample>
-__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1);
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, const int cuda_device = -1);
 
 #include "go_fish_impl.cuh"
 /* ----- end importing run_sim ----- */

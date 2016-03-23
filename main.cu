@@ -10,7 +10,7 @@
 #include <sstream>
 #include <cuda_runtime.h>
 
-#include "go_fishes.h"
+#include "go_fish.h"
 #include "sfs.h"
 
 using namespace std;
@@ -30,7 +30,7 @@ int main(int argc, char **argv)
 	int seed1 = 0xbeeff00d;
 	int seed2 = 0xdecafbad;
 
-	sim_result * a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
+	sim_result * a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_preserve(), no_sample(), 0, true);
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 	int x = 60000;
 	for(int i = x; i < (x+10); i++){
@@ -38,12 +38,12 @@ int main(int argc, char **argv)
 		cout<<"generation of mutation: " << a[0].mutations_ID[i].generation << endl;
 		cout<<"thread of mutation: " << a[0].mutations_ID[i].threadID << endl;
 		cout<<"population of mutation: " << a[0].mutations_ID[i].population << endl;
-		cout<<"device of mutation: " << a[0].mutations_ID[i].device << endl;
+		cout<<"device of mutation: " << a[0].mutations_ID[i].preserve << endl;
 		cout<<endl;
 	}
 	delete [] a;
 
-	a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true);
+	a = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_preserve(), no_sample(), 0, true);
 	delete [] a;
 
     cudaEvent_t start, stop;
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_sample(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(const_mutation(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_inbreeding(F), const_dominance(h), total_number_of_generations, L, num_pop, seed1, seed2, no_preserve(), no_sample(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}
