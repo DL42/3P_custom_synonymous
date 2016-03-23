@@ -56,7 +56,7 @@ struct const_migration
 	const_migration();
 	const_migration(int n);
 	const_migration(float m, int n);
-	__device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
+	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
 };
 /* ----- end of migration models ----- */
 
