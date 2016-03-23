@@ -16,7 +16,7 @@
 #include <helper_math.h>
 #include <cub/device/device_scan.cuh>
 
-#include "shared.h"
+#include "shared.cuh"
 
 using namespace cub;
 

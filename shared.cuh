@@ -1,12 +1,12 @@
 /*
- * shared.h
+ * shared.cuh
  *
  *      Author: David Lawrie
  *      for structures and functions used by both go_fish and by sfs
  */
 
-#ifndef SHARED_H_
-#define SHARED_H_
+#ifndef SHARED_CUH_
+#define SHARED_CUH_
 
 #include <stdio.h>
 #include <cuda_runtime.h>
@@ -143,7 +143,7 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 
 /* ----- sim result output ----- */
 struct mutID{
-	int generation,population,threadID,device; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, device that generated mutation
+	int generation,population,threadID,preserved; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, flag to preserve mutation in simulation (not filter out if lost or fixed)
 };
 
 //for final sim result output
@@ -161,4 +161,4 @@ struct sim_result{
 };
 /* ----- end sim result output ----- */
 
-#endif /* SHARED_H_ */
+#endif /* SHARED_CUH_ */

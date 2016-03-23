@@ -7,7 +7,7 @@
 #ifndef SFS_H_
 #define SFS_H_
 #include <cuda_runtime.h>
-#include "shared.h"
+#include "shared.cuh"
 
 struct sfs{
 	int * frequency_spectrum;

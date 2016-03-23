@@ -10,7 +10,7 @@
 #include <sstream>
 #include <cuda_runtime.h>
 
-#include "go_fish.h"
+#include "go_fishes.h"
 #include "sfs.h"
 
 using namespace std;
