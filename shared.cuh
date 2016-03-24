@@ -18,8 +18,6 @@
 
 namespace RNG{
 
-using namespace r123;
-
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
 // optimize it down to an int-to-float conversion followed by a multiply
@@ -41,7 +39,7 @@ __host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
 
 
 __host__ __device__ __forceinline__  uint4 Philox(int2 seed, int k, int step, int population, int round){
-	typedef Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+	typedef r123::Philox4x32_R<8> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
 	P rng;
 
 	P::key_type key = {{seed.x, seed.y}}; //random int to set key space + seed
