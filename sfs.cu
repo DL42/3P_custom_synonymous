@@ -12,11 +12,11 @@ namespace SFS{
 sfs::sfs(): num_populations(0), num_sites(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; num_samples = NULL;}
 sfs::~sfs(){ if(frequency_spectrum){ cudaCheckErrors(cudaFreeHost(frequency_spectrum),-1,-1); } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}
 
-__global__ void simple_hist(int * out_histogram, float * in_mutation_freq, int Ne, int num_mutations, int num_sites){
+__global__ void simple_hist(int * out_histogram, float * in_mutation_freq, int num_samples, int num_mutations, int num_sites){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < num_mutations; id+= blockDim.x*gridDim.x){
-		int index = round(Ne*in_mutation_freq[id]);
+		int index = round(num_samples*in_mutation_freq[id]);
 		atomicAdd(&out_histogram[index],1);
 	}
 	if(myID == 0){  out_histogram[0] = num_sites - num_mutations;  }

@@ -52,13 +52,13 @@ void run_speed_test()
     float elapsedTime;
     int num_iter = 10;
     int compact_rate = 35;
-    num_pop = 1;
-    m = 0.0;
     gamma = 0;
     N_ind = pow(10.f,5)*(1+F);
     s = gamma/(2*N_ind);
     total_number_of_generations = pow(10.f,3);
     L = 1*2*pow(10.f,7);
+    num_pop = 1;
+    m = 0.0;
 
     //----- speed test -----
 	cudaEventCreate(&start);
