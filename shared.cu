@@ -8,8 +8,9 @@
 #include "shared.cuh"
 
 
-GO_Fish::sim_result::sim_result(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; }
-GO_Fish::sim_result::~sim_result(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } }
+GO_Fish::sim_result::sim_result(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; }
+GO_Fish::sim_result::~sim_result(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; }
+}
 
 __device__ __noinline__ int RNG::Rand1(unsigned int i, float mean, float var, float N){
 	if(mean <= 6){ return poiscdfinv(uint_float_01(i), mean); }
