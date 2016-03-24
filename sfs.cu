@@ -42,6 +42,7 @@ __host__ sfs site_frequency_spectrum(GO_Fish::sim_result & sim, int population, 
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sim.mutations_freq[population*sim.num_mutations], sim.num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
 
 	simple_hist<<<50,1024,0,stream>>>(d_histogram, d_mutations_freq, sim.Nchrom_e[population], sim.num_mutations, sim.num_sites);
+	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
 	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(int)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, num_levels*sizeof(int), cudaMemcpyDeviceToHost, stream),-1,-1);
