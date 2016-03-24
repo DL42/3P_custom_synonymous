@@ -16,6 +16,8 @@
 #include <Random123/philox.h>
 #include <Random123/features/compilerfeatures.h>
 
+namespace RNG{
+
 using namespace r123;
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
@@ -135,11 +137,16 @@ __device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N
 }
 /* ----- end random number generation ----- */
 
+} /* ----- end namespace RNG ----- */
+
 /* ----- cuda error checking ----- */
 #define __DEBUG__ false
 #define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
 #define cudaCheckErrorsAsync(expr1,expr2,expr3) { cudaCheckErrors(expr1,expr2,expr3); if(__DEBUG__){ cudaCheckErrors(cudaDeviceSynchronize(),expr2,expr3); } }
-/* ----- end of cuda error checking ----- */
+/* ----- end cuda error checking ----- */
+
+
+namespace GO_Fish{
 
 /* ----- sim result output ----- */
 struct mutID{
@@ -160,5 +167,7 @@ struct sim_result{
 	~sim_result();
 };
 /* ----- end sim result output ----- */
+
+} /* ----- end namespace GO_Fish ----- */
 
 #endif /* SHARED_CUH_ */

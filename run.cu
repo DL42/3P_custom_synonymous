@@ -1,5 +1,5 @@
 /*
- * run_sim.cu
+ * run.cu
  *
  *      Author: David Lawrie
  */
@@ -12,12 +12,12 @@
 
 #include "go_fish.h"
 #include "sfs.h"
-#include "run_sim.h"
+#include "run.h"
 
 using namespace std;
 using namespace GO_Fish;
 
-void run_sim()
+void run_speed_test()
 {
     float gamma = 0;
 	float h = 0.5;

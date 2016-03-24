@@ -4,9 +4,9 @@
  *      Author: David Lawrie
  */
 
-#include "run_sim.h"
+#include "run.h"
 
 int main(int argc, char **argv)
 {
-	run_sim();
+	run_speed_test();
 }

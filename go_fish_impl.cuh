@@ -18,9 +18,8 @@
 
 #include "shared.cuh"
 
-using namespace cub;
-
 namespace go_fish_details{
+
 __device__ __forceinline__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
 __device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
@@ -79,7 +78,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*(1-i)); }  //cast to type double4 not allowed, so not using vector memory optimization
-		freq_index[offset+id] = max(Rand1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_index[offset+id] = max(RNG::Rand1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 	}
 }
 
@@ -158,7 +157,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
-		int4 j_mig_sel_drift = clamp(Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
+		int4 j_mig_sel_drift = clamp(RNG::Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
@@ -171,7 +170,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float s = sel_coeff(population,generation,i_mig);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float mean = i_mig_sel*N; //expected allele count in new generation
-		int j_mig_sel_drift = clamp(Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
+		int j_mig_sel_drift = clamp(RNG::Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
 		mutations_freq[population*array_Length+id] = float(j_mig_sel_drift)/N; //final allele freq in new generation
 	}
 }
@@ -316,9 +315,9 @@ __host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int 
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),0,pop);
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_freq, d_mse_integral, Nchrom_e, pop_stream),0,pop);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),0,pop);
 	cudaCheckErrorsAsync(cudaFree(d_freq),0,pop);
 
@@ -383,9 +382,9 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),0,-1);
-	cudaCheckErrorsAsync(DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),0,-1);
 
 	cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
@@ -434,7 +433,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve>
-__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
@@ -485,9 +484,9 @@ __host__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, co
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),generation,-1);
-	cudaCheckErrorsAsync(DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_count, d_scan_Index, (padded_mut_index>>10), control_streams[0]),generation,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),generation,-1);
 
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,-1);
@@ -540,7 +539,7 @@ __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mut
 		if(Nchrom_e == 0 || mutations.h_extinct[pop]){ continue; }
 		float mu = mu_rate(pop, generation);
 		float lambda = mu*Nchrom_e*L;
-		int temp = max(Rand1(lambda, lambda, mu, Nchrom_e*L, seed, 1, generation, pop),0);
+		int temp = max(RNG::Rand1(lambda, lambda, mu, Nchrom_e*L, seed, 1, generation, pop),0);
 		num_new_mutations += temp;
 		mutations.h_new_mutation_Indices[pop+1] = num_new_mutations + mutations.h_mutations_Index;
 	}
@@ -552,14 +551,14 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 	mutations.d_mutations_freq = temp;
 }
 
-void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, int total_generations, cudaStream_t * control_streams, cudaEvent_t * control_events){
+void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, int num_sites, int total_generations, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out.num_populations = mutations.h_num_populations;
 	out.num_mutations = mutations.h_mutations_Index;
 	out.num_sites = num_sites;
 	out.sampled_generation = total_generations;
 	cudaCheckErrors(cudaMallocHost((void**)&out.mutations_freq,out.num_populations*out.num_mutations*sizeof(float)),total_generations,-1); //should allow for simultaneous transfer to host
 	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out.mutations_freq, out.num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out.num_mutations*sizeof(float), out.num_populations, cudaMemcpyDeviceToHost, control_streams[1]),total_generations,-1); //removes padding
-	cudaCheckErrors(cudaMallocHost((void**)&out.mutations_ID, out.num_mutations*sizeof(mutID)),total_generations,-1);
+	cudaCheckErrors(cudaMallocHost((void**)&out.mutations_ID, out.num_mutations*sizeof(GO_Fish::mutID)),total_generations,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(out.mutations_ID, mutations.d_mutations_ID, out.num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[2]),total_generations,-1); //mutations array is 1D
 	out.extinct = new bool[out.num_populations];
 	for(int i = 0; i < out.num_populations; i++){ out.extinct[i] = mutations.h_extinct[i]; }
@@ -574,10 +573,13 @@ void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, i
 
 } /* ----- end namespace go_fish_details ----- */
 
+namespace GO_Fish{
+
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * GO_Fish::run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
+__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
+
 	int2 seed;
 	seed.x = seed1;
 	seed.y = seed2;
@@ -726,5 +728,7 @@ __host__ sim_result * GO_Fish::run_sim(const Functor_mutation mu_rate, const Fun
 
 	return all_results;
 }
+
+} /* ----- end namespace GO_Fish ----- */
 
 #endif /* GO_FISH_IMPL_CUH */
