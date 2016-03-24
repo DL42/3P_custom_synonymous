@@ -8,8 +8,8 @@
 #ifndef SHARED_CUH_
 #define SHARED_CUH_
 
-#include <stdio.h>
-#include <cuda_runtime.h>
+//#include <stdio.h>
+#include <cuda_runtime.h> //includes cuda_runtime in sfs & go_fish
 #include <helper_math.h>
 
 /* ----- random number generation ----- */

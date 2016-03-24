@@ -6,8 +6,10 @@
 
 #ifndef SFS_H_
 #define SFS_H_
-#include <cuda_runtime.h>
+
 #include "shared.cuh"
+
+namespace SFS{
 
 struct sfs{
 	int * frequency_spectrum;
@@ -33,5 +35,8 @@ __host__ __forceinline__ sfs temporal_site_frequency_spectrum(GO_Fish::sim_resul
 //trace frequency trajectories of mutations from generation start to generation end in a (sub-)population
 //can track an individual mutation or groups of mutation by specifying when the mutation was "born", in which population, with what threadID
 __host__ __forceinline__ float ** trace_mutations(GO_Fish::sim_result * sim, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1);
+*/
+
+} /*----- end namespace SFS ----- */
 
 #endif /* SFS_H_ */

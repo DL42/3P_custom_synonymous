@@ -6,9 +6,6 @@
 
 //currently using separate compilation which is a little slower than whole program compilation because a Rand1 function is not inlined and used in multiple sources (objects)
 #include <iostream>
-#include <fstream>
-#include <sstream>
-#include <cuda_runtime.h>
 
 #include "go_fish.h"
 #include "sfs.h"

@@ -11,8 +11,6 @@
 #include <stdio.h>
 #include <math.h>
 #include <limits.h>
-
-#include <cuda_runtime.h>
 #include <helper_math.h>
 #include <cub/device/device_scan.cuh>
 
