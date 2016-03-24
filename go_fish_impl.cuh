@@ -572,10 +572,10 @@ void store_sim_result(sim_result & out, sim_struct & mutations, int num_sites, i
 	//1 round of migration_selection_drift and add_new_mutations can be done simultaneously with above as they change d_mutations_freq array, not d_prev_freq
 }
 
-} /* ----- end of namespace go_fish_details ----- */
+} /* ----- end namespace go_fish_details ----- */
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
+__host__ sim_result * GO_Fish::run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, const int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
 	int2 seed;

@@ -9,6 +9,6 @@
 #ifndef SAMPLE_CUH_
 #define SAMPLE_CUH_
 
-__host__ __forceinline__ bool no_sample::operator()(const int generation) const{ return 0; }
+__host__ __forceinline__ bool GO_Fish::no_sample::operator()(const int generation) const{ return 0; }
 
 #endif /* SAMPLE_CUH_ */
