@@ -29,6 +29,53 @@ struct const_selection
 	const_selection(float s);
 	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
+
+struct linear_frequency_dependent_selection
+{
+	float slope;
+	float intercept;
+	linear_frequency_dependent_selection();
+	linear_frequency_dependent_selection(float slope, float intercept);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+};
+
+//models selection as a sine wave through time
+struct seasonal_selection
+{
+	float amplitude;
+	float frequency;
+	float phase;
+	float offset;
+	int generation_shift;
+
+	seasonal_selection();
+	seasonal_selection(float frequency, float amplitude, float offset, float phase = 0, int generation_shift = 0);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+};
+
+//one population, pop, has a different, selection functor, s_pop
+template <typename Functor_sel, typename Functor_sel_pop>
+struct population_specific_selection
+{
+	int pop, generation_shift;
+	Functor_sel s;
+	Functor_sel_pop s_pop;
+	population_specific_selection();
+	population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+};
+
+//selection function changes at inflection_point
+template <typename Functor_sel1, typename Functor_sel2>
+struct piecewise_selection
+{
+	int inflection_point, generation_shift;
+	Functor_sel1 s1;
+	Functor_sel2 s2;
+	piecewise_selection();
+	piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+};
 /* ----- end selection models ----- */
 
 /* ----- dominance models ----- */
@@ -38,6 +85,30 @@ struct const_dominance
 	const_dominance();
 	const_dominance(float h);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+};
+
+//one population, pop, has a different, dominance functor, h_pop
+template <typename Functor_h, typename Functor_h_pop>
+struct population_specific_dominance
+{
+	int pop, generation_shift;
+	Functor_h h;
+	Functor_h_pop h_pop;
+	population_specific_dominance();
+	population_specific_dominance(Functor_h h_in, Functor_h_pop h_pop_in, int pop, int generation_shift = 0);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+};
+
+//dominance function changes at inflection_point
+template <typename Functor_h1, typename Functor_h2>
+struct piecewise_dominance
+{
+	int inflection_point, generation_shift;
+	Functor_h1 h1;
+	Functor_h2 h2;
+	piecewise_dominance();
+	piecewise_dominance(Functor_h1 h1, Functor_h2 h2, int inflection_point, int generation_shift = 0);
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 /* ----- end of dominance models ----- */
 
