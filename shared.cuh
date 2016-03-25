@@ -146,11 +146,11 @@ __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, 
 }
 
 //faster on 780M if don't inline!
-__device__ int ApproxRandBinomRandHelper(unsigned int i, float mean, float var, float N);
+__device__ int ApproxRandBinomHelper(unsigned int i, float mean, float var, float N);
 
 __device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4 p, float N, int2 seed, int id, int generation, int population){
 	uint4 i = Philox(seed, id, generation, population, 0);
-	return make_int4(ApproxRandBinomRandHelper(i.x, mean.x, var.x, N), ApproxRandBinomRandHelper(i.y, mean.y, var.y, N), ApproxRandBinomRandHelper(i.z, mean.z, var.z, N), ApproxRandBinomRandHelper(i.w, mean.w, var.w, N));
+	return make_int4(ApproxRandBinomHelper(i.x, mean.x, var.x, N), ApproxRandBinomHelper(i.y, mean.y, var.y, N), ApproxRandBinomHelper(i.z, mean.z, var.z, N), ApproxRandBinomHelper(i.w, mean.w, var.w, N));
 }
 /* ----- end random number generation ----- */
 
