@@ -114,8 +114,8 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	return 24; //limit for mean <= 6, 32 limit for mean <= 10, max float between 0 and 1 is 0.99999999
 }
 
-__host__ __device__ __forceinline__ int RandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
-//only for use when N is small
+/*__host__ __device__ __forceinline__ int ExactRandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
+ //only for use when N is small
 	int j = 0;
 	int counter = 0;
 
@@ -136,24 +136,21 @@ __host__ __device__ __forceinline__ int RandBinom(float p, float N, int2 seed, i
 	}
 
 	return j;
-}
+}*/
 
-__host__ __device__ __forceinline__ int Rand1(float mean, float var, float p, float N, int2 seed, int k, int step, int population){
-
-	if(N <= 50){ return RandBinom(p, N, seed, k, step, population, 0); } //for some reason compiler on home GPU inlines function with this line, but not without it
-	uint4 i = Philox(seed, k, step, population, 0);
+__host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, float p, float N, int2 seed, int id, int generation, int population){
+	uint4 i = Philox(seed, id, generation, population, 0);
 	if(mean <= 6){ return poiscdfinv(uint_float_01(i.x), mean); }
 	else if(mean >= N-6){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
 //faster on 780M if don't inline!
-__device__ __noinline__ int Rand1(unsigned int i, float mean, float var, float N);
+__device__ int ApproxRandBinomRandHelper(unsigned int i, float mean, float var, float N);
 
-__device__ __forceinline__ int4 Rand4(float4 mean, float4 var, float4 p, float N, int2 seed, int k, int step, int population){
-	if(N <= 50){ return make_int4(RandBinom(p.x, N, seed, k, step, population, 0),RandBinom(p.y, N, seed, k, step, population, N),RandBinom(p.z, N, seed, k, step, population, 2*N),RandBinom(p.w, N, seed, k, step, population, 3*N)); }
-	uint4 i = Philox(seed, k, step, population, 0);
-	return make_int4(Rand1(i.x, mean.x, var.x, N), Rand1(i.y, mean.y, var.y, N), Rand1(i.z, mean.z, var.z, N), Rand1(i.w, mean.w, var.w, N));
+__device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4 p, float N, int2 seed, int id, int generation, int population){
+	uint4 i = Philox(seed, id, generation, population, 0);
+	return make_int4(ApproxRandBinomRandHelper(i.x, mean.x, var.x, N), ApproxRandBinomRandHelper(i.y, mean.y, var.y, N), ApproxRandBinomRandHelper(i.z, mean.z, var.z, N), ApproxRandBinomRandHelper(i.w, mean.w, var.w, N));
 }
 /* ----- end random number generation ----- */
 

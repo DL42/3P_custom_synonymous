@@ -72,7 +72,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*(1-i)); }  //cast to type double4 not allowed, so not using vector memory optimization
-		freq_index[offset+id] = max(RNG::Rand1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
 	}
 }
 
@@ -151,7 +151,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 s = make_float4(sel_coeff(population,generation,i_mig.x),sel_coeff(population,generation,i_mig.y),sel_coeff(population,generation,i_mig.z),sel_coeff(population,generation,i_mig.w));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
-		int4 j_mig_sel_drift = clamp(RNG::Rand4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
+		int4 j_mig_sel_drift = clamp(RNG::ApproxRandBinom4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
 		reinterpret_cast<float4*>(mutations_freq)[population*array_Length/4+id] = make_float4(j_mig_sel_drift)/N; //final allele freq in new generation //make sure array length is divisible by 4 (preferably 32/warp_size)!!!!!!
 	}
 	int id = myID + mutations_Index/4 * 4;  //only works if minimum of 3 threads are launched
@@ -164,7 +164,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float s = sel_coeff(population,generation,i_mig);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float mean = i_mig_sel*N; //expected allele count in new generation
-		int j_mig_sel_drift = clamp(RNG::Rand1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
+		int j_mig_sel_drift = clamp(RNG::ApproxRandBinom1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
 		mutations_freq[population*array_Length+id] = float(j_mig_sel_drift)/N; //final allele freq in new generation
 	}
 }
@@ -533,7 +533,7 @@ __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mut
 		if(Nchrom_e == 0 || mutations.h_extinct[pop]){ continue; }
 		float mu = mu_rate(pop, generation);
 		float lambda = mu*Nchrom_e*L;
-		int temp = max(RNG::Rand1(lambda, lambda, mu, Nchrom_e*L, seed, 1, generation, pop),0);
+		int temp = max(RNG::ApproxRandBinom1(lambda, lambda, mu, Nchrom_e*L, seed, 1, generation, pop),0);
 		num_new_mutations += temp;
 		mutations.h_new_mutation_Indices[pop+1] = num_new_mutations + mutations.h_mutations_Index;
 	}
