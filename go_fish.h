@@ -11,23 +11,13 @@
 
 namespace GO_Fish{
 
-/* ----- mutation models ----- */
-struct const_mutation
-{
-	float mu;
-	const_mutation();
-	const_mutation(float mu);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
-};
-/* ----- end mutation models ----- */
-
 /* ----- selection models ----- */
 struct const_selection
 {
 	float s;
 	const_selection();
 	const_selection(float s);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 struct linear_frequency_dependent_selection
@@ -36,21 +26,21 @@ struct linear_frequency_dependent_selection
 	float intercept;
 	linear_frequency_dependent_selection();
 	linear_frequency_dependent_selection(float slope, float intercept);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //models selection as a sine wave through time
 struct seasonal_selection
 {
-	float amplitude;
-	float frequency;
-	float phase;
-	float offset;
+	float A; //Amplitude
+	float pi; //Frequency
+	float rho; //Phase
+	float D; //Offset
 	int generation_shift;
 
 	seasonal_selection();
-	seasonal_selection(float frequency, float amplitude, float offset, float phase = 0, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //one population, pop, has a different, selection functor, s_pop
@@ -62,7 +52,7 @@ struct population_specific_selection
 	Functor_sel_pop s_pop;
 	population_specific_selection();
 	population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //selection function changes at inflection_point
@@ -74,50 +64,127 @@ struct piecewise_selection
 	Functor_sel2 s2;
 	piecewise_selection();
 	piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 /* ----- end selection models ----- */
 
-/* ----- dominance models ----- */
-struct const_dominance
+/* ----- mutation, dominance, & inbreeding models ----- */
+struct const_parameter
 {
-	float h;
-	const_dominance();
-	const_dominance(float h);
+	float p;
+	const_parameter();
+	const_parameter(float p);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 
-//one population, pop, has a different, dominance functor, h_pop
-template <typename Functor_h, typename Functor_h_pop>
-struct population_specific_dominance
+//models parameter as a sine wave through time
+struct seasonal_parameter
 {
-	int pop, generation_shift;
-	Functor_h h;
-	Functor_h_pop h_pop;
-	population_specific_dominance();
-	population_specific_dominance(Functor_h h_in, Functor_h_pop h_pop_in, int pop, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	float A; //Amplitude
+	float pi; //Frequency
+	float rho; //Phase
+	float D; //Offset
+	int generation_shift;
+
+	seasonal_parameter();
+	seasonal_parameter(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 
-//dominance function changes at inflection_point
-template <typename Functor_h1, typename Functor_h2>
-struct piecewise_dominance
+//one population, pop, has a different, parameter functor, p_pop
+template <typename Functor_p, typename Functor_p_pop>
+struct population_specific_parameter
+{
+	int pop, generation_shift;
+	Functor_p p;
+	Functor_p_pop p_pop;
+	population_specific_parameter();
+	population_specific_parameter(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
+	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+};
+
+//parameter function changes at inflection_point
+template <typename Functor_p1, typename Functor_p2>
+struct piecewise_parameter
 {
 	int inflection_point, generation_shift;
-	Functor_h1 h1;
-	Functor_h2 h2;
-	piecewise_dominance();
-	piecewise_dominance(Functor_h1 h1, Functor_h2 h2, int inflection_point, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	Functor_p1 p1;
+	Functor_p2 p2;
+	piecewise_parameter();
+	piecewise_parameter(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
+	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
-/* ----- end of dominance models ----- */
+/* ----- end of mutation, dominance, & inbreeding models ----- */
 
 /* ----- demography models ----- */
 struct const_demography
 {
-	int N;
+	int p;
 	const_demography();
-	const_demography(int N);
+	const_demography(int p);
+	__host__ __device__  __forceinline__ int operator()(const int population, const int generation) const;
+};
+
+//models demography as a sine wave through time
+struct seasonal_demography
+{
+	float A; //Amplitude
+	float pi; //Frequency
+	float rho; //Phase
+	int D; //Offset
+	int generation_shift;
+
+	seasonal_demography();
+	seasonal_demography(float A, float pi, int D, float rho = 0, int generation_shift = 0);
+	__host__ __device__  __forceinline__ int operator()(const int population, const int generation) const;
+};
+
+//models exponential growth of population size over time
+struct exponential_growth
+{
+	float rate;
+	int initial_population_size;
+	int generation_shift;
+
+	exponential_growth();
+	exponential_growth(float rate, int initial_population_size, int generation_shift = 0);
+	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
+};
+
+//models logistic growth of population size over time
+struct logistic_growth
+{
+	float rate;
+	int initial_population_size;
+	int carrying_capacity;
+	int generation_shift;
+
+	logistic_growth();
+	logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift = 0);
+	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
+};
+
+//one population, pop, has a different, demography functor, p_pop
+template <typename Functor_p, typename Functor_p_pop>
+struct population_specific_demography
+{
+	int pop, generation_shift;
+	Functor_p p;
+	Functor_p_pop p_pop;
+	population_specific_demography();
+	population_specific_demography(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
+	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
+};
+
+//demography function changes at inflection_point
+template <typename Functor_p1, typename Functor_p2>
+struct piecewise_demography
+{
+	int inflection_point, generation_shift;
+	Functor_p1 p1;
+	Functor_p2 p2;
+	piecewise_demography();
+	piecewise_demography(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
 };
 /* ----- end of demography models ----- */
@@ -134,23 +201,22 @@ struct const_migration
 };
 /* ----- end of migration models ----- */
 
-/* ----- inbreeding models ----- */
-struct const_inbreeding
-{
-	float F;
-	const_inbreeding();
-	const_inbreeding(float F);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+/* ----- preserving & sampling functions ----- */
+struct do_nothing{ __host__ __forceinline__ bool operator()(const int generation) const; };
+
+struct do_something{__host__ __forceinline__ bool operator()(const int generation) const; };
+
+//returns the result of Functor_stable except at time Fgen(-generation_shift) returns the result of Functor_action
+template <typename Functor_stable, typename Functor_action>
+struct do_something_else{
+	int Fgen, generation_shift;
+	Functor_stable f1;
+	Functor_action f2;
+	do_something_else();
+	do_something_else(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift = 0);
+	__host__ __forceinline__ bool operator()(const int generation) const;
 };
-/* ----- end of inbreeding models ----- */
-
-/* ----- preserving functions ----- */
-struct no_preserve{ __host__ __forceinline__ bool operator()(const int generation) const; };
-/* ----- end of preserving functions ----- */
-
-/* ----- sampling functions ----- */
-struct no_sample{ __host__ __forceinline__ bool operator()(const int generation) const; };
-/* ----- end of sampling functions ----- */
+/* ----- end of preserving & sampling functions ----- */
 
 /* ----- go_fish_impl  ----- */
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
@@ -160,14 +226,7 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 } /* ----- end namespace GO_Fish ----- */
 
 /* ----- importing functor implementations ----- */
-#include "mutation.cuh"
-#include "selection.cuh"
-#include "dominance.cuh"
-#include "demography.cuh"
-#include "migration.cuh"
-#include "inbreeding.cuh"
-#include "preserve.cuh"
-#include "sample.cuh"
+#include "simulation_functors.cuh"
 /* ----- end importing functor implementations ----- */
 
 /* ----- importing go_fish_impl  ----- */
