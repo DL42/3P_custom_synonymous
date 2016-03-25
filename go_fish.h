@@ -190,15 +190,40 @@ struct piecewise_demography
 /* ----- end of demography models ----- */
 
 /* ----- migration models ----- */
-struct const_migration
+struct const_equal_migration
 {
 	float m;
 	int num_pop;
-	const_migration();
-	const_migration(int n);
-	const_migration(float m, int n);
+	const_equal_migration();
+	const_equal_migration(int n);
+	const_equal_migration(float m, int n);
 	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
 };
+
+//migration flows at rate m from pop1 to pop2 and Functor_m1 for the rest
+template <typename Functor_m1>
+struct const_directional_migration
+{
+	float m;
+	int pop1, pop2;
+	Functor_m1 rest;
+	const_directional_migration();
+	const_directional_migration(float m, int pop1, int pop2, Functor_m1 rest_in);
+	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
+};
+
+//migration function changes at inflection_point
+template <typename Functor_m1, typename Functor_m2>
+struct piecewise_migration
+{
+	int inflection_point, generation_shift;
+	Functor_m1 m1;
+	Functor_m2 m2;
+	piecewise_migration();
+	piecewise_migration(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift = 0);
+	__host__ __device__ __forceinline__ int operator()(const int pop_FROM, const int pop_TO, const int generation) const;
+};
+
 /* ----- end of migration models ----- */
 
 /* ----- preserving & sampling functions ----- */

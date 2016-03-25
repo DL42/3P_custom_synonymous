@@ -32,7 +32,7 @@ void run_speed_test()
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
-	sim_result * a = run_sim(const_parameter(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
+	sim_result * a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
@@ -46,7 +46,7 @@ void run_speed_test()
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 	delete [] a;
 
-	a = run_sim(const_parameter(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
+	a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
 	delete [] a;
 	//----- end warm up GPU -----
 
@@ -76,7 +76,7 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}

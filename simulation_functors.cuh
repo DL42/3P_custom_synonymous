@@ -54,9 +54,11 @@ __host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Func
 /* ----- end selection models ----- */
 
 /* ----- mutation, dominance, & inbreeding models ----- */
+/* ----- constant parameter model ----- */
 const_parameter::const_parameter() : p(0) {}
 const_parameter::const_parameter(float p) : p(p){ }
 __host__ __forceinline__ float const_parameter::operator()(const int population, const int generation) const{ return p; }
+/* ----- end constant parameter model ----- */
 
 /* ----- seasonal parameter model ----- */
 seasonal_parameter::seasonal_parameter() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
@@ -103,13 +105,16 @@ __host__ __device__  __forceinline__ int seasonal_demography::operator()(const i
 /* ----- exponential growth model ----- */
 exponential_growth::exponential_growth() : rate(0), initial_population_size(0), generation_shift(0) {}
 exponential_growth::exponential_growth(float rate, int initial_population_size, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), generation_shift(generation_shift) {}
-__host__ __device__  __forceinline__ int exponential_growth::operator()(const int population, const int generation) const{ return initial_population_size*exp(rate*(generation-generation_shift)); }
+__host__ __device__  __forceinline__ int exponential_growth::operator()(const int population, const int generation) const{ return (int)round(initial_population_size*exp(rate*(generation-generation_shift))); }
 /* ----- end exponential growth model ----- */
 
 /* ----- exponential growth model ----- */
 logistic_growth::logistic_growth() : rate(0), initial_population_size(0), carrying_capacity(0), generation_shift(0) {}
 logistic_growth::logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), carrying_capacity(carrying_capacity), generation_shift(generation_shift) {}
-__host__ __device__  __forceinline__ int logistic_growth::operator()(const int population, const int generation) const{ return initial_population_size*exp(rate*(generation-generation_shift)); }
+__host__ __device__  __forceinline__ int logistic_growth::operator()(const int population, const int generation) const{
+	float term = exp(rate*(generation-generation_shift));
+	return (int)round(carrying_capacity*initial_population_size*term/(carrying_capacity + initial_population_size*(term-1)));
+}
 /* ----- end exponential growth model ----- */
 
 /* ----- population specific demography model ----- */
@@ -139,13 +144,39 @@ __host__ __device__  __forceinline__ int piecewise_demography<Functor_p1, Functo
 /* ----- end of demography models ----- */
 
 /* ----- migration models ----- */
-const_migration::const_migration() : m(0), num_pop(0){ }
-const_migration::const_migration(int n) : m(0), num_pop(n){ }
-const_migration::const_migration(float m, int n) : m(m), num_pop(n){ }
-__host__ __device__ __forceinline__ float const_migration::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
+/* ----- constant equal migration model ----- */
+const_equal_migration::const_equal_migration() : m(0), num_pop(0){ }
+const_equal_migration::const_equal_migration(int n) : m(0), num_pop(n){ }
+const_equal_migration::const_equal_migration(float m, int n) : m(m), num_pop(n){ }
+__host__ __device__ __forceinline__ float const_equal_migration::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 		if(pop_FROM == pop_TO){ return 1-(num_pop-1)*m; }
 		return (num_pop > 1) * m;
 }
+/* ----- end constant equal migration model ----- */
+
+/* ----- constant directional migration model ----- */
+template <typename Functor_m1>
+const_directional_migration<Functor_m1>::const_directional_migration() : m(0), pop1(0), pop2(0) { rest = Functor_m1(); }
+template <typename Functor_m1>
+const_directional_migration<Functor_m1>::const_directional_migration(float m, int pop1, int pop2, Functor_m1 rest_in) : m(m), pop1(pop1), pop2(pop2) { rest = rest_in; }
+template <typename Functor_m1>
+__host__ __device__ __forceinline__ float const_directional_migration<Functor_m1>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
+	if(pop_FROM == pop1 && pop_TO == pop2) return m;
+	return rest(pop_FROM, pop_TO, generation);
+}
+/* ----- end constant directional migration model ----- */
+
+/* ----- piecewise migration model ----- */
+template <typename Functor_m1, typename Functor_m2>
+piecewise_migration<Functor_m1,Functor_m2>::piecewise_migration() : inflection_point(0), generation_shift(0) { m1 = Functor_m1(); m2 = Functor_m2(); }
+template <typename Functor_m1, typename Functor_m2>
+piecewise_migration<Functor_m1,Functor_m2>::piecewise_migration(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift /*= 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { m1 = m1_in; m2 = m2_in; }
+template <typename Functor_m1, typename Functor_m2>
+__host__ __device__ __forceinline__ int piecewise_migration<Functor_m1,Functor_m2>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
+	if(generation >= inflection_point+generation_shift){ return m2(pop_FROM,pop_TO,generation); }
+	return m1(pop_FROM,pop_TO,generation);
+}
+/* ----- end piecewise migration model ----- */
 /* ----- end of migration models ----- */
 
 /* ----- preserving & sampling functions ----- */
