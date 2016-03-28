@@ -522,7 +522,26 @@ __host__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, co
 	cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_freq,mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),generation,-1);
 }
 
-//template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_inbreeding>
+__host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_inbreeding FI, sim_struct & mutations, const int generation){
+	int num_pop = mutations.h_num_populations;
+	for(int pop = 0; pop < num_pop; pop++){
+		float migration = 0;
+		if(mu_rate(pop,generation) < 0){ fprintf(stderr,"mutation error, mu_rate < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		int N = demography(pop,generation);
+		if(N > 0 && mutations.h_extinct[pop]){ fprintf(stderr,"demography error, extinct population with population size > 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		float fi = FI(pop,generation);
+		if(fi < 0) { fprintf(stderr,"inbreeding error, inbreeding coefficient < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		if(fi > 1) { fprintf(stderr,"inbreeding error, inbreeding coefficient > 1\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		for(int pop2 = 0; pop2 < num_pop; pop2++){
+			float m = mig_prop(pop,pop2,generation);
+			migration += m;
+			if(m < 0){ fprintf(stderr,"migration error, migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
+			if(m > 0 && (N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"migration error, migration from non-existant population\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
+		}
+		if(migration != 1){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_from %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
+	}
+}
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding>
 __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float L, const int2 seed, const int generation){
@@ -616,11 +635,13 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 	//----- initialize simulation -----
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
+		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, num_sites, seed, preserve_mutations(0), compact_rate, pop_streams, pop_events);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
 		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, num_sites, preserve_mutations, compact_rate, pop_streams, pop_events);
+		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
 	}
 	//----- end -----
@@ -634,6 +655,7 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
+		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- migration, selection, drift -----
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N_ind = demography(pop,generation);
