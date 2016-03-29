@@ -14,6 +14,8 @@
 #include <limits.h>
 #include <math.h>
 #include <iostream>
+#include <philox.h>
+#include <features/compilerfeatures.h>
 
 /* ----- cuda error checking & device setting ----- */
 #define __DEBUG__ false
@@ -35,8 +37,6 @@ __forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
 /* ----- end cuda error checking ----- */
 
 /* ----- random number generation ----- */
-#include <Random123/philox.h>
-#include <Random123/features/compilerfeatures.h>
 
 namespace RNG{
 
