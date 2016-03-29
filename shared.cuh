@@ -14,8 +14,8 @@
 #include <limits.h>
 #include <math.h>
 #include <iostream>
-#include <philox.h>
-#include <features/compilerfeatures.h>
+#include <Random123/philox.h>
+#include <Random123/features/compilerfeatures.h>
 
 /* ----- cuda error checking & device setting ----- */
 #define __DEBUG__ false
