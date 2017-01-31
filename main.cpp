@@ -8,5 +8,6 @@
 
 int main(int argc, char **argv)
 {
-	run_speed_test();
+	//run_speed_test();
+	run_validation_test();
 }

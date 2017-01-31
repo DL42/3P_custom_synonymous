@@ -9,4 +9,6 @@
 
 void run_speed_test();
 
+void run_validation_test();
+
 #endif /* RUN_SIM_H_ */

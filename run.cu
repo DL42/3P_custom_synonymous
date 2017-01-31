@@ -39,7 +39,7 @@ void run_speed_test()
 	int start_index = 0;
 	int print_num = 50;
 	if(printSFS){
-		SFS::sfs mySFS = SFS::site_frequency_spectrum(a[0],0);
+		sfs mySFS = site_frequency_spectrum(a[0],0);
 		cout<< "allele count\t# mutations"<< endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.num_samples[0]-start_index),start_index+print_num); printIndex++){ cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] <<endl;}
 	}
@@ -93,4 +93,74 @@ void run_speed_test()
 
 	cudaDeviceSynchronize();
 	cudaDeviceReset();
+}
+
+/*    gx = @(x,gamma,mu_site,L)2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
+    function [total_SNPs,g] = m(gamma,mu_site,L,Npop)
+        total_SNPs = 0;
+        g = zeros((2*Npop-1),1);
+        for j = 1:(2*Npop-1)
+            freq = j/(2*Npop);
+            if(gamma ~= 0)
+                g(j) = gx(freq,gamma,mu_site,L);
+            else
+                g(j) = 2*mu_site*L/freq;
+            end
+            total_SNPs = total_SNPs + g(j);
+        end
+    end*/
+
+float gx(float x, float gamma, float mu_site, float L){
+	if(gamma != 0) return 2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
+	return 2*mu_site*L/x;
+}
+
+struct G_result{
+	float * g;
+	float total_SNPs;
+};
+
+G_result G(float gamma,float mu_site, float L, float N_chrome){
+	float total_SNPs = 0;
+	float * g = new float[(int)N_chrome-1];
+
+	for(int j = 1; j <= (N_chrome - 1); j++){
+		float freq = j/(N_chrome);
+		g[j-1] = gx(freq, gamma, mu_site, L);
+		total_SNPs += g[j-1];
+	}
+
+	G_result r;
+	r.g = g;
+	r.total_SNPs = total_SNPs;
+
+	return r;
+}
+
+void run_validation_test(){
+    float gamma = -10; //effective selection
+	float h = 0.5; //dominance
+	float F = 1.0; //inbreeding
+	int N_ind = pow(10.f,5)*(1+F); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	float s = gamma/(2*N_ind); //selection coefficient
+	float mu = pow(10.f,-9); //per-site mutation rate
+	int total_number_of_generations = 1;//36;//50;//pow(10.f,3);//
+	float L = 100*2*pow(10.f,7); //number of sites
+	float m = 0.00; //migration rate
+	int num_pop = 1; //number of populations
+	int num_iter = 50;
+    int compact_rate = 35;
+
+    G_result expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
+
+	for(int i = 0; i < num_iter; i++){
+		int seed1 = 0xbeeff00d + 2*i; //random number seeds
+		int seed2 = 0xdecafbad - 2*i;
+		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
+		if(i==0){ cout<< "chi-gram number of mutations:"<<endl; }
+		cout<< expectation.total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expectation.total_SNPs)/sqrt(expectation.total_SNPs)) << endl;
+		delete [] b;
+	}
+
+	delete [] expectation.g;
 }
