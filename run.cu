@@ -115,26 +115,20 @@ float gx(float x, float gamma, float mu_site, float L){
 	return 2*mu_site*L/x;
 }
 
-struct G_result{
-	float * g;
-	float total_SNPs;
-};
 
-G_result G(float gamma,float mu_site, float L, float N_chrome){
-	float total_SNPs = 0;
-	float * g = new float[(int)N_chrome-1];
+double* G(float gamma,float mu_site, float L, float N_chrome){
+	double total_SNPs = 0;
+	double* g = new double[(int)N_chrome];
 
 	for(int j = 1; j <= (N_chrome - 1); j++){
 		float freq = j/(N_chrome);
-		g[j-1] = gx(freq, gamma, mu_site, L);
-		total_SNPs += g[j-1];
+		g[j] = gx(freq, gamma, mu_site, L);
+		total_SNPs += g[j];
 	}
 
-	G_result r;
-	r.g = g;
-	r.total_SNPs = total_SNPs;
+	g[0] = total_SNPs;
 
-	return r;
+	return g;
 }
 
 void run_validation_test(){
@@ -151,16 +145,19 @@ void run_validation_test(){
 	int num_iter = 50;
     int compact_rate = 35;
 
-    G_result expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
+    double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
+    double expected_total_SNPs = expectation[0];
+
+    cout << expected_total_SNPs - L + L - expected_total_SNPs<<endl;
 
 	for(int i = 0; i < num_iter; i++){
 		int seed1 = 0xbeeff00d + 2*i; //random number seeds
 		int seed2 = 0xdecafbad - 2*i;
 		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<< "chi-gram number of mutations:"<<endl; }
-		cout<< expectation.total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expectation.total_SNPs)/sqrt(expectation.total_SNPs)) << endl;
+		cout<< expected_total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expected_total_SNPs)/sqrt(expected_total_SNPs)) << endl;
 		delete [] b;
 	}
 
-	delete [] expectation.g;
+	delete [] expectation;
 }
