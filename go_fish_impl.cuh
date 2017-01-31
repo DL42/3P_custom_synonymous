@@ -721,13 +721,17 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 		//----- end -----
 
 		//----- take time samples of frequency spectrum -----
-		if((take_sample(generation) || generation == final_generation) && sample_index <= max_samples){
-			if(generation == final_generation){ sample_index = max_samples; }
+		if(take_sample(generation) && generation != final_generation && sample_index < max_samples){
 			store_sim_result(all_results[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
+	//----- end -----
+
+	//----- take final time sample of frequency spectrum -----
+	sample_index = max_samples;
+	store_sim_result(all_results[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //wait for writes to host to finish
