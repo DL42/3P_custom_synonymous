@@ -126,19 +126,19 @@ double* G(float gamma,float mu_site, float L, float N_chrome){
 		total_SNPs += g[j];
 	}
 
-	g[0] = total_SNPs;
+	g[0] = L-total_SNPs;
 
 	return g;
 }
 
 void run_validation_test(){
-    float gamma = -10; //effective selection
+    float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 1.0; //inbreeding
 	int N_ind = pow(10.f,5)*(1+F); //number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = 1;//36;//50;//pow(10.f,3);//
+	int total_number_of_generations = 0;//36;//50;//pow(10.f,3);//
 	float L = 100*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations
@@ -146,9 +146,7 @@ void run_validation_test(){
     int compact_rate = 35;
 
     double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
-    double expected_total_SNPs = expectation[0];
-
-    cout << expected_total_SNPs - L + L - expected_total_SNPs<<endl;
+    double expected_total_SNPs = L-expectation[0];
 
 	for(int i = 0; i < num_iter; i++){
 		int seed1 = 0xbeeff00d + 2*i; //random number seeds
