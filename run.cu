@@ -139,7 +139,7 @@ void run_validation_test(){
 	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = 1000;//0;//1;//pow(10.f,3);//36;//
+	int total_number_of_generations = 0;//1000;//1;//pow(10.f,3);//36;//
 	float L = 100*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations
