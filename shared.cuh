@@ -110,7 +110,7 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	pois_iter(21.f, mean, emu, cdf); if(cdf >= p){ return 21; }
 	pois_iter(22.f, mean, emu, cdf); if(cdf >= p){ return 22; }
 	pois_iter(23.f, mean, emu, cdf); if(cdf >= p){ return 23; }
-	pois_iter(24.f, mean, emu, cdf); if(cdf >= p){ return 24; }
+	/*pois_iter(24.f, mean, emu, cdf); if(cdf >= p){ return 24; }
 	pois_iter(25.f, mean, emu, cdf); if(cdf >= p){ return 25; }
 	pois_iter(26.f, mean, emu, cdf); if(cdf >= p){ return 26; }
 	pois_iter(27.f, mean, emu, cdf); if(cdf >= p){ return 27; }
@@ -158,7 +158,7 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	pois_iter(69.f, mean, emu, cdf); if(cdf >= p){ return 69; }
 	/**/
 
-	return 70; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
+	return 24; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
 }
 
 /*__host__ __device__ __forceinline__ int ExactRandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
