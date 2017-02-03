@@ -371,7 +371,19 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		float h = dominance(pop,0);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
+		cudaEvent_t start, stop;
+		float elapsedTime;
+		cudaEventCreate(&start);
+		cudaEventCreate(&stop);
+		cudaEventRecord(start, 0);
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
+		elapsedTime = 0;
+		cudaEventRecord(stop, 0);
+		cudaEventSynchronize(stop);
+		cudaEventElapsedTime(&elapsedTime, start, stop);
+		cudaEventDestroy(start);
+		cudaEventDestroy(stop);
+		printf("time elapsed: %f\n\n", elapsedTime);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, d_freq_lambda, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 		offset += (Nchrom_e - 1);

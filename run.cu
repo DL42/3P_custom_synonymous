@@ -133,7 +133,7 @@ double* G(float gamma,float mu_site, float L, float N_chrome){
 
 void run_validation_test(){
 
-    float gamma = 0; //effective selection
+    float gamma = -20; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
 	int N_ind = 50*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
