@@ -16,7 +16,7 @@ namespace go_fish_details{
 
 __device__ __forceinline__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
-__device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
+__device__ __forceinline__ float mse(float i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
 }
 
@@ -29,7 +29,7 @@ struct mse_integrand{
 	mse_integrand(): N(0), h(0), F(0), pop(0), gen(0) {}
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
-	__device__ __forceinline__ double operator()(double i) const{
+	__device__ __forceinline__ float operator()(float i) const{
 		float s = max(sel_coeff(pop, gen, i),-1.f); //eventually may allow mse function to be set by user so as to allow for mse of frequency-dependent selection
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
@@ -40,21 +40,21 @@ struct trapezoidal_upper{
 	Functor_function fun;
 	trapezoidal_upper() { }
 	trapezoidal_upper(Functor_function xfun): fun(xfun) { }
-	__device__ __forceinline__ double operator()(double a, double step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
+	__device__ __forceinline__ float operator()(float a, float step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
 };
 
 //generates an array of areas from 1 to 0 of frequencies at every step size
 template <typename Functor_Integrator>
-__global__ void calculate_area(double * d_freq, const int num_freq, const double step_size, Functor_Integrator trapezoidal){
+__global__ void calculate_area(float * d_freq, const int num_freq, const float step_size, Functor_Integrator trapezoidal){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < num_freq; id += blockDim.x*gridDim.x){ d_freq[id] = trapezoidal((1.0 - id*step_size), step_size); }
 }
 
-__global__ void reverse_array(double * array, const int N){
+__global__ void reverse_array(float * array, const int N){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
-		double temp = array[N - id - 1];
+		float temp = array[N - id - 1];
 		array[N - id - 1] = array[id];
 		array[id] = temp;
 	}
@@ -62,10 +62,10 @@ __global__ void reverse_array(double * array, const int N){
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, float * freq_lambda, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, float * freq_lambda, float * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
-	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
+	float mse_total = mse_integral[0]; //integral from frequency 0 to 1
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
 		float s = sel_coeff(population, 0, i);
@@ -305,15 +305,15 @@ struct sim_struct{
 };
 
 template <typename Functor_selection>
-__host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
-	double * d_freq;
+__host__ void integrate_mse(float * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
+	float * d_freq;
 
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double)),0,pop);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(float)),0,pop);
 
 	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
-	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (float)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 
 	void * d_temp_storage = NULL;
@@ -360,7 +360,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_lambda, num_freq*sizeof(float)),0,-1);
 	int * d_scan_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int)),0,-1);
-	double ** mse_integral = new double *[mutations.h_num_populations];
+	float ** mse_integral = new float *[mutations.h_num_populations];
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -369,7 +369,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		float F = FI(pop,0);
 		int Nchrom_e = 2*N_ind/(1+F);
 		float h = dominance(pop,0);
-		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
+		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(float)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
 		cudaEvent_t start, stop;
 		float elapsedTime;
