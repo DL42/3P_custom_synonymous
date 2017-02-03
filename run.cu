@@ -132,13 +132,14 @@ double* G(float gamma,float mu_site, float L, float N_chrome){
 }
 
 void run_validation_test(){
+
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
-	float F = 1.0; //inbreeding
-	int N_ind = pow(10.f,5)*(1+F); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	float F = 0.0; //inbreeding
+	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = 0;//36;//50;//pow(10.f,3);//
+	int total_number_of_generations = 1000;//0;//1;//pow(10.f,3);//36;//
 	float L = 100*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations
@@ -153,7 +154,7 @@ void run_validation_test(){
 		int seed2 = 0xdecafbad - 2*i;
 		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<< "chi-gram number of mutations:"<<endl; }
-		cout<< expected_total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expected_total_SNPs)/sqrt(expected_total_SNPs)) << endl;
+		cout<< (int)expected_total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expected_total_SNPs)/expected_total_SNPs) << endl;
 		delete [] b;
 	}
 
