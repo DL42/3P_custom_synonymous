@@ -62,7 +62,7 @@ __global__ void reverse_array(double * array, const int N){
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, float * freq_lambda, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
@@ -72,8 +72,8 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*(1-i)); }  //cast to type double4 not allowed, so not using vector memory optimization
-		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//round(lambda);// //  //mutations are poisson distributed in each frequency class
-		freq_index[offset+id] = round(lambda);//max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);// //  //mutations are poisson distributed in each frequency class
+		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//rounding can significantly under count for large N: round(lambda);// //  //mutations are poisson distributed in each frequency class
+		freq_lambda[offset+id] = lambda;
 	}
 }
 
@@ -136,6 +136,14 @@ __global__ void sum_Device_array_uint(unsigned int * array, int num){
 	}
 	printf("%d",j);
 }*/
+
+__global__ void sum_Device_array_float(float * array, int num){
+	float j = 0;
+	for(int i = 0; i < num; i++){
+		j += array[i];
+	}
+	printf("%f\n",j);
+}
 
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
@@ -348,6 +356,8 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 	int * d_freq_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int)),0,-1);
+	float * d_freq_lambda;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_lambda, num_freq*sizeof(float)),0,-1);
 	int * d_scan_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int)),0,-1);
 	double ** mse_integral = new double *[mutations.h_num_populations];
@@ -362,7 +372,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, d_freq_lambda, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 		offset += (Nchrom_e - 1);
 	}
@@ -373,7 +383,10 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0),0,pop);
 	}
 
+	sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq);
+
 	delete [] mse_integral;
+	cudaCheckErrorsAsync(cudaFree(d_freq_lambda),0,-1);
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
