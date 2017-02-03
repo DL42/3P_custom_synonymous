@@ -138,11 +138,11 @@ __global__ void sum_Device_array_uint(unsigned int * array, int num){
 }*/
 
 __global__ void sum_Device_array_float(float * array, int num){
-	float j = 0;
+	double j = 0;
 	for(int i = 0; i < num; i++){
 		j += array[i];
 	}
-	printf("%f\n",j);
+	printf("%lf\n",j);
 }
 
 //calculates new frequencies for every mutation in the population
