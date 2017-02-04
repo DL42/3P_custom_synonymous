@@ -95,20 +95,9 @@ void run_speed_test()
 	cudaDeviceReset();
 }
 
-/*    gx = @(x,gamma,mu_site,L)2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
-    function [total_SNPs,g] = m(gamma,mu_site,L,Npop)
-        total_SNPs = 0;
-        g = zeros((2*Npop-1),1);
-        for j = 1:(2*Npop-1)
-            freq = j/(2*Npop);
-            if(gamma ~= 0)
-                g(j) = gx(freq,gamma,mu_site,L);
-            else
-                g(j) = 2*mu_site*L/freq;
-            end
-            total_SNPs = total_SNPs + g(j);
-        end
-    end*/
+////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
 
 double gx(double x, double gamma, double mu_site, double L){
 	if(gamma != 0) return 2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
@@ -139,7 +128,7 @@ void run_validation_test(){
 	int N_ind = 500*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = 0;//1000;//1;//pow(10.f,3);//36;//
+	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
 	float L = 0.11*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations

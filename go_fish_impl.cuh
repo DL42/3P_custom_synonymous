@@ -16,7 +16,7 @@ namespace go_fish_details{
 
 __device__ __forceinline__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
-__device__ __forceinline__ float mse(float i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
+__device__ __forceinline__ float mse(float i, int N, float F, float h, float s){
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
 }
 
@@ -30,7 +30,7 @@ struct mse_integrand{
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
 	__device__ __forceinline__ float operator()(float i) const{
-		float s = max(sel_coeff(pop, gen, i),-1.f); //eventually may allow mse function to be set by user so as to allow for mse of frequency-dependent selection
+		float s = max(sel_coeff(pop, gen, i),-1.f);
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
@@ -62,19 +62,17 @@ __global__ void reverse_array(float * array, const int N){
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, float * freq_lambda, float * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, float * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	float mse_total = mse_integral[0]; //integral from frequency 0 to 1
-	//printf("mse_total: %f\n", mse_total);
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
-		float Ni = ((Nchrom - id)+1.f)/Nchrom;
+		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
 		float s = sel_coeff(population, 0, i);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*Ni); }  //cast to type double4 not allowed, so not using vector memory optimization
-		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//rounding can significantly under count for large N: round(lambda);// //  //mutations are poisson distributed in each frequency class
-		freq_lambda[offset+id] = lambda;
+		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
+		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//mutations are poisson distributed in each frequency class //for round(lambda);//rounding can significantly under count for large N:  //
 	}
 }
 
@@ -136,7 +134,7 @@ __global__ void sum_Device_array_uint(unsigned int * array, int num){
 		j += array[i];
 	}
 	printf("%d",j);
-}*/
+}
 
 __global__ void sum_Device_array_float(float * array, int start, int end){
 	double j = 0;
@@ -144,7 +142,7 @@ __global__ void sum_Device_array_float(float * array, int start, int end){
 		j += array[i];
 	}
 	printf("%lf\n",j);
-}
+}*/
 
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
@@ -357,8 +355,6 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 	int * d_freq_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int)),0,-1);
-	float * d_freq_lambda;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_lambda, num_freq*sizeof(float)),0,-1);
 	int * d_scan_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int)),0,-1);
 	float ** mse_integral = new float *[mutations.h_num_populations];
@@ -372,20 +368,8 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		float h = dominance(pop,0);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(float)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
-		cudaEvent_t start, stop;
-		float elapsedTime;
-		cudaEventCreate(&start);
-		cudaEventCreate(&stop);
-		cudaEventRecord(start, 0);
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
-		elapsedTime = 0;
-		cudaEventRecord(stop, 0);
-		cudaEventSynchronize(stop);
-		cudaEventElapsedTime(&elapsedTime, start, stop);
-		cudaEventDestroy(start);
-		cudaEventDestroy(stop);
-		printf("time elapsed: %f\n\n", elapsedTime);
-		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, d_freq_lambda, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
+		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, seed, pop);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 		offset += (Nchrom_e - 1);
 	}
@@ -396,13 +380,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0),0,pop);
 	}
 
-	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, 0, num_freq/4);
-	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq/4, num_freq*(1.f/2.f));
-	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq*(1.f/2.f), num_freq*(3.f/4.f));
-	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq*(3.f/4.f), num_freq);
-
 	delete [] mse_integral;
-	cudaCheckErrorsAsync(cudaFree(d_freq_lambda),0,-1);
 
 	void * d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
