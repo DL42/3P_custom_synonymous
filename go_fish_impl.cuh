@@ -64,14 +64,15 @@ __global__ void reverse_array(float * array, const int N){
 template <typename Functor_selection>
 __global__ void initialize_mse_frequency_array(int * freq_index, float * freq_lambda, float * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-
 	float mse_total = mse_integral[0]; //integral from frequency 0 to 1
+	//printf("mse_total: %f\n", mse_total);
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
+		float Ni = ((Nchrom - id)+1.f)/Nchrom;
 		float s = sel_coeff(population, 0, i);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*(1-i)); }  //cast to type double4 not allowed, so not using vector memory optimization
+		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*Ni); }  //cast to type double4 not allowed, so not using vector memory optimization
 		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//rounding can significantly under count for large N: round(lambda);// //  //mutations are poisson distributed in each frequency class
 		freq_lambda[offset+id] = lambda;
 	}
