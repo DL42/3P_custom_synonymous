@@ -138,9 +138,9 @@ __global__ void sum_Device_array_uint(unsigned int * array, int num){
 	printf("%d",j);
 }*/
 
-__global__ void sum_Device_array_float(float * array, int num){
+__global__ void sum_Device_array_float(float * array, int start, int end){
 	double j = 0;
-	for(int i = 0; i < num; i++){
+	for(int i = start; i < end; i++){
 		j += array[i];
 	}
 	printf("%lf\n",j);
@@ -396,7 +396,10 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0),0,pop);
 	}
 
-	sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq);
+	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, 0, num_freq/4);
+	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq/4, num_freq*(1.f/2.f));
+	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq*(1.f/2.f), num_freq*(3.f/4.f));
+	//sum_Device_array_float<<<1,1,0,0>>>(d_freq_lambda, num_freq*(3.f/4.f), num_freq);
 
 	delete [] mse_integral;
 	cudaCheckErrorsAsync(cudaFree(d_freq_lambda),0,-1);

@@ -110,18 +110,18 @@ void run_speed_test()
         end
     end*/
 
-float gx(float x, float gamma, float mu_site, float L){
+double gx(double x, double gamma, double mu_site, double L){
 	if(gamma != 0) return 2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
 	return 2*mu_site*L/x;
 }
 
 
-double* G(float gamma,float mu_site, float L, float N_chrome){
+double* G(double gamma,double mu_site, double L, double N_chrome){
 	double total_SNPs = 0;
 	double* g = new double[(int)N_chrome];
 
 	for(int j = 1; j <= (N_chrome - 1); j++){
-		float freq = j/(N_chrome);
+		double freq = j/(N_chrome);
 		g[j] = gx(freq, gamma, mu_site, L);
 		total_SNPs += g[j];
 	}
@@ -136,14 +136,14 @@ void run_validation_test(){
     float gamma = -20; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
-	int N_ind = 50*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
+	int N_ind = 500*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = 0;//1000;//1;//pow(10.f,3);//36;//
-	float L = 1*2*pow(10.f,7); //number of sites
+	float L = 0.11*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations
-	int num_iter = 50;
+	int num_iter = 10;
     int compact_rate = 35;
 
     double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
