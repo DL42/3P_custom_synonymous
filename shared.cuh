@@ -14,6 +14,8 @@
 #include <limits.h>
 #include <math.h>
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
 #include <Random123/philox.h>
 #include <Random123/features/compilerfeatures.h>
 
@@ -97,68 +99,67 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	pois_iter(8.f, mean, emu, cdf); if(cdf >= p){ return 8; }
 	pois_iter(9.f, mean, emu, cdf); if(cdf >= p){ return 9; }
 	pois_iter(10.f, mean, emu, cdf); if(cdf >= p){ return 10; }
-	pois_iter(11.f, mean, emu, cdf); if(cdf >= p){ return 11; }
+	pois_iter(11.f, mean, emu, cdf); if(cdf >= p || mean <= 1){ return 11; }
 	pois_iter(12.f, mean, emu, cdf); if(cdf >= p){ return 12; }
 	pois_iter(13.f, mean, emu, cdf); if(cdf >= p){ return 13; }
-	pois_iter(14.f, mean, emu, cdf); if(cdf >= p){ return 14; }
+	pois_iter(14.f, mean, emu, cdf); if(cdf >= p || mean <= 2){ return 14; }
 	pois_iter(15.f, mean, emu, cdf); if(cdf >= p){ return 15; }
 	pois_iter(16.f, mean, emu, cdf); if(cdf >= p){ return 16; }
-	pois_iter(17.f, mean, emu, cdf); if(cdf >= p){ return 17; }
+	pois_iter(17.f, mean, emu, cdf); if(cdf >= p || mean <= 3){ return 17; }
 	pois_iter(18.f, mean, emu, cdf); if(cdf >= p){ return 18; }
 	pois_iter(19.f, mean, emu, cdf); if(cdf >= p){ return 19; }
-	pois_iter(20.f, mean, emu, cdf); if(cdf >= p){ return 20; }
+	pois_iter(20.f, mean, emu, cdf); if(cdf >= p || mean <= 4){ return 20; }
 	pois_iter(21.f, mean, emu, cdf); if(cdf >= p){ return 21; }
-	pois_iter(22.f, mean, emu, cdf); if(cdf >= p){ return 22; }
+	pois_iter(22.f, mean, emu, cdf); if(cdf >= p || mean <= 5){ return 22; }
 	pois_iter(23.f, mean, emu, cdf); if(cdf >= p){ return 23; }
-	/*pois_iter(24.f, mean, emu, cdf); if(cdf >= p){ return 24; }
+	pois_iter(24.f, mean, emu, cdf); if(cdf >= p || mean <= 6){ return 24; }
 	pois_iter(25.f, mean, emu, cdf); if(cdf >= p){ return 25; }
-	pois_iter(26.f, mean, emu, cdf); if(cdf >= p){ return 26; }
+	pois_iter(26.f, mean, emu, cdf); if(cdf >= p || mean <= 7){ return 26; }
 	pois_iter(27.f, mean, emu, cdf); if(cdf >= p){ return 27; }
-	pois_iter(28.f, mean, emu, cdf); if(cdf >= p){ return 28; }
+	pois_iter(28.f, mean, emu, cdf); if(cdf >= p || mean <= 8){ return 28; }
 	pois_iter(29.f, mean, emu, cdf); if(cdf >= p){ return 29; }
-	pois_iter(30.f, mean, emu, cdf); if(cdf >= p){ return 30; }
+	pois_iter(30.f, mean, emu, cdf); if(cdf >= p || mean <= 9){ return 30; }
 	pois_iter(31.f, mean, emu, cdf); if(cdf >= p){ return 31; }
-	pois_iter(32.f, mean, emu, cdf); if(cdf >= p){ return 32; }
+	pois_iter(32.f, mean, emu, cdf); if(cdf >= p || mean <= 10){ return 32; }
 	pois_iter(33.f, mean, emu, cdf); if(cdf >= p){ return 33; }
-	pois_iter(34.f, mean, emu, cdf); if(cdf >= p){ return 34; }
+	pois_iter(34.f, mean, emu, cdf); if(cdf >= p || mean <= 11){ return 34; }
 	pois_iter(35.f, mean, emu, cdf); if(cdf >= p){ return 35; }
-	pois_iter(36.f, mean, emu, cdf); if(cdf >= p){ return 36; }
+	pois_iter(36.f, mean, emu, cdf); if(cdf >= p || mean <= 12){ return 36; }
 	pois_iter(37.f, mean, emu, cdf); if(cdf >= p){ return 37; }
-	pois_iter(38.f, mean, emu, cdf); if(cdf >= p){ return 38; }
+	pois_iter(38.f, mean, emu, cdf); if(cdf >= p || mean <= 13){ return 38; }
 	pois_iter(39.f, mean, emu, cdf); if(cdf >= p){ return 39; }
-	pois_iter(40.f, mean, emu, cdf); if(cdf >= p){ return 40; }
-	pois_iter(41.f, mean, emu, cdf); if(cdf >= p){ return 41; }
+	pois_iter(40.f, mean, emu, cdf); if(cdf >= p || mean <= 14){ return 40; }
+	pois_iter(41.f, mean, emu, cdf); if(cdf >= p || mean <= 15){ return 41; }
 	pois_iter(42.f, mean, emu, cdf); if(cdf >= p){ return 42; }
-	pois_iter(43.f, mean, emu, cdf); if(cdf >= p){ return 43; }
+	pois_iter(43.f, mean, emu, cdf); if(cdf >= p || mean <= 16){ return 43; }
 	pois_iter(44.f, mean, emu, cdf); if(cdf >= p){ return 44; }
-	pois_iter(45.f, mean, emu, cdf); if(cdf >= p){ return 45; }
-	pois_iter(46.f, mean, emu, cdf); if(cdf >= p){ return 46; }
+	pois_iter(45.f, mean, emu, cdf); if(cdf >= p || mean <= 17){ return 45; }
+	pois_iter(46.f, mean, emu, cdf); if(cdf >= p || mean <= 18){ return 46; }
 	pois_iter(47.f, mean, emu, cdf); if(cdf >= p){ return 47; }
-	pois_iter(48.f, mean, emu, cdf); if(cdf >= p){ return 48; }
+	pois_iter(48.f, mean, emu, cdf); if(cdf >= p || mean <= 19){ return 48; }
 	pois_iter(49.f, mean, emu, cdf); if(cdf >= p){ return 49; }
-	pois_iter(50.f, mean, emu, cdf); if(cdf >= p){ return 50; }
-	pois_iter(51.f, mean, emu, cdf); if(cdf >= p){ return 51; }
+	pois_iter(50.f, mean, emu, cdf); if(cdf >= p || mean <= 20){ return 50; }
+	pois_iter(51.f, mean, emu, cdf); if(cdf >= p || mean <= 21){ return 51; }
 	pois_iter(52.f, mean, emu, cdf); if(cdf >= p){ return 52; }
-	pois_iter(53.f, mean, emu, cdf); if(cdf >= p){ return 53; }
+	pois_iter(53.f, mean, emu, cdf); if(cdf >= p || mean <= 22){ return 53; }
 	pois_iter(54.f, mean, emu, cdf); if(cdf >= p){ return 54; }
-	pois_iter(55.f, mean, emu, cdf); if(cdf >= p){ return 55; }
-	pois_iter(56.f, mean, emu, cdf); if(cdf >= p){ return 56; }
+	pois_iter(55.f, mean, emu, cdf); if(cdf >= p || mean <= 23){ return 55; }
+	pois_iter(56.f, mean, emu, cdf); if(cdf >= p || mean <= 24){ return 56; }
 	pois_iter(57.f, mean, emu, cdf); if(cdf >= p){ return 57; }
-	pois_iter(58.f, mean, emu, cdf); if(cdf >= p){ return 58; }
-	pois_iter(59.f, mean, emu, cdf); if(cdf >= p){ return 59; }
+	pois_iter(58.f, mean, emu, cdf); if(cdf >= p || mean <= 25){ return 58; }
+	pois_iter(59.f, mean, emu, cdf); if(cdf >= p || mean <= 26){ return 59; }
 	pois_iter(60.f, mean, emu, cdf); if(cdf >= p){ return 60; }
-	pois_iter(61.f, mean, emu, cdf); if(cdf >= p){ return 61; }
-	pois_iter(62.f, mean, emu, cdf); if(cdf >= p){ return 62; }
+	pois_iter(61.f, mean, emu, cdf); if(cdf >= p || mean <= 27){ return 61; }
+	pois_iter(62.f, mean, emu, cdf); if(cdf >= p || mean <= 28){ return 62; }
 	pois_iter(63.f, mean, emu, cdf); if(cdf >= p){ return 63; }
-	pois_iter(64.f, mean, emu, cdf); if(cdf >= p){ return 64; }
-	pois_iter(65.f, mean, emu, cdf); if(cdf >= p){ return 65; }
+	pois_iter(64.f, mean, emu, cdf); if(cdf >= p || mean <= 29){ return 64; }
+	pois_iter(65.f, mean, emu, cdf); if(cdf >= p || mean <= 30){ return 65; }
 	pois_iter(66.f, mean, emu, cdf); if(cdf >= p){ return 66; }
-	pois_iter(67.f, mean, emu, cdf); if(cdf >= p){ return 67; }
-	pois_iter(68.f, mean, emu, cdf); if(cdf >= p){ return 68; }
+	pois_iter(67.f, mean, emu, cdf); if(cdf >= p || mean <= 31){ return 67; }
+	pois_iter(68.f, mean, emu, cdf); if(cdf >= p || mean <= 32){ return 68; }
 	pois_iter(69.f, mean, emu, cdf); if(cdf >= p){ return 69; }
-	/**/
 
-	return 24; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
+	return 70; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
 }
 
 /*__host__ __device__ __forceinline__ int ExactRandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
