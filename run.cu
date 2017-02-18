@@ -122,17 +122,17 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 
 void run_validation_test(){
 
-    float gamma = -20; //effective selection
+    float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
-	int N_ind = 500*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
+	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
-	float L = 0.11*2*pow(10.f,7); //number of sites
+	float L = 10*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	int num_pop = 1; //number of populations
-	int num_iter = 10;
+	int num_iter = 50;
     int compact_rate = 35;
 
     double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
