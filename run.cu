@@ -29,10 +29,11 @@ void run_speed_test()
 	int seed1 = 0xbeeff00d; //random number seeds
 	int seed2 = 0xdecafbad;
 	bool printSFS = true; //calculate and print out the SFS
+	bool DFE = false;
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
-	sim_result * a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
+	sim_result * a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
 	cout<<endl<<"final number of mutations: " << a[0].num_mutations << endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
@@ -46,7 +47,7 @@ void run_speed_test()
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 	delete [] a;
 
-	a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
+	a = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true);
 	delete [] a;
 	//----- end warm up GPU -----
 
@@ -68,6 +69,7 @@ void run_speed_test()
     m = 0.0;
 	seed1 = 0xbeeff00d; //random number seeds
 	seed2 = 0xdecafbad;
+	DFE = true;
 	//----- end speed test scenario parameters -----
 
     //----- speed test -----
@@ -76,7 +78,7 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<<endl<<"final number of mutations: " << b[0].num_mutations << endl; }
 		delete [] b;
 	}
@@ -134,6 +136,7 @@ void run_validation_test(){
 	int num_pop = 1; //number of populations
 	int num_iter = 50;
     int compact_rate = 35;
+    bool DFE = false;
 
     double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
     double expected_total_SNPs = L-expectation[0];
@@ -141,7 +144,7 @@ void run_validation_test(){
 	for(int i = 0; i < num_iter; i++){
 		int seed1 = 0xbeeff00d + 2*i; //random number seeds
 		int seed2 = 0xdecafbad - 2*i;
-		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
+		sim_result * b = run_sim(const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), 0, true, sim_result(), compact_rate);
 		if(i==0){ cout<< "chi-gram number of mutations:"<<endl; }
 		cout<< (int)expected_total_SNPs << "\t" << b[0].num_mutations<< "\t" << ((b[0].num_mutations - expected_total_SNPs)/expected_total_SNPs) << endl;
 		delete [] b;

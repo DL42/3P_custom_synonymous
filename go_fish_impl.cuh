@@ -30,7 +30,7 @@ struct mse_integrand{
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
 	__device__ __forceinline__ float operator()(float i) const{
-		float s = max(sel_coeff(pop, gen, i),-1.f);
+		float s = max(sel_coeff(pop, gen, i, make_int4(0)),-1.f);
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
@@ -68,7 +68,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, float * mse_int
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
 		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
-		float s = sel_coeff(population, 0, i);
+		float s = sel_coeff(population, 0, i, make_int4(0));
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
@@ -147,7 +147,7 @@ __global__ void sum_Device_array_float(float * array, int start, int end){
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence
 template <typename Functor_migration, typename Functor_selection>
-__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population, const int num_populations, const int generation){
+__global__ void migration_selection_drift(float * mutations_freq, float * const prev_freq, int4 * const mutations_ID, const int mutations_Index, const int array_Length, const int N, const Functor_migration mig_prop, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population, const int num_populations, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < mutations_Index/4; id+= blockDim.x*gridDim.x){
@@ -156,7 +156,14 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			float4 i = reinterpret_cast<float4*>(prev_freq)[pop*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably divisible by 32 or warp_size)!!!!!!
 			i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function
 		}
-		float4 s = make_float4(max(sel_coeff(population,generation,i_mig.x),-1.f),max(sel_coeff(population,generation,i_mig.y),-1.f),max(sel_coeff(population,generation,i_mig.z),-1.f),max(sel_coeff(population,generation,i_mig.w),-1.f));
+
+		int4 mutID[4];
+		mutID[0] = mutations_ID[4*id];
+		mutID[1] = mutations_ID[4*id+1];
+		mutID[2] = mutations_ID[4*id+2];
+		mutID[3] = mutations_ID[4*id+3];
+		float4 s = make_float4(max(sel_coeff(population,generation,i_mig.x,mutID[0]),-1.f),max(sel_coeff(population,generation,i_mig.y,mutID[1]),-1.f),max(sel_coeff(population,generation,i_mig.z,mutID[2]),-1.f),max(sel_coeff(population,generation,i_mig.w,mutID[3]),-1.f));
+
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
 		int4 j_mig_sel_drift = clamp(RNG::ApproxRandBinom4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
@@ -169,7 +176,9 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			float i = prev_freq[pop*array_Length+id]; //allele frequency in previous population
 			i_mig += mig_prop(pop,population,generation)*i;
 		}
-		float s = max(sel_coeff(population,generation,i_mig),-1.f);
+
+		int4 mutID = mutations_ID[id];
+		float s = max(sel_coeff(population,generation,i_mig,mutID),-1.f);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float mean = i_mig_sel*N; //expected allele count in new generation
 		int j_mig_sel_drift = clamp(RNG::ApproxRandBinom1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
@@ -601,7 +610,7 @@ void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, Functor
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
+__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const bool DFE, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
 
@@ -679,7 +688,7 @@ __host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demo
 
 			float h = dominance(pop,generation);
 			//10^5 mutations: 600 blocks for 1 population, 300 blocks for 3 pops
-			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
+			migration_selection_drift<<<600,128,0,pop_streams[pop]>>>(mutations.d_mutations_freq, mutations.d_prev_freq, mutations.d_mutations_ID, mutations.h_mutations_Index, mutations.h_array_Length, Nchrom_e, mig_prop, sel_coeff, F, h, seed, pop, mutations.h_num_populations, generation);
 			cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,pop);
 			cudaCheckErrorsAsync(cudaEventRecord(pop_events[pop],pop_streams[pop]),generation,pop);
 		}

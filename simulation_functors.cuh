@@ -13,19 +13,19 @@ namespace GO_Fish{
 /* ----- constant selection model ----- */
 const_selection::const_selection() : s(0) {}
 const_selection::const_selection(float s) : s(s){ }
-__host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq) const{ return s; }
+__host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return s; }
 /* ----- end constant selection model ----- */
 
 /* ----- linear frequency dependent selection model ----- */
 linear_frequency_dependent_selection::linear_frequency_dependent_selection() : slope(0), intercept(0) {}
 linear_frequency_dependent_selection::linear_frequency_dependent_selection(float slope, float intercept) : slope(slope), intercept(intercept) { }
-__host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq) const{ return slope*freq+intercept; }
+__host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return slope*freq+intercept; }
 /* ----- end linear frequency dependent selection model ----- */
 
 /* ----- seasonal selection model ----- */
 seasonal_selection::seasonal_selection() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
 seasonal_selection::seasonal_selection(float A, float pi, float D, float rho /*= 0*/, int generation_shift /*= 0*/) : A(A), pi(pi), rho(rho), D(D), generation_shift(generation_shift) {}
-__host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
+__host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal selection model ----- */
 
 /* ----- population specific selection model ----- */
@@ -34,7 +34,7 @@ population_specific_selection<Functor_sel,Functor_sel_pop>::population_specific_
 template <typename Functor_sel, typename Functor_sel_pop>
 population_specific_selection<Functor_sel,Functor_sel_pop>::population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  s = s_in; s_pop = s_pop_in; }
 template <typename Functor_sel, typename Functor_sel_pop>
-__host__ __device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq) const{
+__host__ __device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{
 	if(pop == population) return s_pop(population, generation-generation_shift, freq);
 	return s(population, generation-generation_shift, freq);
 }
@@ -46,7 +46,7 @@ piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection() : inflect
 template <typename Functor_sel1, typename Functor_sel2>
 piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { s1 = s1_in; s2 = s2_in; }
 template <typename Functor_sel1, typename Functor_sel2>
-__host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq) const{
+__host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{
 	if(generation >= inflection_point+generation_shift){ return s2(population, generation-generation_shift, freq) ; }
 	return s1(population, generation-generation_shift, freq);
 };
