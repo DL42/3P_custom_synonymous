@@ -210,7 +210,10 @@ namespace GO_Fish{
 
 /* ----- sim result output ----- */
 struct mutID{
-	int generation,population,threadID,preserve; //generation mutation appeared in simulation, population in which mutation first arose, threadID that generated mutation, flag to preserve mutation in simulation (not filter out if lost or fixed)
+	int generation; //generation in which mutation appeared in simulation
+	int population; //population in which mutation first arose
+	int threadID; //threadID that generated mutation; if negative, flag to preserve mutation in simulation (not filter out if lost or fixed)
+    int category; //discrete DFE category
 };
 
 //for final sim result output

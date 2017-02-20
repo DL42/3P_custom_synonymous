@@ -99,7 +99,8 @@ __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){
 		for(int pop = 0; pop < num_populations; pop++){
 			if(mutations_freq[pop*array_Length+id] > 0){
-				mutations_ID[id] = make_int4(0,pop,id,preserve_mutations);//age: eventually will replace where mutations have age <= 0 (age before sim start)//threadID//population
+				if(!preserve_mutations){ mutations_ID[id] = make_int4(0,pop,(id+1),0); }
+				else{ mutations_ID[id] = make_int4(0,pop,-1*(id+1),0); } //age: eventually will replace where mutations have age <= 0 (age before sim start)//threadID//population//to ensure that ID is non-zero, so that preservation flag can be a -ID
 				break; //assumes mutations are only in one population at start
 			}
 		}
@@ -191,7 +192,7 @@ __global__ void add_new_mutations(float * mutations_freq, int4 * mutations_ID, c
 	for(int id = myID; (id < (new_mutations_Index-prev_mutations_Index)) && ((id + prev_mutations_Index) < array_Length); id+= blockDim.x*gridDim.x){
 		for(int pop = 0; pop < num_populations; pop++){ mutations_freq[(pop*array_Length+prev_mutations_Index+id)] = 0; }
 		mutations_freq[(population*array_Length+prev_mutations_Index+id)] = freq;
-		mutations_ID[(prev_mutations_Index+id)] = make_int4(generation,population,id,0);
+		mutations_ID[(prev_mutations_Index+id)] = make_int4(generation,population,(id+1),0); //to ensure that ID is non-zero, so that preservation flag can be a -ID
 	}
 }
 
@@ -231,7 +232,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 					}
 				}
 
-				preserve = mutations_ID[index].w;
+				preserve = (mutations_ID[index].z < 0);
 			}
 			mask = __ballot((!(zero|one) || preserve)); //1 if allele is segregating in any population, 0 otherwise
 
@@ -281,7 +282,7 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 				if(population == 0){
 					if(preserve_mutations){
 						int4 ID = mutations_ID[read];
-						new_mutations_ID[write] = make_int4(ID.x,ID.y,ID.z,1);
+						new_mutations_ID[write] = make_int4(ID.x,ID.y,-1*abs(ID.z),ID.w);
 					}else{ new_mutations_ID[write] = mutations_ID[read]; }
 				}
 			}
@@ -289,9 +290,9 @@ __global__ void scatter_arrays(float * new_mutations_freq, int4 * new_mutations_
 	}
 }
 
-__global__ void preserve_current_mutations(int4 * mutations_ID, const int mutations_Index){
+__global__ void preserve_prev_run_mutations(int4 * mutations_ID, const int mutations_Index){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){ mutations_ID[id].w = 1; }
+	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){ mutations_ID[id].z = -1*abs(mutations_ID[id].z); } //preservation flag is a -ID, use of absolute value is to ensure that if ID is already
 }
 
 //for internal simulation function passing
@@ -299,7 +300,7 @@ struct sim_struct{
 	//device arrays
 	float * d_mutations_freq; //allele frequency of current mutations
 	float * d_prev_freq; // meant for storing frequency values so changes in previous populations' frequencies don't affect later populations' migration
-	int4 * d_mutations_ID;  //generation in which mutation first appeared, ID that generated mutation, population in which mutation first arose, preservation flag
+	int4 * d_mutations_ID;  //generation in which mutation appeared, population in which mutation first arose, ID that generated mutation, discrete DFE category
 
 	int h_num_populations; //number of populations (# rows for freq)
 	int h_array_Length; //full length of the mutation array, total number of mutations across all populations (# columns for freq)
@@ -464,7 +465,7 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 	if(prev_sim.num_mutations != 0 && use_prev_sim){
 		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim.mutations_freq, prev_sim.num_mutations*sizeof(float), prev_sim.num_mutations*sizeof(float), prev_sim.num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim.mutations_ID, prev_sim.num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1);
-		if(preserve_mutations(generation_shift)){ preserve_current_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
+		if(preserve_mutations(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[1],pop_streams[1]),0,-1);
 
@@ -610,7 +611,7 @@ void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, Functor
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * run_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const bool DFE, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
+__host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const bool DFE, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
 
