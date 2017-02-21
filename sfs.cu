@@ -23,7 +23,7 @@ __global__ void simple_hist(int * out_histogram, float * in_mutation_freq, int n
 }
 
 //single-population sfs, only segregating mutations
-__host__ sfs site_frequency_spectrum(GO_Fish::sim_result & sim, int population, int cuda_device /*= -1*/){
+__host__ sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population, int cuda_device /*= -1*/){
 
 	set_cuda_device(cuda_device);
 
@@ -67,20 +67,20 @@ __host__ sfs site_frequency_spectrum(GO_Fish::sim_result & sim, int population, 
 	return mySFS;
 }
 
-/*__host__ GO_Fish::sim_result sequencing_sample(GO_Fish::sim_result sim, int * population, int * num_samples, const int seed){
+/*__host__ GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample sim, int * population, int * num_samples, const int seed){
 
-	return GO_Fish::sim_result();
+	return GO_Fish::time_sample();
 }
 
 //multi-time point, multi-population sfs
-__host__ sfs temporal_site_frequency_spectrum(GO_Fish::sim_result sim, int * population, int * num_samples, int num_sfs_populations, const int seed){
+__host__ sfs temporal_site_frequency_spectrum(GO_Fish::time_sample sim, int * population, int * num_samples, int num_sfs_populations, const int seed){
 
 	return sfs();
 }
 
 //trace frequency trajectories of mutations from generation start to generation end in a (sub-)population
 //can track an individual mutation or groups of mutation by specifying when the mutation was "born", in which population, with what threadID
-__host__ float ** trace_mutations(GO_Fish::sim_result * sim, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1){
+__host__ float ** trace_mutations(GO_Fish::time_sample * sim, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1){
 
 	return NULL;
 }*/

@@ -445,7 +445,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve, typename Functor_timesample>
-__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, Functor_timesample take_sample, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::time_sample & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
@@ -583,7 +583,7 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 }
 
 template <typename Functor_demography, typename Functor_inbreeding>
-void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int num_sites, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
+void store_time_sample(GO_Fish::time_sample & out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int num_sites, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out.num_populations = mutations.h_num_populations;
 	out.num_mutations = mutations.h_mutations_Index;
 	out.num_sites = num_sites;
@@ -611,7 +611,7 @@ void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, Functor
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_num_categories, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
+__host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const bool init_mse/* = true*/, const time_sample & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
 
@@ -663,16 +663,16 @@ __host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, con
 	}
 
 	sim_result_vector * all_results = new sim_result_vector();
-
+	(*all_results).device = cuda_device;
 	(*all_results).length = 0;
-	for(int i = generation; i < final_generation; i++){ (*all_results).length += take_sample(generation); }  //generation can be time-shifted if initialized from previous simulation
+	for(int i = generation; i < final_generation; i++){ if(take_sample(i)){ (*all_results).length++; } }  //generation can be time-shifted if initialized from previous simulation
 	(*all_results).length++; //always takes sample of final generation
-	(*all_results).result_array = new sim_result[(*all_results).length];
+	(*all_results).time_samples = new time_sample[(*all_results).length];
 
 	//----- take time samples of frequency spectrum -----
 	int sample_index = 0;
 	if(take_sample(generation) && generation != final_generation){
-		store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+		store_time_sample((*all_results).time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 		sample_index++;
 	}
 	//----- end -----
@@ -733,7 +733,7 @@ __host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, con
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1],0), generation, pop1); //wait to compact until after mig_sel_drift and add_new_mut are done
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1+mutations.h_num_populations],0), generation, pop1);
 			}
-			if(take_sample(generation)){
+			if(take_sample(generation)){ //wait to record until finished mig_sel_drift
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[1],pop_events[pop1],0), generation, pop1);
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[1],pop_events[pop1+mutations.h_num_populations],0), generation, pop1);
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[2],pop_events[pop1],0), generation, pop1);
@@ -741,7 +741,8 @@ __host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, con
 			}
 		}
 
-		if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //if not yet done streaming to host from previous generation, pause here
+		//if not yet done streaming recoded data to host (store_time_sample) from previous generation, pause here
+		if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); }
 		if(cudaStreamQuery(control_streams[2]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[2]), generation, -1); }
 
 		swap_freq_pointers(mutations);
@@ -753,13 +754,13 @@ __host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, con
 
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && generation != final_generation){
-			store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+			store_time_sample((*all_results).time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
 
-	store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+	store_time_sample((*all_results).time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //wait for writes to host to finish

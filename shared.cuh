@@ -210,14 +210,13 @@ namespace GO_Fish{
 
 /* ----- sim result output ----- */
 struct mutID{
-	int generation; //generation in which mutation appeared in simulation
-	int population; //population in which mutation first arose
-	int threadID; //threadID that generated mutation; if negative, flag to preserve mutation in simulation (not filter out if lost or fixed)
-    int category; //discrete DFE category
+	int origin_generation; //generation in which mutation appeared in simulation
+	int origin_population; //population in which mutation first arose
+	int origin_threadID; //threadID that generated mutation; if negative, flag to preserve mutation in simulation (not filter out if lost or fixed)
+    int DFE_category; //discrete DFE category
 };
 
-//for final sim result output
-struct sim_result{
+struct time_sample{
 	float * mutations_freq; //allele frequency of mutations in final generation
 	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 	bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
@@ -227,15 +226,23 @@ struct sim_result{
 	int num_sites; //number of sites in simulation
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
-	sim_result();
-	~sim_result();
+	time_sample();
+	~time_sample();
 };
 
 struct sim_result_vector{
-	sim_result * result_array;
+	time_sample * time_samples;
+	int device;
 	int length;
 
 	sim_result_vector();
+	template<typename Functor_timesample>
+	sim_result_vector(Functor_timesample take_sample, int num_generations, int generation_offset = 0, int device = -1): device(device){
+		int final_generation = num_generations + generation_offset;
+		length = 0;
+		for(int i = generation_offset; i < final_generation; i++){ if(take_sample(i)){ length++; } }
+		time_samples = new time_sample[length];
+	}
 	~sim_result_vector();
 };
 /* ----- end sim result output ----- */
