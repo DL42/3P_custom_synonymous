@@ -242,6 +242,7 @@ struct sim_result_vector{
 		int final_generation = num_generations + generation_offset;
 		length = 0;
 		for(int i = generation_offset; i < final_generation; i++){ if(take_sample(i)){ length++; } }
+		length++;//always takes sample of final generation
 		time_samples = new time_sample[length];
 	}
 	__host__ __forceinline__ void free_memory();
