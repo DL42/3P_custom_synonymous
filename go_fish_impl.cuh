@@ -582,6 +582,16 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 	mutations.d_mutations_freq = temp;
 }
 
+template <typename Functor_timesample>
+__host__ __forceinline__ void initialize_sim_result_vector(GO_Fish::sim_result_vector * all_results, Functor_timesample take_sample, int starting_generation, int final_generation) {
+	if(all_results->time_samples){ delete [] all_results->time_samples; } //overwrite old data
+	all_results->length = 0;
+	for(int i = starting_generation; i < final_generation; i++){ if(take_sample(i)){ all_results->length++; } }
+	all_results->length++;//always takes sample of final generation
+	all_results->time_samples = new GO_Fish::time_sample *[all_results->length];
+	for(int i = 0; i < all_results->length; i++){ all_results->time_samples[i] = new GO_Fish::time_sample; }
+}
+
 template <typename Functor_demography, typename Functor_inbreeding>
 __host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int num_sites, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out->num_populations = mutations.h_num_populations;
@@ -611,19 +621,19 @@ __host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_num_categories, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const bool init_mse/* = true*/, const time_sample & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
+__host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
 
 	using namespace go_fish_details;
 
 	int2 seed;
-	seed.x = seed1;
-	seed.y = seed2;
+	seed.x = all_results->seed1;
+	seed.y = all_results->seed2;
 
 	cudaDeviceProp devProp = set_cuda_device(all_results->device);
 
 	sim_struct mutations;
 
-	mutations.h_num_populations = num_populations;
+	mutations.h_num_populations = all_results->num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
 	mutations.h_extinct = new bool[mutations.h_num_populations];
 	for(int i = 0; i < mutations.h_num_populations; i++){ mutations.h_extinct[i] = 0; } //some compilers won't default to 0
@@ -647,31 +657,27 @@ __host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mut
 	}
 
 	int generation = 0;
-	int final_generation = num_generations;
+	int final_generation = all_results->num_generations;
 
 	//----- initialize simulation -----
-	if(init_mse){
+	if(all_results->init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
-		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, num_sites, seed, (preserve_mutations(0)|take_sample(0)), compact_rate, pop_streams, pop_events);
+		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, all_results->num_sites, seed, (preserve_mutations(0)|take_sample(0)), all_results->compact_rate, pop_streams, pop_events);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, num_sites, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
+		init_blank_prev_run(mutations, generation, final_generation, all_results->prev_sim, mu_rate, demography, FI, all_results->num_sites, preserve_mutations, take_sample, all_results->compact_rate, pop_streams, pop_events);
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
 	}
 
-	int length = 0;
-	for(int i = generation; i < final_generation; i++){ if(take_sample(i)){ length++; } }  //generation can be time-shifted if initialized from previous simulation
-	length++; //always takes sample of final generation
-	if(length != all_results->length){ fprintf(stderr,"sample length mismatch error: length of all_results %d\t number of samples %d\n",all_results->length,length); exit(1); }
-	all_results->free_memory(); //overwrite any old memory if present
+	initialize_sim_result_vector(all_results,take_sample,generation,final_generation);
 
 	//----- take time samples of frequency spectrum -----
 	int sample_index = 0;
 	if(take_sample(generation) && generation != final_generation){
-		store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+		store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, all_results->num_sites, generation, control_streams, control_events);
 		sample_index++;
 	}
 	//----- end -----
@@ -681,7 +687,7 @@ __host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mut
 
 	//----- simulation steps -----
 
-	int next_compact_generation = generation + compact_rate;
+	int next_compact_generation = generation + all_results->compact_rate;
 
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
@@ -708,7 +714,7 @@ __host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mut
 		//----- end -----
 
 		//----- generate new mutations -----
-		calc_new_mutations_Index(mutations, mu_rate, demography, FI, num_sites, seed, generation);
+		calc_new_mutations_Index(mutations, mu_rate, demography, FI, all_results->num_sites, seed, generation);
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N_ind = demography(pop,generation);
 			if((N_ind <= 0) || mutations.h_extinct[pop]){ continue; }
@@ -748,18 +754,18 @@ __host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mut
 
 		bool preserve = (preserve_mutations(generation) | take_sample(generation)); //preserve mutations in sample
 		//----- compact every compact_rate generations, final generation, and before preserving mutations; compact_rate == 0 shuts off compact -----
-		if((generation == next_compact_generation || generation == final_generation || preserve) && compact_rate > 0){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, preserve, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;  }
+		if((generation == next_compact_generation || generation == final_generation || preserve) && all_results->compact_rate > 0){ compact(mutations, mu_rate, demography, FI, all_results->num_sites, generation, final_generation, preserve, all_results->compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + all_results->compact_rate;  }
 		//----- end -----
 
 		//----- take time samples of frequency spectrum -----
 		if(take_sample(generation) && generation != final_generation){
-			store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+			store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, all_results->num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
 
-	store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+	store_time_sample(all_results->time_samples[sample_index], mutations, demography, FI, all_results->num_sites, generation, control_streams, control_events);
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //wait for writes to host to finish

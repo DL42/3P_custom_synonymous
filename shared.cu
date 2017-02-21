@@ -16,7 +16,7 @@ GO_Fish::time_sample::~time_sample(){
 	if(Nchrom_e){ delete [] Nchrom_e; }
 }
 
-GO_Fish::sim_result_vector::sim_result_vector(): length(0), device(-1) { time_samples = NULL; }
+GO_Fish::sim_result_vector::sim_result_vector(): length(0), seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_populations(1), init_mse(true), prev_sim(time_sample()), compact_rate(35), device(-1) { time_samples = NULL; }
 GO_Fish::sim_result_vector::~sim_result_vector(){ if(time_samples){ delete [] time_samples; } }
 
 __device__ int RNG::ApproxRandBinomHelper(unsigned int i, float mean, float var, float N){

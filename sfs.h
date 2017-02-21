@@ -24,7 +24,7 @@ struct sfs{
 };
 
 //single-population sfs, only segregating mutations
-__host__  sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population, int cuda_device = -1);
+__host__  sfs site_frequency_spectrum(const GO_Fish::time_sample * const sim, int population, int cuda_device = -1);
 
 /*
 __host__ GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample & sim, int * population, int * num_samples, const int seed);

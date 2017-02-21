@@ -227,33 +227,26 @@ struct time_sample{
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	time_sample();
-	__host__ __forceinline__ void free_memory(){
-		if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); mutations_freq = NULL; }
-		if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); mutations_ID = NULL;  }
-		if(extinct){ delete [] extinct; extinct = NULL; }
-		if(Nchrom_e){ delete [] Nchrom_e; Nchrom_e = NULL; }
-	}
 	~time_sample();
 };
 
 struct sim_result_vector{
 	time_sample ** time_samples;
-	int device;
 	int length;
+	//----- initialization parameters -----
+	int seed1;
+	int seed2;
+	int num_generations;
+	float num_sites;
+	int num_populations;
+	bool init_mse;
+	time_sample prev_sim;
+	int compact_rate;
+	int device;
+	//----- end -----
 
 	sim_result_vector();
-	template<typename Functor_timesample>
-	sim_result_vector(Functor_timesample take_sample, int num_generations, int generation_offset = 0, int device = -1): device(device){
-		int final_generation = num_generations + generation_offset;
-		length = 0;
-		for(int i = generation_offset; i < final_generation; i++){ if(take_sample(i)){ length++; } }
-		length++;//always takes sample of final generation
-		time_samples = new time_sample*[length];
-		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample; }
-		//time_samples[0] = new time_sample;
-		//std::cout<<time_samples[0]->num_sites;
-	}
-	__host__ __forceinline__ void free_memory(){ if(time_samples){ for(int i = 0; i < length; i++){ delete time_samples[i]; time_samples[i] = new time_sample; } } }
+	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } }
 	~sim_result_vector();
 };
 /* ----- end sim result output ----- */

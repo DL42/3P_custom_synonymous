@@ -23,7 +23,7 @@ __global__ void simple_hist(int * out_histogram, float * in_mutation_freq, int n
 }
 
 //single-population sfs, only segregating mutations
-__host__ sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population, int cuda_device /*= -1*/){
+__host__ sfs site_frequency_spectrum(const GO_Fish::time_sample * const sample, int population, int cuda_device /*= -1*/){
 
 	set_cuda_device(cuda_device);
 
@@ -34,14 +34,14 @@ __host__ sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population,
 	float * d_mutations_freq;
 	int * d_histogram, * h_histogram;
 
-	int num_levels = sim.Nchrom_e[population]+1;
+	int num_levels = sample->Nchrom_e[population]+1;
 
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sim.num_mutations*sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(int)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(int), stream),-1,-1);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sim.mutations_freq[population*sim.num_mutations], sim.num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample->mutations_freq[population*sample->num_mutations], sample->num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
 
-	simple_hist<<<50,1024,0,stream>>>(d_histogram, d_mutations_freq, sim.Nchrom_e[population], sim.num_mutations, sim.num_sites);
+	simple_hist<<<50,1024,0,stream>>>(d_histogram, d_mutations_freq, sample->Nchrom_e[population], sample->num_mutations, sample->num_sites);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
 	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(int)),-1,-1);
@@ -54,10 +54,10 @@ __host__ sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population,
 	mySFS.num_populations = 1;
 	mySFS.num_samples = new int[1];
 	mySFS.num_samples[0] = num_levels;
-	mySFS.num_sites = sim.num_sites;
+	mySFS.num_sites = sample->num_sites;
 	mySFS.populations = new int[1];
 	mySFS.populations[0] = population;
-	mySFS.sampled_generation = sim.sampled_generation;
+	mySFS.sampled_generation = sample->sampled_generation;
 
 	//cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_mutations_freq),-1,-1);
@@ -67,20 +67,20 @@ __host__ sfs site_frequency_spectrum(GO_Fish::time_sample & sim, int population,
 	return mySFS;
 }
 
-/*__host__ GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample sim, int * population, int * num_samples, const int seed){
+/*__host__ GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample sample, int * population, int * num_samples, const int seed){
 
 	return GO_Fish::time_sample();
 }
 
 //multi-time point, multi-population sfs
-__host__ sfs temporal_site_frequency_spectrum(GO_Fish::time_sample sim, int * population, int * num_samples, int num_sfs_populations, const int seed){
+__host__ sfs temporal_site_frequency_spectrum(GO_Fish::time_sample sample, int * population, int * num_samples, int num_sfs_populations, const int seed){
 
 	return sfs();
 }
 
 //trace frequency trajectories of mutations from generation start to generation end in a (sub-)population
 //can track an individual mutation or groups of mutation by specifying when the mutation was "born", in which population, with what threadID
-__host__ float ** trace_mutations(GO_Fish::time_sample * sim, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1){
+__host__ float ** trace_mutations(GO_Fish::time_sample * sample, int generation_start, int generation_end, int population, int generation_born = -1, int population_born = -1, int threadID = -1){
 
 	return NULL;
 }*/

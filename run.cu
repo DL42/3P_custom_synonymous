@@ -16,46 +16,46 @@ using namespace SFS;
 void run_speed_test()
 {
 	//----- warm up scenario parameters -----
+	sim_result_vector a;
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
 	int N_ind = pow(10.f,5)*(1+F); //number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = pow(10.f,5);//36;//50;//
-	float L = 2*pow(10.f,7); //number of sites
+	a.num_generations = pow(10.f,5);//36;//50;//
+	a.num_sites = 2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
-	int num_pop = 1; //number of populations
-	int seed1 = 0xbeeff00d; //random number seeds
-	int seed2 = 0xdecafbad;
+	a.num_populations = 1; //number of populations
+	a.seed1 = 0xbeeff00d; //random number seeds
+	a.seed2 = 0xdecafbad;
 	bool DFE = false;
-	sim_result_vector a(do_nothing(),total_number_of_generations);
+
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
 	bool printSFS = true; //calculate and print out the SFS
-	run_GO_Fish_sim(&a,const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), true);
-	#define c a_pointer[0]
+	run_GO_Fish_sim(&a,const_parameter(mu), const_demography(N_ind), const_equal_migration(m,a.num_populations), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, do_nothing(), do_nothing());
 	cout<<endl<<"final number of mutations: " << a.time_samples[0]->num_mutations << endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
 	int start_index = 0;
 	int print_num = 50;
 	if(printSFS){
-		sfs mySFS = site_frequency_spectrum((*a.time_samples[0]),0);
+		sfs mySFS = site_frequency_spectrum(a.time_samples[0],0);
 		cout<< "allele count\t# mutations"<< endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.num_samples[0]-start_index),start_index+print_num); printIndex++){ cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] <<endl;}
 	}
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 
-	run_GO_Fish_sim(&a, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), true);
+	run_GO_Fish_sim(&a, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,a.num_populations), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, do_nothing(), do_nothing());
 	//----- end warm up GPU -----
 
 	//----- speed test scenario parameters -----
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    int compact_rate = 35;
+    a.compact_rate = 35;
 
     gamma = 0;
     h = 0.0;
@@ -63,12 +63,12 @@ void run_speed_test()
     N_ind = pow(10.f,5)*(1+F);
     s = gamma/(2*N_ind);
     mu = pow(10.f,-9);
-    total_number_of_generations = pow(10.f,3);
-    L = 1*2*pow(10.f,7);
-    num_pop = 1;
+    a.num_generations = pow(10.f,3);
+    a.num_sites = 1*2*pow(10.f,7);
+    a.num_populations = 1;
     m = 0.0;
-	seed1 = 0xbeeff00d; //random number seeds
-	seed2 = 0xdecafbad;
+    a.seed1 = 0xbeeff00d; //random number seeds
+    a.seed2 = 0xdecafbad;
 	DFE = true;
 	//----- end speed test scenario parameters -----
 
@@ -78,7 +78,7 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		run_GO_Fish_sim(&a, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), true, time_sample(), compact_rate);
+		run_GO_Fish_sim(&a, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,a.num_populations), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, do_nothing(), do_nothing());
 		if(i==0){ cout<<endl<<"final number of mutations: " << a.time_samples[0]->num_mutations << endl; }
 	}
 
@@ -123,6 +123,7 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 
 void run_validation_test(){
 
+	sim_result_vector b;
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
@@ -130,21 +131,19 @@ void run_validation_test(){
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
-	float L = 10*2*pow(10.f,7); //number of sites
+	b.num_sites = 10*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
-	int num_pop = 1; //number of populations
+	b.num_populations = 1; //number of populations
 	int num_iter = 50;
-    int compact_rate = 35;
     bool DFE = false;
-    sim_result_vector b(do_nothing(),total_number_of_generations);
-    double* expectation = G(gamma,mu, L, 2.0*N_ind/(1.0+F));
-    double expected_total_SNPs = L-expectation[0];
+    b.compact_rate = 35;
+    double* expectation = G(gamma,mu, b.num_sites, 2.0*N_ind/(1.0+F));
+    double expected_total_SNPs = b.num_sites-expectation[0];
 
 	for(int i = 0; i < num_iter; i++){
-		int seed1 = 0xbeeff00d + 2*i; //random number seeds
-		int seed2 = 0xdecafbad - 2*i;
-		run_GO_Fish_sim(&b, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,num_pop), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, total_number_of_generations, L, num_pop, seed1, seed2, do_nothing(), do_nothing(), true, time_sample(), compact_rate);
-		#define d b_pointer[0]
+		b.seed1 = 0xbeeff00d + 2*i; //random number seeds
+		b.seed2 = 0xdecafbad - 2*i;
+		run_GO_Fish_sim(&b, const_parameter(mu), const_demography(N_ind), const_equal_migration(m,b.num_populations), const_selection(s), const_parameter(F), const_parameter(h), DFE, DFE, do_nothing(), do_nothing());
 		if(i==0){ cout<< "chi-gram number of mutations:"<<endl; }
 		cout<< (int)expected_total_SNPs << "\t" << b.time_samples[0]->num_mutations<< "\t" << ((b.time_samples[0]->num_mutations - expected_total_SNPs)/expected_total_SNPs) << endl;
 	}
