@@ -227,6 +227,7 @@ struct time_sample{
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	time_sample();
+	__host__ __forceinline__ void free_memory();
 	~time_sample();
 };
 
@@ -243,6 +244,7 @@ struct sim_result_vector{
 		for(int i = generation_offset; i < final_generation; i++){ if(take_sample(i)){ length++; } }
 		time_samples = new time_sample[length];
 	}
+	__host__ __forceinline__ void free_memory();
 	~sim_result_vector();
 };
 /* ----- end sim result output ----- */
