@@ -194,7 +194,7 @@ __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, 
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
-//faster on 780M if don't inline!
+//faster on if don't inline on both GPUs!
 __device__ int ApproxRandBinomHelper(unsigned int i, float mean, float var, float N);
 
 __device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4 p, float N, int2 seed, int id, int generation, int population){
