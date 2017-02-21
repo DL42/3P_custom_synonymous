@@ -9,7 +9,12 @@
 
 
 GO_Fish::time_sample::time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; }
-GO_Fish::time_sample::~time_sample(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; }}
+GO_Fish::time_sample::~time_sample(){
+	if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); }
+	if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); }
+	if(extinct){ delete [] extinct; }
+	if(Nchrom_e){ delete [] Nchrom_e; }
+}
 
 GO_Fish::sim_result_vector::sim_result_vector(): length(0), device(-1) { time_samples = NULL; }
 GO_Fish::sim_result_vector::~sim_result_vector(){ if(time_samples){ delete [] time_samples; } }

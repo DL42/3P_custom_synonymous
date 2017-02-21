@@ -20,7 +20,7 @@
 #include <Random123/features/compilerfeatures.h>
 
 /* ----- cuda error checking & device setting ----- */
-#define __DEBUG__ false
+#define __DEBUG__ true
 #define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
 #define cudaCheckErrorsAsync(expr1,expr2,expr3) { cudaCheckErrors(expr1,expr2,expr3); if(__DEBUG__){ cudaCheckErrors(cudaDeviceSynchronize(),expr2,expr3); } }
 
@@ -227,12 +227,17 @@ struct time_sample{
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	time_sample();
-	__host__ __forceinline__ void free_memory(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; } }
+	__host__ __forceinline__ void free_memory(){
+		if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); mutations_freq = NULL; }
+		if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); mutations_ID = NULL;  }
+		if(extinct){ delete [] extinct; extinct = NULL; }
+		if(Nchrom_e){ delete [] Nchrom_e; Nchrom_e = NULL; }
+	}
 	~time_sample();
 };
 
 struct sim_result_vector{
-	time_sample * time_samples;
+	time_sample ** time_samples;
 	int device;
 	int length;
 
@@ -243,9 +248,12 @@ struct sim_result_vector{
 		length = 0;
 		for(int i = generation_offset; i < final_generation; i++){ if(take_sample(i)){ length++; } }
 		length++;//always takes sample of final generation
-		time_samples = new time_sample[length];
+		time_samples = new time_sample*[length];
+		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample; }
+		//time_samples[0] = new time_sample;
+		//std::cout<<time_samples[0]->num_sites;
 	}
-	__host__ __forceinline__ void free_memory(){ if(time_samples){ for(int i = 0; i < length; i++){ time_samples[i].free_memory(); } } }
+	__host__ __forceinline__ void free_memory(){ if(time_samples){ for(int i = 0; i < length; i++){ delete time_samples[i]; time_samples[i] = new time_sample; } } }
 	~sim_result_vector();
 };
 /* ----- end sim result output ----- */
