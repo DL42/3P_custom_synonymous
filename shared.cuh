@@ -227,7 +227,7 @@ struct time_sample{
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	time_sample();
-	__host__ __forceinline__ void free_memory();
+	__host__ __forceinline__ void free_memory(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; } }
 	~time_sample();
 };
 
@@ -245,7 +245,7 @@ struct sim_result_vector{
 		length++;//always takes sample of final generation
 		time_samples = new time_sample[length];
 	}
-	__host__ __forceinline__ void free_memory();
+	__host__ __forceinline__ void free_memory(){ if(time_samples){ for(int i = 0; i < length; i++){ time_samples[i].free_memory(); } } }
 	~sim_result_vector();
 };
 /* ----- end sim result output ----- */
