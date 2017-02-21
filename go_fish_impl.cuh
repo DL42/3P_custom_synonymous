@@ -593,7 +593,7 @@ __host__ __forceinline__ void initialize_sim_result_vector(GO_Fish::sim_result_v
 }
 
 template <typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int num_sites, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
+__host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, float num_sites, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out->num_populations = mutations.h_num_populations;
 	out->num_mutations = mutations.h_mutations_Index;
 	out->num_sites = num_sites;

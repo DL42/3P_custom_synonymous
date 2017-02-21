@@ -223,7 +223,7 @@ struct time_sample{
 	int * Nchrom_e; //effective number of chromosomes in each population
 	int num_populations; //number of populations in freq array (array length, rows)
 	int num_mutations; //number of mutations in array (array length for age/freq, columns)
-	int num_sites; //number of sites in simulation
+	float num_sites; //number of sites in simulation
 	int sampled_generation; //number of generations in the simulation at point of sampling
 
 	time_sample();
