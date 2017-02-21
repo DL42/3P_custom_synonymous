@@ -9,8 +9,10 @@
 
 
 GO_Fish::sim_result::sim_result(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; }
-GO_Fish::sim_result::~sim_result(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; }
-}
+GO_Fish::sim_result::~sim_result(){ if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); } if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); } if(extinct){ delete [] extinct; } if(Nchrom_e){ delete [] Nchrom_e; }}
+
+GO_Fish::sim_result_vector::sim_result_vector(): length(0) { result_array = NULL; }
+GO_Fish::sim_result_vector::~sim_result_vector(){ if(result_array){ delete [] result_array; } }
 
 __device__ int RNG::ApproxRandBinomHelper(unsigned int i, float mean, float var, float N){
 	if(mean <= MEAN_BOUNDARY){ return poiscdfinv(uint_float_01(i), mean); }

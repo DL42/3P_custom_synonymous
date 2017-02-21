@@ -230,6 +230,14 @@ struct sim_result{
 	sim_result();
 	~sim_result();
 };
+
+struct sim_result_vector{
+	sim_result * result_array;
+	int length;
+
+	sim_result_vector();
+	~sim_result_vector();
+};
 /* ----- end sim result output ----- */
 
 } /* ----- end namespace GO_Fish ----- */

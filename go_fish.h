@@ -231,6 +231,16 @@ struct do_nothing{ __host__ __forceinline__ bool operator()(const int generation
 
 struct do_something{__host__ __forceinline__ bool operator()(const int generation) const; };
 
+struct do_array{
+	const bool * array;
+	int length;
+	int generation_shift;
+	do_array();
+	do_array(const bool * const in_array, int length, int generation_shift = 0);
+	__host__ __forceinline__ bool operator()(const int generation) const;
+	~do_array();
+};
+
 //returns the result of Functor_stable except at time Fgen(-generation_shift) returns the result of Functor_action
 template <typename Functor_stable, typename Functor_action>
 struct do_something_else{
@@ -244,8 +254,8 @@ struct do_something_else{
 /* ----- end of preserving & sampling functions ----- */
 
 /* ----- go_fish_impl  ----- */
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const bool DFE, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples = 0, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, int cuda_device = -1);
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_num_categories, typename Functor_preserve, typename Functor_timesample>
+__host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, const bool init_mse = true, const sim_result & prev_sim = sim_result(), const int compact_rate = 35, int cuda_device = -1);
 /* ----- end go_fish_impl ----- */
 
 } /* ----- end namespace GO_Fish ----- */

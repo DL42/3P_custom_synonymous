@@ -444,8 +444,8 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 }
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
-template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve>
-__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve, typename Functor_timesample>
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::sim_result & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const float num_sites, const Functor_preserve preserve_mutations, Functor_timesample take_sample, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	bool use_prev_sim = (num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
@@ -465,7 +465,7 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 	if(prev_sim.num_mutations != 0 && use_prev_sim){
 		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim.mutations_freq, prev_sim.num_mutations*sizeof(float), prev_sim.num_mutations*sizeof(float), prev_sim.num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim.mutations_ID, prev_sim.num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1);
-		if(preserve_mutations(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
+		if(preserve_mutations(generation_shift) | take_sample(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[1],pop_streams[1]),0,-1);
 
@@ -610,8 +610,8 @@ void store_sim_result(GO_Fish::sim_result & out, sim_struct & mutations, Functor
 
 namespace GO_Fish{
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
-__host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const bool DFE, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, int max_samples/* = 0*/, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_num_categories, typename Functor_preserve, typename Functor_timesample>
+__host__ sim_result_vector * run_GO_Fish_sim(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const int num_generations, const float num_sites, const int num_populations, const int seed1, const int seed2, Functor_preserve preserve_mutations, Functor_timesample take_sample, const bool init_mse/* = true*/, const sim_result & prev_sim/* = sim_result()*/, const int compact_rate/* = 35*/, int cuda_device/* = -1*/){
 
 	using namespace go_fish_details;
 
@@ -622,7 +622,6 @@ __host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Func
 	cudaDeviceProp devProp = set_cuda_device(cuda_device);
 
 	sim_struct mutations;
-	sim_result * all_results = new sim_result[max_samples+1];
 
 	mutations.h_num_populations = num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
@@ -654,14 +653,29 @@ __host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Func
 	if(init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
-		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, num_sites, seed, preserve_mutations(0), compact_rate, pop_streams, pop_events);
+		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, num_sites, seed, (preserve_mutations(0)|take_sample(0)), compact_rate, pop_streams, pop_events);
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, num_sites, preserve_mutations, compact_rate, pop_streams, pop_events);
+		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, num_sites, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
 	}
+
+	sim_result_vector * all_results = new sim_result_vector();
+
+	(*all_results).length = 0;
+	for(int i = generation; i < final_generation; i++){ (*all_results).length += take_sample(generation); }  //generation can be time-shifted if initialized from previous simulation
+	(*all_results).length++; //always takes sample of final generation
+	(*all_results).result_array = new sim_result[(*all_results).length];
+
+	//----- take time samples of frequency spectrum -----
+	int sample_index = 0;
+	if(take_sample(generation) && generation != final_generation){
+		store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+		sample_index++;
+	}
+	//----- end -----
 	//----- end -----
 
 	//std::cout<< std::endl <<"initial num_mutations " << mutations.h_mutations_Index;
@@ -669,7 +683,6 @@ __host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Func
 	//----- simulation steps -----
 
 	int next_compact_generation = generation + compact_rate;
-	int sample_index = 0;
 
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
@@ -720,7 +733,7 @@ __host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Func
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1],0), generation, pop1); //wait to compact until after mig_sel_drift and add_new_mut are done
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1+mutations.h_num_populations],0), generation, pop1);
 			}
-			if((take_sample(generation) && sample_index < max_samples)){
+			if(take_sample(generation)){
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[1],pop_events[pop1],0), generation, pop1);
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[1],pop_events[pop1+mutations.h_num_populations],0), generation, pop1);
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[2],pop_events[pop1],0), generation, pop1);
@@ -733,23 +746,20 @@ __host__ sim_result * run_GO_Fish_sim(const Functor_mutation mu_rate, const Func
 
 		swap_freq_pointers(mutations);
 
-		bool preserve = preserve_mutations(generation);
+		bool preserve = (preserve_mutations(generation) | take_sample(generation)); //preserve mutations in sample
 		//----- compact every compact_rate generations, final generation, and before preserving mutations; compact_rate == 0 shuts off compact -----
 		if((generation == next_compact_generation || generation == final_generation || preserve) && compact_rate > 0){ compact(mutations, mu_rate, demography, FI, num_sites, generation, final_generation, preserve, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;  }
 		//----- end -----
 
 		//----- take time samples of frequency spectrum -----
-		if(take_sample(generation) && generation != final_generation && sample_index < max_samples){
-			store_sim_result(all_results[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+		if(take_sample(generation) && generation != final_generation){
+			store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
-	//----- end -----
 
-	//----- take final time sample of frequency spectrum -----
-	sample_index = max_samples;
-	store_sim_result(all_results[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
+	store_sim_result((*all_results).result_array[sample_index], mutations, demography, FI, num_sites, generation, control_streams, control_events);
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //wait for writes to host to finish

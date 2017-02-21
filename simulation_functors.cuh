@@ -184,6 +184,14 @@ __host__ __forceinline__ bool do_nothing::operator()(const int generation) const
 
 __host__ __forceinline__ bool do_something::operator()(const int generation) const{ return true; }
 
+do_array::do_array(): length(0), generation_shift(0) { array = NULL; }
+do_array::do_array(const bool * const in_array, int length, int generation_shift/* = 0*/): length(length), generation_shift(generation_shift) { array = in_array; }
+__host__ __forceinline__ bool do_array::operator()(const int generation) const {
+	int gen = generation - generation_shift;
+	if((gen < 0) | (gen > length)){ fprintf(stderr,"do_array functor generation error,\t generation %d\t shifted generation %d\t array length %d\n",generation,gen,length); exit(1); }
+	return array[gen];
+}
+
 template <typename Functor_stable, typename Functor_action>
 do_something_else<Functor_stable,Functor_action>::do_something_else() : Fgen(0), generation_shift(0) { f1 = Functor_stable(); f2 = Functor_action(); }
 template <typename Functor_stable, typename Functor_action>
