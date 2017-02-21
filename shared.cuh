@@ -230,7 +230,7 @@ struct time_sample{
 	~time_sample();
 };
 
-struct sim_result_vector{
+struct allele_trajectories{
 	time_sample ** time_samples;
 	int length;
 	//----- initialization parameters -----
@@ -245,9 +245,9 @@ struct sim_result_vector{
 	int device;
 	//----- end -----
 
-	sim_result_vector();
+	allele_trajectories();
 	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } }
-	~sim_result_vector();
+	~allele_trajectories();
 };
 /* ----- end sim result output ----- */
 

@@ -16,7 +16,7 @@ using namespace SFS;
 void run_speed_test()
 {
 	//----- warm up scenario parameters -----
-	sim_result_vector a;
+	allele_trajectories a;
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
@@ -123,7 +123,7 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 
 void run_validation_test(){
 
-	sim_result_vector b;
+	allele_trajectories b;
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding

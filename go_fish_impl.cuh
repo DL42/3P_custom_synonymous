@@ -583,7 +583,7 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 }
 
 template <typename Functor_timesample>
-__host__ __forceinline__ void initialize_sim_result_vector(GO_Fish::sim_result_vector * all_results, Functor_timesample take_sample, int starting_generation, int final_generation) {
+__host__ __forceinline__ void initialize_sim_result_vector(GO_Fish::allele_trajectories * all_results, Functor_timesample take_sample, int starting_generation, int final_generation) {
 	if(all_results->time_samples){ delete [] all_results->time_samples; } //overwrite old data
 	all_results->length = 0;
 	for(int i = starting_generation; i < final_generation; i++){ if(take_sample(i)){ all_results->length++; } }
@@ -621,7 +621,7 @@ __host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_num_categories, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_GO_Fish_sim(sim_result_vector * all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
+__host__ void run_GO_Fish_sim(allele_trajectories * all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_num_categories num_discrete_DFE_categories, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
 
 	using namespace go_fish_details;
 
