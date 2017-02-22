@@ -234,15 +234,20 @@ struct allele_trajectories{
 	time_sample ** time_samples;
 	int length;
 	//----- initialization parameters -----
-	int seed1;
-	int seed2;
-	int num_generations;
-	float num_sites;
-	int num_populations;
-	bool init_mse;
-	time_sample prev_sim;
-	int compact_rate;
-	int device;
+	struct sim_input_params{
+		int seed1;
+		int seed2;
+		int num_generations;
+		float num_sites;
+		int num_discrete_DFE_categories;
+		int num_populations;
+		bool init_mse;
+		time_sample prev_sim;
+		int compact_rate;
+		int device;
+		sim_input_params();
+		~sim_input_params();
+	}sim_input_params;
 	//----- end -----
 
 	allele_trajectories();
