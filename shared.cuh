@@ -41,7 +41,7 @@ __forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
 /* ----- random number generation ----- */
 
 namespace RNG{
-#define MEAN_BOUNDARY 12
+#define MEAN_BOUNDARY 6
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should

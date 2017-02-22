@@ -55,8 +55,7 @@ void run_speed_test()
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    a.compact_rate = 35;
-
+    a.compact_rate = 20;
     gamma = 0;
     h = 0.0;
     F = 1.0;
@@ -64,7 +63,7 @@ void run_speed_test()
     s = gamma/(2*N_ind);
     mu = pow(10.f,-9);
     a.num_generations = pow(10.f,3);
-    a.num_sites = 1*2*pow(10.f,7);
+    a.num_sites = 10*2*pow(10.f,7);
     a.num_populations = 1;
     m = 0.0;
     a.seed1 = 0xbeeff00d; //random number seeds
