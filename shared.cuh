@@ -250,7 +250,7 @@ struct allele_trajectories{
 	//----- end -----
 
 	allele_trajectories();
-	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } }
+	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; }
 	__host__ __forceinline__ time_sample* operator[](int sample_num){
 		if(sample_num >= 0 && sample_num < length){ return time_samples[sample_num]; }
 		else{ fprintf(stderr,"requested sample number out of bounds: sample %d\t[0\t %d)\n",sample_num,length); exit(1); }
