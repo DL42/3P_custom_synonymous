@@ -32,13 +32,13 @@ void run_speed_test()
 	//----- warm up GPU -----
 	bool printSFS = true; //calculate and print out the SFS
 	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,time_sample);
-	std::cout<<std::endl<<"final number of mutations: " << a.time_samples[0]->num_mutations << std::endl;
+	std::cout<<std::endl<<"final number of mutations: " << a[0]->num_mutations << std::endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
 	int start_index = 0;
 	int print_num = 50;
 	if(printSFS){
-		SFS::sfs mySFS = SFS::site_frequency_spectrum(a.time_samples[0],0);
+		SFS::sfs mySFS = SFS::site_frequency_spectrum(a[0],0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.num_samples[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
@@ -66,7 +66,7 @@ void run_speed_test()
 
 	for(int i = 0; i < num_iter; i++){
 		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,time_sample);
-		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a.time_samples[0]->num_mutations << std::endl; }
+		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a[0]->num_mutations << std::endl; }
 	}
 
 	elapsedTime = 0;
@@ -132,7 +132,7 @@ void run_validation_test(){
 		b.sim_input_params.seed2 = 0xdecafbad - 2*i;
 		GO_Fish::run_sim(b, GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_params.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing());
 		if(i==0){ std::cout<< "chi-gram number of mutations:"<<std::endl; }
-		std::cout<< (int)expected_total_SNPs << "\t" << b.time_samples[0]->num_mutations<< "\t" << ((b.time_samples[0]->num_mutations - expected_total_SNPs)/expected_total_SNPs) << std::endl;
+		std::cout<< (int)expected_total_SNPs << "\t" << b[0]->num_mutations<< "\t" << ((b[0]->num_mutations - expected_total_SNPs)/expected_total_SNPs) << std::endl;
 	}
 
 	delete [] expectation;

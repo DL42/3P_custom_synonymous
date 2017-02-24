@@ -205,7 +205,6 @@ __device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4
 
 } /* ----- end namespace RNG ----- */
 
-
 namespace GO_Fish{
 
 /* ----- sim result output ----- */
@@ -252,6 +251,10 @@ struct allele_trajectories{
 
 	allele_trajectories();
 	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } }
+	__host__ __forceinline__ time_sample* operator[](int sample_num){
+		if(sample_num >= 0 && sample_num < length){ return time_samples[sample_num]; }
+		else{ fprintf(stderr,"requested sample number out of bounds: sample %d\t[0\t %d)\n",sample_num,length); exit(1); }
+	}
 	~allele_trajectories();
 };
 /* ----- end sim result output ----- */

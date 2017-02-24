@@ -7,7 +7,6 @@
 
 #include "shared.cuh"
 
-
 GO_Fish::time_sample::time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; }
 GO_Fish::time_sample::~time_sample(){
 	if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); }
