@@ -2,10 +2,11 @@
  * go_fish.h
  *
  *      Author: David Lawrie
+ *      GO Fish Simulation API
  */
 
-#ifndef FW_SIM_API_H_
-#define FW_SIM_API_H_
+#ifndef GO_FISH_API_H_
+#define GO_FISH_API_H_
 #include <cuda_runtime.h>
 #include "shared.cuh"
 
@@ -261,7 +262,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 } /* ----- end namespace GO_Fish ----- */
 
 /* ----- importing functor implementations ----- */
-#include "simulation_functors.cuh"
+#include "template_inline_simulation_functors.cuh"
 /* ----- end importing functor implementations ----- */
 
 /* ----- importing go_fish_impl  ----- */
@@ -269,4 +270,4 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 /* ----- end importing go_fish_impl ----- */
 
 
-#endif /* GO_FISH_H_ */
+#endif /* GO_FISH_API_H_ */

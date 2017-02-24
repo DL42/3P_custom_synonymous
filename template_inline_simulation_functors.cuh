@@ -1,30 +1,25 @@
 /*
- * simulation_functors.cuh
+ * template_simulation_functors.cuh
  *
  *      Author: David Lawrie
+ *      implementation of template and inline functions for GO Fish evolutionary models
  */
 
-#ifndef SIMULATION_FUNCTORS_CUH_
-#define SIMULATION_FUNCTORS_CUH_
+#ifndef TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_
+#define TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_
 
 namespace GO_Fish{
 
 /* ----- selection models ----- */
 /* ----- constant selection model ----- */
-const_selection::const_selection() : s(0) {}
-const_selection::const_selection(float s) : s(s){ }
 __host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return s; }
 /* ----- end constant selection model ----- */
 
 /* ----- linear frequency dependent selection model ----- */
-linear_frequency_dependent_selection::linear_frequency_dependent_selection() : slope(0), intercept(0) {}
-linear_frequency_dependent_selection::linear_frequency_dependent_selection(float slope, float intercept) : slope(slope), intercept(intercept) { }
 __host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return slope*freq+intercept; }
 /* ----- end linear frequency dependent selection model ----- */
 
 /* ----- seasonal selection model ----- */
-seasonal_selection::seasonal_selection() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
-seasonal_selection::seasonal_selection(float A, float pi, float D, float rho /*= 0*/, int generation_shift /*= 0*/) : A(A), pi(pi), rho(rho), D(D), generation_shift(generation_shift) {}
 __host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal selection model ----- */
 
@@ -55,14 +50,10 @@ __host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Func
 
 /* ----- mutation, dominance, & inbreeding models ----- */
 /* ----- constant parameter model ----- */
-const_parameter::const_parameter() : p(0) {}
-const_parameter::const_parameter(float p) : p(p){ }
 __host__ __forceinline__ float const_parameter::operator()(const int population, const int generation) const{ return p; }
 /* ----- end constant parameter model ----- */
 
 /* ----- seasonal parameter model ----- */
-seasonal_parameter::seasonal_parameter() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
-seasonal_parameter::seasonal_parameter(float A, float pi, float D, float rho /*= 0*/, int generation_shift /*= 0*/) : A(A), pi(pi), rho(rho), D(D), generation_shift(generation_shift) {}
 __host__ __forceinline__ float seasonal_parameter::operator()(const int population, const int generation) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal parameter model ----- */
 
@@ -92,25 +83,17 @@ __host__ __forceinline__ float piecewise_parameter<Functor_p1, Functor_p2>::oper
 /* ----- end of mutation, dominance, & inbreeding models ----- */
 
 /* ----- demography models ----- */
-const_demography::const_demography() : p(0) {}
-const_demography::const_demography(int p) : p(p){ }
 __host__ __device__  __forceinline__ int const_demography::operator()(const int population, const int generation) const{ return p; }
 
 /* ----- seasonal demography model ----- */
-seasonal_demography::seasonal_demography() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
-seasonal_demography::seasonal_demography(float A, float pi, int D, float rho /*= 0*/, int generation_shift /*= 0*/) : A(A), pi(pi), rho(rho), D(D), generation_shift(generation_shift) {}
 __host__ __device__  __forceinline__ int seasonal_demography::operator()(const int population, const int generation) const{ return (int)A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal parameter model ----- */
 
 /* ----- exponential growth model ----- */
-exponential_growth::exponential_growth() : rate(0), initial_population_size(0), generation_shift(0) {}
-exponential_growth::exponential_growth(float rate, int initial_population_size, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), generation_shift(generation_shift) {}
 __host__ __device__  __forceinline__ int exponential_growth::operator()(const int population, const int generation) const{ return (int)round(initial_population_size*exp(rate*(generation-generation_shift))); }
 /* ----- end exponential growth model ----- */
 
 /* ----- exponential growth model ----- */
-logistic_growth::logistic_growth() : rate(0), initial_population_size(0), carrying_capacity(0), generation_shift(0) {}
-logistic_growth::logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), carrying_capacity(carrying_capacity), generation_shift(generation_shift) {}
 __host__ __device__  __forceinline__ int logistic_growth::operator()(const int population, const int generation) const{
 	float term = exp(rate*(generation-generation_shift));
 	return (int)round(carrying_capacity*initial_population_size*term/(carrying_capacity + initial_population_size*(term-1)));
@@ -145,9 +128,6 @@ __host__ __device__  __forceinline__ int piecewise_demography<Functor_p1, Functo
 
 /* ----- migration models ----- */
 /* ----- constant equal migration model ----- */
-const_equal_migration::const_equal_migration() : m(0), num_pop(0){ }
-const_equal_migration::const_equal_migration(int n) : m(0), num_pop(n){ }
-const_equal_migration::const_equal_migration(float m, int n) : m(m), num_pop(n){ }
 __host__ __device__ __forceinline__ float const_equal_migration::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 		if(pop_FROM == pop_TO){ return 1-(num_pop-1)*m; }
 		return (num_pop > 1) * m;
@@ -184,8 +164,6 @@ __host__ __forceinline__ bool do_nothing::operator()(const int generation) const
 
 __host__ __forceinline__ bool do_something::operator()(const int generation) const{ return true; }
 
-do_array::do_array(): length(0), generation_shift(0) { array = NULL; }
-do_array::do_array(const bool * const in_array, int length, int generation_shift/* = 0*/): length(length), generation_shift(generation_shift) { array = in_array; }
 __host__ __forceinline__ bool do_array::operator()(const int generation) const {
 	int gen = generation - generation_shift;
 	if((gen < 0) | (gen > length)){ fprintf(stderr,"do_array functor generation error,\t generation %d\t shifted generation %d\t array length %d\n",generation,gen,length); exit(1); }
@@ -202,4 +180,4 @@ __host__ __forceinline__ bool do_something_else<Functor_stable,Functor_action>::
 
 }/* ----- end namespace GO_Fish ----- */
 
-#endif /* SIMULATION_FUNCTORS_CUH_ */
+#endif /* TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_ */
