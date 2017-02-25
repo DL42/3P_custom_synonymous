@@ -48,6 +48,7 @@ struct allele_trajectories{
 		int num_discrete_DFE_categories;
 		int num_populations;
 		bool init_mse;
+		int prev_sim_sample;
 		int compact_rate;
 		int device;
 

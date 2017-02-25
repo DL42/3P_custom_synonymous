@@ -87,6 +87,46 @@ void run_speed_test()
 
 ////////////////////////////////////////////////////////////
 
+void run_prev_sim_test(){
+	GO_Fish::allele_trajectories a;
+	a.sim_input_constants.num_generations = 5*pow(10.f,4);//36;//50;//
+	a.sim_input_constants.num_sites = 2*pow(10.f,7); //number of sites
+	a.sim_input_constants.num_populations = 1; //number of populations
+	a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
+	a.sim_input_constants.seed2 = 0xdecafbad;
+	a.sim_input_constants.init_mse = false;
+	bool DFE = false;
+	GO_Fish::const_parameter mutation1(1.07*pow(10.f,-9)); //per-site mutation rate
+	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
+	GO_Fish::const_demography demography(pow(10.f,4)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	GO_Fish::const_equal_migration migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
+	float gamma = 0; //effective selection
+	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
+	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
+	GO_Fish::do_nothing preserve; //don't preserve alleles from any generation
+	GO_Fish::do_nothing sample_strategy; //only sample final generation
+
+	GO_Fish::run_sim(a,mutation1,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	std::cout<<std::endl<<"final number of mutations: " << a.num_mutations() << std::endl;
+
+	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
+	a.sim_input_constants.prev_sim_sample = 0;
+	GO_Fish::const_parameter mutation2(pow(10.f,-9)); //per-site mutation rate
+	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy,a);
+	std::cout<<std::endl<<"final number of mutations: " << a.num_mutations() << std::endl;
+
+	a.sim_input_constants.init_mse = true;
+	a.sim_input_constants.seed1 = 0xdecafbad; //random number seeds
+	a.sim_input_constants.seed2 = 0xbeeff00d;
+	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
+	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	std::cout<<std::endl<<"final number of mutations: " << a.num_mutations() << std::endl;
+}
+
+////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////
+
 double gx(double x, double gamma, double mu_site, double L){
 	if(gamma != 0) return 2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
 	return 2*mu_site*L/x;
