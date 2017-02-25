@@ -5,6 +5,7 @@
  */
 
 #include "sfs.h"
+#include "shared.cuh"
 
 namespace SFS{
 

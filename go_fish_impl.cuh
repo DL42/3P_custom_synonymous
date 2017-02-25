@@ -11,6 +11,7 @@
 #include <cub/device/device_scan.cuh>
 
 #include "shared.cuh"
+#include "go_fish_data_struct.h"
 
 namespace go_fish_details{
 
@@ -511,20 +512,20 @@ __host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const time_sample & prev_sim){
 
 	using namespace go_fish_details;
 
 	int2 seed;
-	seed.x = all_results.sim_input_params.seed1;
-	seed.y = all_results.sim_input_params.seed2;
-	cudaDeviceProp devProp = set_cuda_device(all_results.sim_input_params.device);
+	seed.x = all_results.sim_input_constants.seed1;
+	seed.y = all_results.sim_input_constants.seed2;
+	cudaDeviceProp devProp = set_cuda_device(all_results.sim_input_constants.device);
 
 	sim_struct mutations;
 
-	mutations.h_num_populations = all_results.sim_input_params.num_populations;
+	mutations.h_num_populations = all_results.sim_input_constants.num_populations;
 	mutations.h_new_mutation_Indices = new int[mutations.h_num_populations+1];
-	mutations.h_num_sites = all_results.sim_input_params.num_sites;
+	mutations.h_num_sites = all_results.sim_input_constants.num_sites;
 	mutations.h_extinct = new bool[mutations.h_num_populations];
 	for(int i = 0; i < mutations.h_num_populations; i++){ mutations.h_extinct[i] = 0; } //some compilers won't default to 0
 	mutations.warp_size  = devProp.warpSize;
@@ -547,18 +548,18 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}
 
 	int generation = 0;
-	int final_generation = all_results.sim_input_params.num_generations;
-	int compact_rate = all_results.sim_input_params.compact_rate;
+	int final_generation = all_results.sim_input_constants.num_generations;
+	int compact_rate = all_results.sim_input_constants.compact_rate;
 
 	//----- initialize simulation -----
-	if(all_results.sim_input_params.init_mse){
+	if(all_results.sim_input_constants.init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		initialize_mse(mutations, mu_rate, demography, sel_coeff, FI, dominance, final_generation, seed, (preserve_mutations(0)|take_sample(0)), compact_rate, pop_streams, pop_events);
 		//----- end -----
 	}else{
-		//----- initialize from results of previous simulation run or initialize to blank (blank will often take >> N generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, generation, final_generation, all_results.sim_input_params.prev_sim, mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
+		//----- initialize from results of previous simulation run or initialize to blank (blank will often take many generations to reach equilibrium) -----
+		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
 	}

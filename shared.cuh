@@ -2,7 +2,7 @@
  * shared.cuh
  *
  *      Author: David Lawrie
- *      for structures and functions used by both go_fish and by sfs
+ *      for cuda and rand functions used by both go_fish and by sfs
  */
 
 #ifndef SHARED_CUH_
@@ -204,61 +204,5 @@ __device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4
 /* ----- end random number generation ----- */
 
 } /* ----- end namespace RNG ----- */
-
-namespace GO_Fish{
-
-/* ----- sim result output ----- */
-struct mutID{
-	int origin_generation; //generation in which mutation appeared in simulation
-	int origin_population; //population in which mutation first arose
-	int origin_threadID; //threadID that generated mutation; if negative, flag to preserve mutation in simulation (not filter out if lost or fixed)
-    int DFE_category; //discrete DFE category
-};
-
-struct time_sample{
-	float * mutations_freq; //allele frequency of mutations in final generation
-	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
-	bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
-	int * Nchrom_e; //effective number of chromosomes in each population
-	int num_populations; //number of populations in freq array (array length, rows)
-	int num_mutations; //number of mutations in array (array length for age/freq, columns)
-	float num_sites; //number of sites in simulation
-	int sampled_generation; //number of generations in the simulation at point of sampling
-
-	time_sample();
-	~time_sample();
-};
-
-struct allele_trajectories{
-	time_sample ** time_samples;
-	int length;
-	//----- initialization parameters -----
-	struct sim_input_params{
-		int seed1;
-		int seed2;
-		int num_generations;
-		float num_sites;
-		int num_discrete_DFE_categories;
-		int num_populations;
-		bool init_mse;
-		time_sample prev_sim;
-		int compact_rate;
-		int device;
-		sim_input_params();
-		~sim_input_params();
-	}sim_input_params;
-	//----- end -----
-
-	allele_trajectories();
-	__host__ __forceinline__ void free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; }
-	__host__ __forceinline__ time_sample* operator[](int sample_num){
-		if(sample_num >= 0 && sample_num < length){ return time_samples[sample_num]; }
-		else{ fprintf(stderr,"requested sample number out of bounds: sample %d\t[0\t %d)\n",sample_num,length); exit(1); }
-	}
-	~allele_trajectories();
-};
-/* ----- end sim result output ----- */
-
-} /* ----- end namespace GO_Fish ----- */
 
 #endif /* SHARED_CUH_ */

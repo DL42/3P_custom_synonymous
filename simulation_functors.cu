@@ -5,7 +5,7 @@
  *      implementation of non-template and non-inline functions for GO Fish evolutionary scenarios
  */
 
-#include "go_fish.h"
+#include "go_fish.cuh"
 
 namespace GO_Fish{
 

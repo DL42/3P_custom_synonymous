@@ -7,7 +7,7 @@
 #ifndef SFS_H_
 #define SFS_H_
 
-#include "shared.cuh"
+#include "go_fish_data_struct.h"
 
 namespace SFS{
 
