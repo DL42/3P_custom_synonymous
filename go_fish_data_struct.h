@@ -1,9 +1,10 @@
 /*
- * data_struct.h
+ * go_fish_data_struct.h
  *
  *      Author: David Lawrie
  *      GO Fish data structures
  */
+
 #ifndef GO_FISH_DATA_H_
 #define GO_FISH_DATA_H_
 
@@ -43,42 +44,14 @@ struct allele_trajectories{
 
 	allele_trajectories();
 
-	inline float frequency(int sample_index, int population_index, int mutation_index){
-		int num_populations = sim_input_constants.num_populations;
-		int num_mutations;
-		if((sample_index >= 0 && sample_index < length) && time_samples && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < time_samples[length-1]->num_mutations)){
-			num_mutations = time_samples[length-1]->num_mutations;
-			int num_mutations_in_sample = time_samples[sample_index]->num_mutations;
-			if(mutation_index >= num_mutations_in_sample){ return 0; }
-			return time_samples[sample_index]->mutations_freq[mutation_index+population_index*num_mutations_in_sample];
-		}
-		else{
-			if(!time_samples){ fprintf(stderr,"frequency error: empty allele_trajectories\n"); exit(1); }
-			num_mutations = time_samples[length-1]->num_mutations;
-			fprintf(stderr,"frequency error: index out of bounds: sample %d\t[0 %d), population %d\t[0 %d), mutation %d\t[0 %d)\n",sample_index,length,population_index,num_populations,mutation_index,num_mutations); exit(1);
-		}
-	}
+	inline float frequency(int sample_index, int population_index, int mutation_index);
 
 	//number of mutations in the final sample (maximal number of mutations in the allele_trajectories)
-	inline int num_mutations(){ return (*this)[length-1]->num_mutations; }
+	inline int num_mutations();
 
-	inline void delete_time_sample(int index){
-		if(index >= 0 && index < length){
-			delete time_samples[index];
-			time_sample ** temp = new time_sample * [length-1];
-			for(int i = 0; i < length; i++){
-				if(i < index){ temp[i] = time_samples[i]; }
-				else if (i > index){ temp[i-1] = time_samples[i]; }
-			}
-			time_samples = temp;
-			length -= 1;
-		}else{
-			if(!time_samples){ fprintf(stderr,"delete_time_sample error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"delete_time_sample error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
-		}
-	}
+	inline void delete_time_sample(int index);
 
-	inline void free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; length = 0; }
+	inline void free_memory();
 
 	~allele_trajectories();
 
@@ -103,28 +76,11 @@ private:
 		~time_sample();
 	};
 
-	inline time_sample* operator[](int index) {
-		if(index >= 0 && index < length){ return time_samples[index]; }
-		else{
-			if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
-		}
-	}
+	inline time_sample* operator[](int index);
 
-	inline time_sample* operator[](int index) const {
-		if(index >= 0 && index < length){ return time_samples[index]; }
-		else{
-			if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
-		}
-	}
+	inline time_sample* operator[](int index) const;
 
-	inline void initialize_sim_result_vector(int new_length){
-		free_memory(); //overwrite old data if any
-		length = new_length;
-		time_samples = new time_sample *[length];
-		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(); }
-	}
+	inline void initialize_sim_result_vector(int new_length);
 
 	time_sample ** time_samples;
 	unsigned int length;
@@ -132,5 +88,9 @@ private:
 /* ----- end sim result output ----- */
 
 } /* ----- end namespace GO_Fish ----- */
+
+/* ----- import inline function definitions ----- */
+#include "inline_go_fish_data_struct.hpp"
+/* ----- end ----- */
 
 #endif /* GO_FISH_DATA_H_ */

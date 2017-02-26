@@ -1,5 +1,5 @@
 /*
- * shared.cu
+ * go_fish_data_struct.cu
  *
  *      Author: David Lawrie
  *      GO Fish data structures
