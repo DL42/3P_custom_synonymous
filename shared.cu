@@ -8,7 +8,7 @@
 #include "shared.cuh"
 
 __device__ int RNG::ApproxRandBinomHelper(unsigned int i, float mean, float var, float N){
-	if(mean <= MEAN_BOUNDARY){ return poiscdfinv(uint_float_01(i), mean); }
-	else if(mean >= N-MEAN_BOUNDARY){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= RNG_MEAN_BOUNDARY_POIS_NORM){ return poiscdfinv(uint_float_01(i), mean); }
+	else if(mean >= N-RNG_MEAN_BOUNDARY_POIS_NORM){ return N - poiscdfinv(uint_float_01(i), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
 }

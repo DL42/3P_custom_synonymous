@@ -41,7 +41,7 @@ __forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
 /* ----- random number generation ----- */
 
 namespace RNG{
-#define MEAN_BOUNDARY 6
+#define RNG_MEAN_BOUNDARY_POIS_NORM 6
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
@@ -189,8 +189,8 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 
 __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, float p, float N, int2 seed, int id, int generation, int population){
 	uint4 i = Philox(seed, id, generation, population, 0);
-	if(mean <= MEAN_BOUNDARY){ return poiscdfinv(uint_float_01(i.x), mean); }
-	else if(mean >= N-MEAN_BOUNDARY){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= RNG_MEAN_BOUNDARY_POIS_NORM){ return poiscdfinv(uint_float_01(i.x), mean); }
+	else if(mean >= N-RNG_MEAN_BOUNDARY_POIS_NORM){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
