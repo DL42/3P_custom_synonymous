@@ -72,9 +72,7 @@ public:
 		length = in.length;
 		time_samples = new time_sample *[length];
 
-		for(int i = 0; i < length; i++){
-			time_samples[i] = new time_sample(in,i);
-		}
+		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(in,i); }
 	}
 
 	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, int cuda_device);

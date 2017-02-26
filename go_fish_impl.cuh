@@ -336,15 +336,14 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve, typename Functor_timesample>
-__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const GO_Fish::time_sample & prev_sim, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, const float * const prev_sim_mutations_freq, const GO_Fish::mutID * const prev_sim_mutations_ID, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const int compact_rate, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
-	bool use_prev_sim = (mutations.h_num_sites == prev_sim.num_sites && mutations.h_num_populations == prev_sim.num_populations);
-	if(prev_sim.num_mutations != 0 && use_prev_sim){
-		generation_shift = prev_sim.sampled_generation;
+	if(prev_sim_num_mutations != 0 && use_prev_sim){
+		generation_shift = prev_sim_sampled_generation;
 		final_generation += generation_shift;
-		num_mutations = prev_sim.num_mutations;
-		for(int i = 0; i < mutations.h_num_populations; i++){ mutations.h_extinct[i] = prev_sim.extinct[i]; }
+		num_mutations = prev_sim_num_mutations;
+		for(int i = 0; i < mutations.h_num_populations; i++){ mutations.h_extinct[i] = prev_sim_extinct[i]; }
 	}
 
 		set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_rate, generation_shift, final_generation);
@@ -352,9 +351,9 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_ID, mutations.h_array_Length*sizeof(int4)),0,-1);
 
-	if(prev_sim.num_mutations != 0 && use_prev_sim){
-		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim.mutations_freq, prev_sim.num_mutations*sizeof(float), prev_sim.num_mutations*sizeof(float), prev_sim.num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
-		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim.mutations_ID, prev_sim.num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1);
+	if(prev_sim_num_mutations != 0 && use_prev_sim){
+		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim_mutations_freq, prev_sim_num_mutations*sizeof(float), prev_sim_num_mutations*sizeof(float), prev_sim_num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
+		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim_mutations_ID, prev_sim_num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1);
 		if(preserve_mutations(generation_shift) | take_sample(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[1],pop_streams[1]),0,-1);
@@ -434,7 +433,7 @@ template <typename Functor_mutation, typename Functor_demography, typename Funct
 __host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_inbreeding FI, sim_struct & mutations, const int generation){
 	int num_pop = mutations.h_num_populations;
 	for(int pop = 0; pop < num_pop; pop++){
-		float migration = 0;
+		double migration = 0;
 		if(mu_rate(pop,generation) < 0){ fprintf(stderr,"mutation error, mu_rate < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		int N = demography(pop,generation);
 		if(N > 0 && mutations.h_extinct[pop]){ fprintf(stderr,"demography error, extinct population with population size > 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
@@ -443,11 +442,11 @@ __host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor
 		if(fi > 1) { fprintf(stderr,"inbreeding error, inbreeding coefficient > 1\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		for(int pop2 = 0; pop2 < num_pop; pop2++){
 			float m = mig_prop(pop,pop2,generation);
-			migration += m;
+			migration += (double)m;
 			if(m < 0){ fprintf(stderr,"migration error, migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
 			if(m > 0 && (N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"migration error, migration from non-existant population\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
 		}
-		if(migration != 1){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_from %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
+		if((float)migration != 1.f){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_from %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
 	}
 }
 
@@ -481,20 +480,20 @@ __host__ __forceinline__ int calc_sim_result_vector_length(Functor_timesample ta
 }
 
 template <typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
-	out->num_populations = mutations.h_num_populations;
-	out->num_mutations = mutations.h_mutations_Index;
-	out->num_sites = mutations.h_num_sites;
-	out->sampled_generation = sampled_generation;
-	cudaCheckErrors(cudaMallocHost((void**)&out->mutations_freq,out->num_populations*out->num_mutations*sizeof(float)),sampled_generation,-1); //should allow for simultaneous transfer to host
-	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out->mutations_freq, out->num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out->num_mutations*sizeof(float), out->num_populations, cudaMemcpyDeviceToHost, control_streams[1]),sampled_generation,-1); //removes padding
-	cudaCheckErrors(cudaMallocHost((void**)&out->mutations_ID, out->num_mutations*sizeof(GO_Fish::mutID)),sampled_generation,-1);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(out->mutations_ID, mutations.d_mutations_ID, out->num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[2]),sampled_generation,-1); //mutations array is 1D
-	out->extinct = new bool[out->num_populations];
-	out->Nchrom_e = new int[out->num_populations];
-	for(int i = 0; i < out->num_populations; i++){
-		out->extinct[i] = mutations.h_extinct[i];
-		out->Nchrom_e[i] = 2*demography(i,sampled_generation)/(1+FI(i,sampled_generation));
+__host__ __forceinline__ void store_time_sample(int & out_num_populations, int & out_num_mutations, float & out_num_sites, int & out_sampled_generation, float *& out_mutations_freq, GO_Fish::mutID *& out_mutations_ID, bool *& out_extinct, int *& out_Nchrom_e, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
+	out_num_populations = mutations.h_num_populations;
+	out_num_mutations = mutations.h_mutations_Index;
+	out_num_sites = mutations.h_num_sites;
+	out_sampled_generation = sampled_generation;
+	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_freq,out_num_populations*out_num_mutations*sizeof(float)),sampled_generation,-1); //should allow for simultaneous transfer to host
+	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), out_num_populations, cudaMemcpyDeviceToHost, control_streams[1]),sampled_generation,-1); //removes padding
+	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_ID, out_num_mutations*sizeof(GO_Fish::mutID)),sampled_generation,-1);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[2]),sampled_generation,-1); //mutations array is 1D
+	out_extinct = new bool[out_num_populations];
+	out_Nchrom_e = new int[out_num_populations];
+	for(int i = 0; i < out_num_populations; i++){
+		out_extinct[i] = mutations.h_extinct[i];
+		out_Nchrom_e[i] = 2*demography(i,sampled_generation)/(1+FI(i,sampled_generation));
 	}
 
 	cudaCheckErrorsAsync(cudaEventRecord(control_events[1],control_streams[1]),sampled_generation,-1);
@@ -562,8 +561,25 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take many generations to reach equilibrium) -----
 		int sample_index = all_results.sim_input_constants.prev_sim_sample;
-		if(sample_index >= 0 && sample_index < all_results.length){ init_blank_prev_run(mutations, generation, final_generation, (*prev_sim[sample_index]), mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events); }
-		else{ init_blank_prev_run(mutations, generation, final_generation, time_sample(), mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events); }
+		if((sample_index >= 0 && sample_index < all_results.length) && prev_sim.time_samples){
+			float prev_sim_num_sites = prev_sim.time_samples[sample_index]->num_sites;
+			int prev_sim_num_populations = prev_sim.time_samples[sample_index]->num_populations;
+			if(mutations.h_num_sites == prev_sim_num_sites && mutations.h_num_populations == prev_sim_num_populations){
+				//initialize from previous simulation
+				//const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, const float * const prev_sim_mutations_freq, const GO_Fish::mutID * const prev_sim_mutations_ID
+				init_blank_prev_run(mutations, generation, final_generation, true, prev_sim_num_sites, prev_sim_num_populations, prev_sim.time_samples[sample_index]->sampled_generation, prev_sim.time_samples[sample_index]->extinct, prev_sim.time_samples[sample_index]->num_mutations, prev_sim.time_samples[sample_index]->mutations_freq, prev_sim.time_samples[sample_index]->mutations_ID, mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
+			}else{
+				fprintf(stderr,"run_sim error: prev_sim parameters do not match current simulation parameters: prev_sim num_sites %f\tcurrent_sim num_sites %f,\tprev_sim num_populations %d\tcurrent_sim num_populations %d\n",prev_sim_num_sites,mutations.h_num_sites,prev_sim_num_populations,mutations.h_num_populations); exit(1);
+			}
+		}
+		else if(sample_index < 0){
+			//initialize blank simulation
+			init_blank_prev_run(mutations, generation, final_generation, false, -1.f, -1, -1, NULL, 0, NULL, NULL, mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
+		}
+		else{
+			if(!prev_sim.time_samples){ fprintf(stderr,"run_sim error: requested time sample from empty prev_sim\n"); exit(1); }
+			fprintf(stderr,"run_sim error: requested sample index out of bounds for prev_sim: sample %d\t[0\t %d)\n",sample_index,prev_sim.length); exit(1);
+		}
 
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
@@ -572,10 +588,10 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	int new_length = calc_sim_result_vector_length(take_sample,generation,final_generation);
 	all_results.initialize_sim_result_vector(new_length);
 
-	//----- take time samples of frequency spectrum -----
+	//----- take time samples of allele trajectory -----
 	int sample_index = 0;
 	if(take_sample(generation) && generation != final_generation){
-		store_time_sample(all_results.time_samples[sample_index], mutations, demography, FI, generation, control_streams, control_events);
+		store_time_sample(all_results.time_samples[sample_index]->num_populations, all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->num_sites, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, control_streams, control_events);
 		sample_index++;
 	}
 	//----- end -----
@@ -656,15 +672,17 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		if((generation == next_compact_generation || generation == final_generation || preserve) && compact_rate > 0){ compact(mutations, mu_rate, demography, FI, generation, final_generation, preserve, compact_rate, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_rate;  }
 		//----- end -----
 
-		//----- take time samples of frequency spectrum -----
+		//----- take time samples of allele trajectories -----
 		if(take_sample(generation) && generation != final_generation){
-			store_time_sample(all_results.time_samples[sample_index], mutations, demography, FI, generation, control_streams, control_events);
+			store_time_sample(all_results.time_samples[sample_index]->num_populations, all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->num_sites, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
 
-	store_time_sample(all_results.time_samples[sample_index], mutations, demography, FI, generation, control_streams, control_events);
+	//----- take final time sample of allele trajectories -----
+	store_time_sample(all_results.time_samples[sample_index]->num_populations, all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->num_sites, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, control_streams, control_events);
+	//----- end -----
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[1]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[1]), generation, -1); } //wait for writes to host to finish

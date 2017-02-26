@@ -23,20 +23,6 @@ struct mutID{
     int DFE_category; //discrete DFE category
 };
 
-struct time_sample{
-	float * mutations_freq; //allele frequency of mutations in final generation
-	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
-	bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
-	int * Nchrom_e; //effective number of chromosomes in each population
-	int num_populations; //number of populations in freq array (array length, rows)
-	int num_mutations; //number of mutations in array (array length for age/freq, columns)
-	float num_sites; //number of sites in simulation
-	int sampled_generation; //number of generations in the simulation at point of sampling
-
-	time_sample();
-	~time_sample();
-};
-
 struct allele_trajectories{
 	//----- initialization parameters -----
 	struct sim_input_constants{
@@ -58,20 +44,22 @@ struct allele_trajectories{
 	allele_trajectories();
 
 	inline float frequency(int sample_index, int population_index, int mutation_index){
-		int num_mutations = time_samples[length-1]->num_mutations;
 		int num_populations = sim_input_constants.num_populations;
-		if((sample_index >= 0 && sample_index < length) && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < num_mutations)){
+		int num_mutations;
+		if((sample_index >= 0 && sample_index < length) && time_samples && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < time_samples[length-1]->num_mutations)){
+			num_mutations = time_samples[length-1]->num_mutations;
 			int num_mutations_in_sample = time_samples[sample_index]->num_mutations;
 			if(mutation_index >= num_mutations_in_sample){ return 0; }
 			return time_samples[sample_index]->mutations_freq[mutation_index+population_index*num_mutations_in_sample];
 		}
 		else{
 			if(!time_samples){ fprintf(stderr,"frequency error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"frequency error: index out of bounds: sample %d\t[0\t %d), population %d\t[0\t %d), mutation %d\t[0\t %d)\n",sample_index,length,population_index,num_populations,mutation_index,num_mutations); exit(1);
+			num_mutations = time_samples[length-1]->num_mutations;
+			fprintf(stderr,"frequency error: index out of bounds: sample %d\t[0 %d), population %d\t[0 %d), mutation %d\t[0 %d)\n",sample_index,length,population_index,num_populations,mutation_index,num_mutations); exit(1);
 		}
 	}
 
-	//number of mutations in the final sample (maximal number of mutations in the
+	//number of mutations in the final sample (maximal number of mutations in the allele_trajectories)
 	inline int num_mutations(){ return (*this)[length-1]->num_mutations; }
 
 	inline void delete_time_sample(int index){
@@ -86,7 +74,7 @@ struct allele_trajectories{
 			length -= 1;
 		}else{
 			if(!time_samples){ fprintf(stderr,"delete_time_sample error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"delete_time_sample error: requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1);
+			fprintf(stderr,"delete_time_sample error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
 		}
 	}
 
@@ -101,18 +89,40 @@ struct allele_trajectories{
 
 private:
 
-	inline time_sample* operator[](int index) const{
+	struct time_sample{
+		float * mutations_freq; //allele frequency of mutations in final generation
+		mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
+		bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
+		int * Nchrom_e; //effective number of chromosomes in each population
+		int num_populations; //number of populations in freq array (array length, rows)
+		int num_mutations; //number of mutations in array (array length for age/freq, columns)
+		float num_sites; //number of sites in simulation
+		int sampled_generation; //number of generations in the simulation at point of sampling
+
+		time_sample();
+		~time_sample();
+	};
+
+	inline time_sample* operator[](int index) {
 		if(index >= 0 && index < length){ return time_samples[index]; }
 		else{
 			if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1);
+			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
+		}
+	}
+
+	inline time_sample* operator[](int index) const {
+		if(index >= 0 && index < length){ return time_samples[index]; }
+		else{
+			if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
+			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
 		}
 	}
 
 	inline void initialize_sim_result_vector(int new_length){
 		free_memory(); //overwrite old data if any
 		length = new_length;
-		time_samples = new GO_Fish::time_sample *[length];
+		time_samples = new time_sample *[length];
 		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(); }
 	}
 

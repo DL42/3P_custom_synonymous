@@ -10,8 +10,8 @@
 
 namespace GO_Fish{
 
-time_sample::time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; /*set pointers to NULL*/}
-time_sample::~time_sample(){
+allele_trajectories::time_sample::time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; /*set pointers to NULL*/}
+allele_trajectories::time_sample::~time_sample(){
 	if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); mutations_freq = 0; }
 	if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); mutations_ID = 0; }
 	if(extinct){ delete [] extinct; extinct = 0; }
