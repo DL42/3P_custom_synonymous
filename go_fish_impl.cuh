@@ -348,7 +348,6 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 	}
 
 		set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_rate, generation_shift, final_generation);
-		//cout<<"initial length " << mutations.h_array_Length << endl;
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_ID, mutations.h_array_Length*sizeof(int4)),0,-1);
@@ -474,13 +473,11 @@ __host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
 }
 
 template <typename Functor_timesample>
-__host__ __forceinline__ void initialize_sim_result_vector(GO_Fish::allele_trajectories & all_results, Functor_timesample take_sample, int starting_generation, int final_generation) {
-	if(all_results.time_samples){ delete [] all_results.time_samples; } //overwrite old data
-	all_results.length = 0;
-	for(int i = starting_generation; i < final_generation; i++){ if(take_sample(i)){ all_results.length++; } }
-	all_results.length++;//always takes sample of final generation
-	all_results.time_samples = new GO_Fish::time_sample *[all_results.length];
-	for(int i = 0; i < all_results.length; i++){ all_results.time_samples[i] = new GO_Fish::time_sample; }
+__host__ __forceinline__ int calc_sim_result_vector_length(Functor_timesample take_sample, int starting_generation, int final_generation) {
+	int length = 0;
+	for(int i = starting_generation; i < final_generation; i++){ if(take_sample(i)){ length++; } }
+	length++;//always takes sample of final generation
+	return length;
 }
 
 template <typename Functor_demography, typename Functor_inbreeding>
@@ -512,7 +509,12 @@ __host__ __forceinline__ void store_time_sample(GO_Fish::time_sample * out, sim_
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const time_sample & prev_sim){
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
+	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, discrete_DFE, preserve_mutations, take_sample, allele_trajectories());
+}
+
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim){
 
 	using namespace go_fish_details;
 
@@ -559,12 +561,16 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take many generations to reach equilibrium) -----
-		init_blank_prev_run(mutations, generation, final_generation, prev_sim, mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events);
+		int sample_index = all_results.sim_input_constants.prev_sim_sample;
+		if(sample_index >= 0 && sample_index < all_results.length){ init_blank_prev_run(mutations, generation, final_generation, (*prev_sim[sample_index]), mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events); }
+		else{ init_blank_prev_run(mutations, generation, final_generation, time_sample(), mu_rate, demography, FI, preserve_mutations, take_sample, compact_rate, pop_streams, pop_events); }
+
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- end -----
 	}
 
-	initialize_sim_result_vector(all_results,take_sample,generation,final_generation);
+	int new_length = calc_sim_result_vector_length(take_sample,generation,final_generation);
+	all_results.initialize_sim_result_vector(new_length);
 
 	//----- take time samples of frequency spectrum -----
 	int sample_index = 0;
@@ -575,7 +581,9 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- end -----
 	//----- end -----
 
-	//std::cout<< std::endl <<"initial num_mutations " << mutations.h_mutations_Index;
+//	std::cout<< std::endl <<"initial length " << mutations.h_array_Length << std::endl;
+//	std::cout<<"initial num_mutations " << mutations.h_mutations_Index;
+//	std::cout<< std::endl <<"generation " << generation;
 
 	//----- simulation steps -----
 	int next_compact_generation = generation + compact_rate;

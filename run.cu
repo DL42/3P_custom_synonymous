@@ -5,7 +5,7 @@
  */
 
 #include "go_fish.cuh"
-#include "sfs.h"
+#include "spectrum.h"
 #include "run.h"
 
 void run_speed_test()
@@ -30,21 +30,22 @@ void run_speed_test()
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
-	bool printSFS = true; //calculate and print out the SFS
-	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy,GO_Fish::time_sample());
-	std::cout<<std::endl<<"final number of mutations: " << a[0]->num_mutations << std::endl;
+	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	std::cout<<std::endl<<"final number of mutations: " << a.num_mutations() << std::endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
+	bool printSFS = true; //calculate and print out the SFS
 	int start_index = 0;
 	int print_num = 50;
 	if(printSFS){
-		SFS::sfs mySFS = SFS::site_frequency_spectrum(a[0],0);
+		SPECTRUM::sfs mySFS = SPECTRUM::site_frequency_spectrum(a,0,0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.num_samples[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 
-	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy,GO_Fish::time_sample());
+	//GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
 	//----- end warm up GPU -----
 
 	//----- speed test scenario parameters -----
@@ -65,8 +66,8 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy,GO_Fish::time_sample());
-		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a[0]->num_mutations << std::endl; }
+		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a.num_mutations() << std::endl; }
 	}
 
 	elapsedTime = 0;
@@ -170,9 +171,9 @@ void run_validation_test(){
 	for(int i = 0; i < num_iter; i++){
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim(b, GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing(), GO_Fish::time_sample());
+		GO_Fish::run_sim(b, GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing());
 		if(i==0){ std::cout<< "chi-gram number of mutations:"<<std::endl; }
-		std::cout<< (int)expected_total_SNPs << "\t" << b[0]->num_mutations<< "\t" << ((b[0]->num_mutations - expected_total_SNPs)/expected_total_SNPs) << std::endl;
+		std::cout<< (int)expected_total_SNPs << "\t" << b.num_mutations() << "\t" << ((b.num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;
 	}
 
 	delete [] expectation;

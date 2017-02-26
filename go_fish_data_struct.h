@@ -1,5 +1,5 @@
 /*
- * shared.cu
+ * data_struct.h
  *
  *      Author: David Lawrie
  *      GO Fish data structures
@@ -10,6 +10,8 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+
+namespace SPECTRUM{ class transfer_allele_trajectories; }
 
 namespace GO_Fish{
 
@@ -36,9 +38,6 @@ struct time_sample{
 };
 
 struct allele_trajectories{
-	time_sample ** time_samples;
-	unsigned int length;
-
 	//----- initialization parameters -----
 	struct sim_input_constants{
 		int seed1;
@@ -57,7 +56,24 @@ struct allele_trajectories{
 	//----- end -----
 
 	allele_trajectories();
-	inline void free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; length = 0; }
+
+	inline float frequency(int sample_index, int population_index, int mutation_index){
+		int num_mutations = time_samples[length-1]->num_mutations;
+		int num_populations = sim_input_constants.num_populations;
+		if((sample_index >= 0 && sample_index < length) && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < num_mutations)){
+			int num_mutations_in_sample = time_samples[sample_index]->num_mutations;
+			if(mutation_index >= num_mutations_in_sample){ return 0; }
+			return time_samples[sample_index]->mutations_freq[mutation_index+population_index*num_mutations_in_sample];
+		}
+		else{
+			if(!time_samples){ fprintf(stderr,"frequency error: empty allele_trajectories\n"); exit(1); }
+			fprintf(stderr,"frequency error: index out of bounds: sample %d\t[0\t %d), population %d\t[0\t %d), mutation %d\t[0\t %d)\n",sample_index,length,population_index,num_populations,mutation_index,num_mutations); exit(1);
+		}
+	}
+
+	//number of mutations in the final sample (maximal number of mutations in the
+	inline int num_mutations(){ return (*this)[length-1]->num_mutations; }
+
 	inline void delete_time_sample(int index){
 		if(index >= 0 && index < length){
 			delete time_samples[index];
@@ -69,33 +85,39 @@ struct allele_trajectories{
 			time_samples = temp;
 			length -= 1;
 		}else{
-			if(!time_samples){ fprintf(stderr,"delete_time_sample: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"delete_time_sample: requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1);
+			if(!time_samples){ fprintf(stderr,"delete_time_sample error: empty allele_trajectories\n"); exit(1); }
+			fprintf(stderr,"delete_time_sample error: requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1);
 		}
 	}
 
-	inline float frequency(int sample_index, int population_index, int mutation_index){
-		int num_mutations = time_samples[length-1]->num_mutations;
-		int num_populations = sim_input_constants.num_populations;
-		if((sample_index >= 0 && sample_index < length) && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < num_mutations)){
-			int num_mutations_in_sample = time_samples[sample_index]->num_mutations;
-			if(mutation_index >= num_mutations_in_sample){ return 0; }
-			return time_samples[sample_index]->mutations_freq[mutation_index+population_index*num_mutations_in_sample];
-		}
-		else{
-			if(!time_samples){ fprintf(stderr,"frequencies: empty allele_trajectories\n"); exit(1); }
-			fprintf(stderr,"frequencies: index out of bounds: sample %d\t[0\t %d), population %d\t[0\t %d), mutation %d\t[0\t %d)\n",sample_index,length,population_index,num_populations,mutation_index,num_mutations); exit(1);
-		}
-	}
+	inline void free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; length = 0; }
 
-	//template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-	//friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const time_sample & prev_sim);
-
-	inline time_sample* operator[](int index){
-		if(index >= 0 && index < length){ return time_samples[index]; }
-		else{ fprintf(stderr,"requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1); }
-	}
 	~allele_trajectories();
+
+	template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
+	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
+
+	friend class SPECTRUM::transfer_allele_trajectories;
+
+private:
+
+	inline time_sample* operator[](int index) const{
+		if(index >= 0 && index < length){ return time_samples[index]; }
+		else{
+			if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
+			fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0\t %d)\n",index,length); exit(1);
+		}
+	}
+
+	inline void initialize_sim_result_vector(int new_length){
+		free_memory(); //overwrite old data if any
+		length = new_length;
+		time_samples = new GO_Fish::time_sample *[length];
+		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(); }
+	}
+
+	time_sample ** time_samples;
+	unsigned int length;
 };
 /* ----- end sim result output ----- */
 
