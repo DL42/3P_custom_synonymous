@@ -140,15 +140,4 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, in
 	return mySFS;
 }
 
-/*GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample sample, int * population, int * num_samples, const int seed){
-
-	return GO_Fish::time_sample();
-}
-
-//multi-time point, multi-population sfs
-sfs temporal_site_frequency_spectrum(GO_Fish::time_sample sample, int * population, int * num_samples, int num_sfs_populations, const int seed){
-
-	return sfs();
-}*/
-
 } /*----- end namespace SPECTRUM ----- */

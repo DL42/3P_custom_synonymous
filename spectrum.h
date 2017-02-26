@@ -26,13 +26,6 @@ struct sfs{
 //single-population sfs
 sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, int cuda_device = -1);
 
-/*
-GO_Fish::time_sample sequencing_sample(GO_Fish::time_sample & sim, int * population, int * num_samples, const int seed);
-
-//multi-time point, multi-population sfs
-sfs temporal_site_frequency_spectrum(GO_Fish::time_sample & sim, int * population, int * num_samples, int num_sfs_populations, const int seed);
-*/
-
 } /*----- end namespace SPECTRUM ----- */
 
 #endif /* SPECTRUM_H_ */
