@@ -175,7 +175,7 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, co
 	        end   */
 
 	int num_threads = 1024;
-	int num_blocks = min(num_levels/num_threads,1);
+	int num_blocks = max(num_levels/num_threads,1);
 	if(sample_size == 0){
 		uint_to_float<<<num_blocks,num_threads,0,stream>>>(d_histogram, d_pop_histogram, num_levels);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);

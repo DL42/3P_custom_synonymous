@@ -41,7 +41,8 @@ __forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
 /* ----- random number generation ----- */
 
 namespace RNG{
-#define RNG_MEAN_BOUNDARY_POIS_NORM 6
+#define RNG_MEAN_BOUNDARY_NORM 6
+#define RNG_N_BOUNDARY_POIS_BINOM 100 //binomial calculation starts to become numerically unstable for large values of N, not sure where that starts but is between 200 and 200,000
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
@@ -78,6 +79,90 @@ __host__ __device__ __forceinline__  uint4 Philox(int2 seed, int k, int step, in
 	u.c = rng(count, key);
 
 	return u.i;
+}
+
+__host__ __device__ __forceinline__ void binom_iter(float j, float x, float n, float & emu, float & cdf){
+	emu *= ((n+1.f-j)*x)/(j*(1-x));
+	cdf += emu;
+}
+
+__host__ __device__ __forceinline__ int binomcdfinv(float p, float mean, float x, float n){
+	float emu = powf(1-x,n);
+	if(emu == 1) { emu = expf(-1 * mean);  }
+	float cdf = emu;
+	if(cdf >= p){ return 0; }
+
+	binom_iter(1.f, x, n, emu, cdf); if(cdf >= p){ return 1; }
+	binom_iter(2.f, x, n, emu, cdf); if(cdf >= p){ return 2; }
+	binom_iter(3.f, x, n, emu, cdf); if(cdf >= p){ return 3; }
+	binom_iter(4.f, x, n, emu, cdf); if(cdf >= p){ return 4; }
+	binom_iter(5.f, x, n, emu, cdf); if(cdf >= p){ return 5; }
+	binom_iter(6.f, x, n, emu, cdf); if(cdf >= p){ return 6; }
+	binom_iter(7.f, x, n, emu, cdf); if(cdf >= p){ return 7; }
+	binom_iter(8.f, x, n, emu, cdf); if(cdf >= p){ return 8; }
+	binom_iter(9.f, x, n, emu, cdf); if(cdf >= p){ return 9; }
+	binom_iter(10.f, x, n, emu, cdf); if(cdf >= p){ return 10; }
+	binom_iter(11.f, x, n, emu, cdf); if(cdf >= p || mean <= 1){ return 11; }
+	binom_iter(12.f, x, n, emu, cdf); if(cdf >= p){ return 12; }
+	binom_iter(13.f, x, n, emu, cdf); if(cdf >= p){ return 13; }
+	binom_iter(14.f, x, n, emu, cdf); if(cdf >= p || mean <= 2){ return 14; }
+	binom_iter(15.f, x, n, emu, cdf); if(cdf >= p){ return 15; }
+	binom_iter(16.f, x, n, emu, cdf); if(cdf >= p){ return 16; }
+	binom_iter(17.f, x, n, emu, cdf); if(cdf >= p || mean <= 3){ return 17; }
+	binom_iter(18.f, x, n, emu, cdf); if(cdf >= p){ return 18; }
+	binom_iter(19.f, x, n, emu, cdf); if(cdf >= p){ return 19; }
+	binom_iter(20.f, x, n, emu, cdf); if(cdf >= p || mean <= 4){ return 20; }
+	binom_iter(21.f, x, n, emu, cdf); if(cdf >= p){ return 21; }
+	binom_iter(22.f, x, n, emu, cdf); if(cdf >= p || mean <= 5){ return 22; }
+	binom_iter(23.f, x, n, emu, cdf); if(cdf >= p){ return 23; }
+	binom_iter(24.f, x, n, emu, cdf); if(cdf >= p || mean <= 6){ return 24; }
+	binom_iter(25.f, x, n, emu, cdf); if(cdf >= p){ return 25; }
+	binom_iter(26.f, x, n, emu, cdf); if(cdf >= p || mean <= 7){ return 26; }
+	binom_iter(27.f, x, n, emu, cdf); if(cdf >= p){ return 27; }
+	binom_iter(28.f, x, n, emu, cdf); if(cdf >= p || mean <= 8){ return 28; }
+	binom_iter(29.f, x, n, emu, cdf); if(cdf >= p){ return 29; }
+	binom_iter(30.f, x, n, emu, cdf); if(cdf >= p || mean <= 9){ return 30; }
+	binom_iter(31.f, x, n, emu, cdf); if(cdf >= p){ return 31; }
+	binom_iter(32.f, x, n, emu, cdf); if(cdf >= p || mean <= 10){ return 32; }
+	binom_iter(33.f, x, n, emu, cdf); if(cdf >= p){ return 33; }
+	binom_iter(34.f, x, n, emu, cdf); if(cdf >= p || mean <= 11){ return 34; }
+	binom_iter(35.f, x, n, emu, cdf); if(cdf >= p){ return 35; }
+	binom_iter(36.f, x, n, emu, cdf); if(cdf >= p || mean <= 12){ return 36; }
+	binom_iter(37.f, x, n, emu, cdf); if(cdf >= p){ return 37; }
+	binom_iter(38.f, x, n, emu, cdf); if(cdf >= p || mean <= 13){ return 38; }
+	binom_iter(39.f, x, n, emu, cdf); if(cdf >= p){ return 39; }
+	binom_iter(40.f, x, n, emu, cdf); if(cdf >= p || mean <= 14){ return 40; }
+	binom_iter(41.f, x, n, emu, cdf); if(cdf >= p || mean <= 15){ return 41; }
+	binom_iter(42.f, x, n, emu, cdf); if(cdf >= p){ return 42; }
+	binom_iter(43.f, x, n, emu, cdf); if(cdf >= p || mean <= 16){ return 43; }
+	binom_iter(44.f, x, n, emu, cdf); if(cdf >= p){ return 44; }
+	binom_iter(45.f, x, n, emu, cdf); if(cdf >= p || mean <= 17){ return 45; }
+	binom_iter(46.f, x, n, emu, cdf); if(cdf >= p || mean <= 18){ return 46; }
+	binom_iter(47.f, x, n, emu, cdf); if(cdf >= p){ return 47; }
+	binom_iter(48.f, x, n, emu, cdf); if(cdf >= p || mean <= 19){ return 48; }
+	binom_iter(49.f, x, n, emu, cdf); if(cdf >= p){ return 49; }
+	binom_iter(50.f, x, n, emu, cdf); if(cdf >= p || mean <= 20){ return 50; }
+	binom_iter(51.f, x, n, emu, cdf); if(cdf >= p || mean <= 21){ return 51; }
+	binom_iter(52.f, x, n, emu, cdf); if(cdf >= p){ return 52; }
+	binom_iter(53.f, x, n, emu, cdf); if(cdf >= p || mean <= 22){ return 53; }
+	binom_iter(54.f, x, n, emu, cdf); if(cdf >= p){ return 54; }
+	binom_iter(55.f, x, n, emu, cdf); if(cdf >= p || mean <= 23){ return 55; }
+	binom_iter(56.f, x, n, emu, cdf); if(cdf >= p || mean <= 24){ return 56; }
+	binom_iter(57.f, x, n, emu, cdf); if(cdf >= p){ return 57; }
+	binom_iter(58.f, x, n, emu, cdf); if(cdf >= p || mean <= 25){ return 58; }
+	binom_iter(59.f, x, n, emu, cdf); if(cdf >= p || mean <= 26){ return 59; }
+	binom_iter(60.f, x, n, emu, cdf); if(cdf >= p){ return 60; }
+	binom_iter(61.f, x, n, emu, cdf); if(cdf >= p || mean <= 27){ return 61; }
+	binom_iter(62.f, x, n, emu, cdf); if(cdf >= p || mean <= 28){ return 62; }
+	binom_iter(63.f, x, n, emu, cdf); if(cdf >= p){ return 63; }
+	binom_iter(64.f, x, n, emu, cdf); if(cdf >= p || mean <= 29){ return 64; }
+	binom_iter(65.f, x, n, emu, cdf); if(cdf >= p || mean <= 30){ return 65; }
+	binom_iter(66.f, x, n, emu, cdf); if(cdf >= p){ return 66; }
+	binom_iter(67.f, x, n, emu, cdf); if(cdf >= p || mean <= 31){ return 67; }
+	binom_iter(68.f, x, n, emu, cdf); if(cdf >= p || mean <= 32){ return 68; }
+	binom_iter(69.f, x, n, emu, cdf); if(cdf >= p){ return 69; }
+
+	return 70; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
 }
 
 __host__ __device__ __forceinline__ void pois_iter(float j, float mean, float & emu, float & cdf){
@@ -163,34 +248,14 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	return 70; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
 }
 
-/*__host__ __device__ __forceinline__ int ExactRandBinom(float p, float N, int2 seed, int k, int step, int population, int start_round){
- //only for use when N is small
-	int j = 0;
-	int counter = 0;
-
-	union {
-		uint h[4];
-		uint4 i;
-	}u;
-
-	while(counter < N){
-		u.i = Philox(seed, k, step, population, start_round+counter);
-
-		int counter2 = 0;
-		while(counter < N && counter2 < 4){
-			if(uint_float_01(u.h[counter2]) <= p){ j++; }
-			counter++;
-			counter2++;
-		}
-	}
-
-	return j;
-}*/
-
 __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, float p, float N, int2 seed, int id, int generation, int population){
 	uint4 i = Philox(seed, id, generation, population, 0);
-	if(mean <= RNG_MEAN_BOUNDARY_POIS_NORM){ return poiscdfinv(uint_float_01(i.x), mean); }
-	else if(mean >= N-RNG_MEAN_BOUNDARY_POIS_NORM){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of binomial, when 1-p is small
+	if(mean <= RNG_MEAN_BOUNDARY_NORM){
+		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return binomcdfinv(uint_float_01(i.x), mean, mean/N, N); } else{ return poiscdfinv(uint_float_01(i.x), mean); }
+	}
+	else if(mean >= N-RNG_MEAN_BOUNDARY_NORM){
+		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return N - binomcdfinv(uint_float_01(i.x), N-mean, (N-mean)/N, N); } else{ return N - poiscdfinv(uint_float_01(i.x), N-mean); }
+	} //flip side of binomial, when 1-p is small
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
