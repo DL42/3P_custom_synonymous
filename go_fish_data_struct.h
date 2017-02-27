@@ -76,10 +76,6 @@ private:
 		~time_sample();
 	};
 
-	inline time_sample* operator[](int index);
-
-	inline time_sample* operator[](int index) const;
-
 	inline void initialize_sim_result_vector(int new_length);
 
 	time_sample ** time_samples;

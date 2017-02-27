@@ -22,11 +22,11 @@ class transfer_allele_trajectories{
 		int sampled_generation; //number of generations in the simulation at point of sampling
 
 		time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; }
-		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_populations(in[sample_index]->num_populations), num_mutations(in[sample_index]->num_mutations), num_sites(in[sample_index]->num_sites), sampled_generation(in[sample_index]->sampled_generation){
-			mutations_freq = in[sample_index]->mutations_freq;
-			mutations_ID = in[sample_index]->mutations_ID;
-			extinct = in[sample_index]->extinct;
-			Nchrom_e = in[sample_index]->Nchrom_e;
+		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_populations(in.time_samples[sample_index]->num_populations), num_mutations(in.time_samples[sample_index]->num_mutations), num_sites(in.time_samples[sample_index]->num_sites), sampled_generation(in.time_samples[sample_index]->sampled_generation){
+			mutations_freq = in.time_samples[sample_index]->mutations_freq;
+			mutations_ID = in.time_samples[sample_index]->mutations_ID;
+			extinct = in.time_samples[sample_index]->extinct;
+			Nchrom_e = in.time_samples[sample_index]->Nchrom_e;
 		}
 		~time_sample(){ mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; } //don't actually delete information, just null pointers as this just points to the real data held
 	};

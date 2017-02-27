@@ -57,22 +57,6 @@ inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(); }
 }
 
-inline allele_trajectories::time_sample* allele_trajectories::operator[](int index) {
-	if(index >= 0 && index < length){ return time_samples[index]; }
-	else{
-		if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
-		fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
-	}
-}
-
-inline allele_trajectories::time_sample* allele_trajectories::operator[](int index) const {
-	if(index >= 0 && index < length){ return time_samples[index]; }
-	else{
-		if(!time_samples){ fprintf(stderr,"allele_trajectories operator[] error: empty allele_trajectories\n"); exit(1); }
-		fprintf(stderr,"allele_trajectories operator[] error: requested sample index out of bounds: sample %d\t[0 %d)\n",index,length); exit(1);
-	}
-}
-
 } /* ----- end namespace GO_Fish ----- */
 
 #endif /* INLINE_GOFISH_DATA_FUNCTIONS_HPP_ */
