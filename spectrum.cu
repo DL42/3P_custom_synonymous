@@ -6,6 +6,7 @@
 
 #include "spectrum.h"
 #include "shared.cuh"
+#include <cub/device/device_scan.cuh>
 
 namespace SPECTRUM{
 
@@ -75,26 +76,70 @@ public:
 		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(in,i); }
 	}
 
-	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, int cuda_device);
+	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, unsigned int num_sequencing_samples, int cuda_device);
 
 	~transfer_allele_trajectories(){ time_samples = 0; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory
 };
 
-__global__ void simple_hist(int * out_histogram, float * in_mutation_freq, int num_samples, int num_mutations, int num_sites){
+__global__ void population_hist(unsigned int * out_histogram, float * in_mutation_freq, int Nchrome_e, int num_mutations, int num_sites){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < num_mutations; id+= blockDim.x*gridDim.x){
-		int index = round(num_samples*in_mutation_freq[id]);
+		int index = round(Nchrome_e*in_mutation_freq[id]);
 		atomicAdd(&out_histogram[index],1);
 	}
 	if(myID == 0){  out_histogram[0] = num_sites - num_mutations;  }
 }
 
+__global__ void uint_to_float(float * out_array, unsigned int * in_array, int N){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < N; id+= blockDim.x*gridDim.x){ out_array[id] = in_array[id]; }
+}
+
+/*    function [P_samp] = sample_prob(Npop,Nsamp)
+        x = (0:(2*Npop-1))/(2*Npop);
+        P_samp = zeros((Nsamp+1),length(x));
+        for k = 0:Nsamp
+            P_samp((k+1),:) = binopdf(k,Nsamp,x);
+        end
+    end
+
+    function [prob] = prob(k,rho,P_samp)
+        if(length(P_samp) > length(rho))
+            prob = dot(rho,P_samp((k+1),(2:length(P_samp))));
+        else
+            prob = dot(rho,P_samp((k+1),:));
+        end
+
+    end*/
+
+//pdivq = p/q
+__global__ void binom_fract(float * binom_fract, float q, float pdivq, int half_n, int n){
+	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
+
+	for(int idx = (myIDx+1); idx < half_n; idx+= blockDim.x*gridDim.x){ binom_fract[idx] =  ((n+1.f-idx)/((float)idx))*pdivq; }
+	if(myIDx == 0){ binom_fract[0] = pow(q,n); }
+}
+
+struct CustomMultiply
+{
+    template <typename T>
+    __device__ __forceinline__ T operator()(const T &a, const T &b) const { return a*b; }
+};
+
+__global__ void print_Device_array_float(float * array, int num){
+
+		//if(i%1000 == 0){ printf("\n"); }
+	for(int j = 0; j < num; j++){ printf("%d: %f\t",j,array[j]); }
+	printf("\n");
+}
+
+
 sfs::sfs(): num_populations(0), num_sites(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; num_samples = NULL;}
 sfs::~sfs(){ if(frequency_spectrum){ cudaCheckErrors(cudaFreeHost(frequency_spectrum),-1,-1); } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}
 
 //single-population sfs
-sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, int cuda_device){
+sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, unsigned int num_sequencing_samples, int cuda_device){
 
 	set_cuda_device(cuda_device);
 
@@ -103,21 +148,80 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, in
 	cudaCheckErrors(cudaStreamCreate(&stream),-1,-1);
 
 	float * d_mutations_freq;
-	int * d_histogram, * h_histogram;
+	unsigned int * d_pop_histogram;
+	float * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
-	if(!(sample_index >= 0 && sample_index < sample.length)){ fprintf(stderr,"site_frequency_spectrum error: requested sample index out of bounds: sample %d\t[0\t %d)\n",sample_index,sample.length); exit(1); }
-	if(!(population_index >= 0 && population_index < sample.sim_input_constants.num_populations)){ fprintf(stderr,"site_frequency_spectrum error: requested population index out of bounds: population %d\t[0\t %d)\n",population_index,sample.sim_input_constants.num_populations); exit(1); }
-	int num_levels = sample.time_samples[sample_index]->Nchrom_e[population_index]+1;
+	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_input_constants.num_populations)){
+		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d\t[0 %d)\tpopulation %d\t[0 %d)\n",sample_index,sample.length,population_index,sample.sim_input_constants.num_populations); exit(1);
+	}
+
+	int num_levels = num_sequencing_samples;
+	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
+	if(num_sequencing_samples == 0){ num_levels = population_size; }
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(int)),-1,-1);
-	cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(int), stream),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_pop_histogram, num_levels*sizeof(unsigned int)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMemsetAsync(d_pop_histogram, 0, num_levels*sizeof(unsigned int), stream),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*sample.time_samples[sample_index]->num_mutations], sample.time_samples[sample_index]->num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
 
-	simple_hist<<<50,1024,0,stream>>>(d_histogram, d_mutations_freq, sample.time_samples[sample_index]->Nchrom_e[population_index], sample.time_samples[sample_index]->num_mutations, sample.time_samples[sample_index]->num_sites);
+	population_hist<<<50,1024,0,stream>>>(d_pop_histogram, d_mutations_freq, population_size, sample.time_samples[sample_index]->num_mutations, sample.time_samples[sample_index]->num_sites);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+	/*         for k = 1:(N_samp-1)
+	            mix_prob = prob(k,rho_mix,P_samp);
+	            %G(k) = round(mix_prob*m_mix);
+	            G(k) = mix_prob*m_mix;
+	            m_samp = m_samp + G(k);
+	        end   */
 
-	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(int)),-1,-1);
+	int num_threads = 1024;
+	int num_blocks = min(num_levels/num_threads,1);
+	if(num_sequencing_samples == 0){
+		uint_to_float<<<num_blocks,num_threads,0,stream>>>(d_histogram, d_pop_histogram, num_levels);
+		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+	}
+	//else{
+		int temp = num_levels;
+		num_levels = 1000;
+		num_threads = 128;
+		num_blocks = min(num_levels/num_threads,1);
+		int half_n;
+		if(num_levels % 2 == 0){ half_n = num_levels/2+1; }
+		else{ half_n = (num_levels+1)/2; }
+
+		float * d_binom_fract;
+		cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_fract, half_n*sizeof(float)),-1,-1);
+		const dim3 gridsize(10,10,1);
+		float p = (20000.f)/(float(population_size));
+		float q = (population_size - 20000.f)/(float(population_size));
+		p = 0.01;
+		q = 0.99;
+		//printf("p: ");
+		float pdivq = (double)p/(double)q;
+		binom_fract<<<50,128,0,stream>>>(d_binom_fract, q, pdivq, half_n, num_levels);
+		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+
+		print_Device_array_float<<<1,1,0,stream>>>(d_binom_fract, 50);
+
+		float * d_binom;
+		CustomMultiply mul_op;
+		cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom, half_n*sizeof(float)),-1,-1);
+
+		void *d_temp_storage = NULL;
+		size_t temp_storage_bytes = 0;
+		cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_fract, d_binom, mul_op, half_n);
+		cudaMalloc(&d_temp_storage, temp_storage_bytes);
+		cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_fract, d_binom, mul_op, half_n);
+		cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
+		cudaCheckErrorsAsync(cudaFree(d_binom_fract),-1,-1);
+
+		print_Device_array_float<<<1,1,0,stream>>>(d_binom, 50);
+
+		cudaCheckErrorsAsync(cudaFree(d_binom),-1,-1);
+		num_levels = temp;
+	//}
+
+	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, num_levels*sizeof(int), cudaMemcpyDeviceToHost, stream),-1,-1);
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
