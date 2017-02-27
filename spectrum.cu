@@ -76,7 +76,7 @@ public:
 		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(in,i); }
 	}
 
-	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, unsigned int num_sequencing_samples, int cuda_device);
+	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device);
 
 	~transfer_allele_trajectories(){ time_samples = 0; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory
 };
@@ -135,11 +135,11 @@ __global__ void print_Device_array_float(float * array, int num){
 }
 
 
-sfs::sfs(): num_populations(0), num_sites(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; num_samples = NULL;}
-sfs::~sfs(){ if(frequency_spectrum){ cudaCheckErrors(cudaFreeHost(frequency_spectrum),-1,-1); } if(populations){ delete[] populations; } if(num_samples){ delete[] num_samples; }}
+sfs::sfs(): num_populations(0), num_sites(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
+sfs::~sfs(){ if(frequency_spectrum){ cudaCheckErrors(cudaFreeHost(frequency_spectrum),-1,-1); frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
 
 //single-population sfs
-sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, int sample_index, int population_index, unsigned int num_sequencing_samples, int cuda_device){
+sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device){
 
 	set_cuda_device(cuda_device);
 
@@ -155,9 +155,9 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, in
 		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d\t[0 %d)\tpopulation %d\t[0 %d)\n",sample_index,sample.length,population_index,sample.sim_input_constants.num_populations); exit(1);
 	}
 
-	int num_levels = num_sequencing_samples;
+	int num_levels = sample_size;
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
-	if(num_sequencing_samples == 0){ num_levels = population_size; }
+	if(sample_size == 0){ num_levels = population_size; }
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_pop_histogram, num_levels*sizeof(unsigned int)),-1,-1);
@@ -176,7 +176,7 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, in
 
 	int num_threads = 1024;
 	int num_blocks = min(num_levels/num_threads,1);
-	if(num_sequencing_samples == 0){
+	if(sample_size == 0){
 		uint_to_float<<<num_blocks,num_threads,0,stream>>>(d_histogram, d_pop_histogram, num_levels);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	}
@@ -229,8 +229,8 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, in
 	sfs mySFS;
 	mySFS.frequency_spectrum = h_histogram;
 	mySFS.num_populations = 1;
-	mySFS.num_samples = new int[1];
-	mySFS.num_samples[0] = num_levels;
+	mySFS.sample_size = new int[1];
+	mySFS.sample_size[0] = num_levels;
 	mySFS.num_sites = sample.time_samples[sample_index]->num_sites;
 	mySFS.populations = new int[1];
 	mySFS.populations[0] = population_index;

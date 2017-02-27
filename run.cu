@@ -40,7 +40,7 @@ void run_speed_test()
 	if(printSFS){
 		SPECTRUM::sfs mySFS = SPECTRUM::site_frequency_spectrum(a,0,0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
-		for(int printIndex = start_index; printIndex < min((mySFS.num_samples[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
+		for(int printIndex = start_index; printIndex < min((mySFS.sample_size[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 
