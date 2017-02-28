@@ -12,11 +12,12 @@
 namespace SPECTRUM{
 
 struct sfs{
-	float * frequency_spectrum;
+	double * frequency_spectrum;
 	int * populations; //which populations are in SFS
 	int * sample_size; //number of samples taken for each population
 	int num_populations;
-	int num_sites;
+	float num_sites;
+	double num_mutations;
 	int sampled_generation; //number of generations in the simulation at time of sampling
 
 	sfs();

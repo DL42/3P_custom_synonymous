@@ -4,8 +4,8 @@
  *      Author: David Lawrie
  */
 
-#include "../include/go_fish.cuh"
-#include "../include/spectrum.h"
+#include "go_fish.cuh"
+#include "spectrum.h"
 #include "run.h"
 
 void run_speed_test()
@@ -38,7 +38,7 @@ void run_speed_test()
 	int start_index = 0;
 	int print_num = 50;
 	if(printSFS){
-		SPECTRUM::sfs mySFS = SPECTRUM::site_frequency_spectrum(a,0,0);
+		SPECTRUM::sfs mySFS = SPECTRUM::site_frequency_spectrum(a,0,0,50);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.sample_size[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
