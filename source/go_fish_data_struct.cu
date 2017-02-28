@@ -5,8 +5,8 @@
  *      GO Fish data structures
  */
 
-#include "go_fish_data_struct.h"
-#include "shared.cuh"
+#include "../include/go_fish_data_struct.h"
+#include "../source/shared.cuh"
 
 namespace GO_Fish{
 

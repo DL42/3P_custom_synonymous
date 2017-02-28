@@ -9,7 +9,7 @@
 #define GO_FISH_API_H_
 #include <cuda_runtime.h>
 #include <helper_math.h>
-#include "go_fish_data_struct.h"
+#include "../include/go_fish_data_struct.h"
 
 namespace GO_Fish{
 
@@ -266,11 +266,11 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 } /* ----- end namespace GO_Fish ----- */
 
 /* ----- importing functor implementations ----- */
-#include "template_inline_simulation_functors.cuh"
+#include "../source/template_inline_simulation_functors.cuh"
 /* ----- end importing functor implementations ----- */
 
 /* ----- importing go_fish_impl  ----- */
-#include "go_fish_impl.cuh"
+#include "../source/go_fish_impl.cuh"
 /* ----- end importing go_fish_impl ----- */
 
 

@@ -10,8 +10,8 @@
 
 #include <cub/device/device_scan.cuh>
 
-#include "shared.cuh"
-#include "go_fish_data_struct.h"
+#include "../source/shared.cuh"
+#include "../include/go_fish_data_struct.h"
 
 namespace go_fish_details{
 

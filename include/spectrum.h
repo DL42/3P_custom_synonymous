@@ -7,7 +7,7 @@
 #ifndef SPECTRUM_H_
 #define SPECTRUM_H_
 
-#include "go_fish_data_struct.h"
+#include "../include/go_fish_data_struct.h"
 
 namespace SPECTRUM{
 

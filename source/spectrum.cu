@@ -4,8 +4,8 @@
  *      Author: David Lawrie
  */
 
-#include "spectrum.h"
-#include "shared.cuh"
+#include "../include/spectrum.h"
+#include "../source/shared.cuh"
 #include <cub/device/device_scan.cuh>
 
 namespace SPECTRUM{

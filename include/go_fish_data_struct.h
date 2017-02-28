@@ -107,7 +107,7 @@ private:
 } /* ----- end namespace GO_Fish ----- */
 
 /* ----- import inline function definitions ----- */
-#include "inline_go_fish_data_struct.hpp"
+#include "../source/inline_go_fish_data_struct.hpp"
 /* ----- end ----- */
 
 #endif /* GO_FISH_DATA_H_ */
