@@ -9,7 +9,7 @@
 
 void run_speed_test();
 
-void run_prev_sim_test();
+void run_prev_sim_n_allele_traj_test();
 
 void run_validation_test();
 

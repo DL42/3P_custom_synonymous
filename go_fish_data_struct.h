@@ -11,6 +11,8 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
+#include <sstream>
 
 namespace SPECTRUM{ class transfer_allele_trajectories; }
 
@@ -22,6 +24,8 @@ struct mutID{
 	int origin_population; //population in which mutation first arose
 	int origin_threadID; //threadID that generated mutation; if negative, flag to preserve mutation in simulation (not filter out if lost or fixed)
     int DFE_category; //discrete DFE category
+
+    inline std::string toString();
 };
 
 struct allele_trajectories{
@@ -44,10 +48,27 @@ struct allele_trajectories{
 
 	allele_trajectories();
 
+	//number of time samples taken during simulation run
+	inline int num_time_samples();
+
+	//number of reported mutations in the final time sample (maximal number of reported mutations in the allele_trajectories)
+	inline int maximal_num_mutations();
+	//number of reported mutations in the time sample index
+	inline int num_mutations_time_sample(int index);
+
+	//final generation of simulation
+	inline int final_generation();
+	//generation of simulation in the time sample index
+	inline int sampled_generation(int index);
+
+	//frequency of mutation at time sample sample_index, population population_index, mutation mutation_index
+	//frequency of mutation before it is generated in the simulation will be reported as 0 (not an error)
 	inline float frequency(int sample_index, int population_index, int mutation_index);
 
-	//number of mutations in the final sample (maximal number of mutations in the allele_trajectories)
-	inline int num_mutations();
+	//mutation IDs in the final time sample (maximal set of mutations in the allele_trajectories)
+	inline mutID mutation_ID_all_samples(int mutation_index);
+	//mutation IDs from the time sample index
+	inline mutID mutation_ID_time_sample(int sample_index, int mutation_index);
 
 	inline void delete_time_sample(int index);
 
@@ -65,7 +86,7 @@ private:
 	struct time_sample{
 		float * mutations_freq; //allele frequency of mutations in final generation
 		mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
-		bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
+		bool * extinct; //extinct[pop] == true, flag if population is extinct by time sample
 		int * Nchrom_e; //effective number of chromosomes in each population
 		int num_populations; //number of populations in freq array (array length, rows)
 		int num_mutations; //number of mutations in array (array length for age/freq, columns)

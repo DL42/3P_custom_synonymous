@@ -245,12 +245,12 @@ struct do_array{
 
 //returns the result of Functor_stable except at time Fgen(-generation_shift) returns the result of Functor_action
 template <typename Functor_stable, typename Functor_action>
-struct do_something_else{
+struct pulse{
 	int Fgen, generation_shift;
 	Functor_stable f1;
 	Functor_action f2;
-	do_something_else();
-	do_something_else(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift = 0);
+	pulse();
+	pulse(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift = 0);
 	__host__ __forceinline__ bool operator()(const int generation) const;
 };
 /* ----- end of preserving & sampling functions ----- */

@@ -171,11 +171,11 @@ __host__ __forceinline__ bool do_array::operator()(const int generation) const {
 }
 
 template <typename Functor_stable, typename Functor_action>
-do_something_else<Functor_stable,Functor_action>::do_something_else() : Fgen(0), generation_shift(0) { f1 = Functor_stable(); f2 = Functor_action(); }
+pulse<Functor_stable,Functor_action>::pulse() : Fgen(0), generation_shift(0) { f1 = Functor_stable(); f2 = Functor_action(); }
 template <typename Functor_stable, typename Functor_action>
-do_something_else<Functor_stable,Functor_action>::do_something_else(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift/*= 0*/) : Fgen(Fgen), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
+pulse<Functor_stable,Functor_action>::pulse(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift/*= 0*/) : Fgen(Fgen), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
 template <typename Functor_stable, typename Functor_action>
-__host__ __forceinline__ bool do_something_else<Functor_stable,Functor_action>::operator()(const int generation) const{ if(generation-generation_shift == Fgen){ return f2(generation); } return f1(generation); }
+__host__ __forceinline__ bool pulse<Functor_stable,Functor_action>::operator()(const int generation) const{ if(generation-generation_shift == Fgen){ return f2(generation); } return f1(generation); }
 /* ----- end of preserving & sampling functions ----- */
 
 }/* ----- end namespace GO_Fish ----- */
