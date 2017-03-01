@@ -25,7 +25,7 @@ struct sfs{
 };
 
 //single-population sfs
-sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size = 0, int cuda_device = -1);
+void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size = 0, int cuda_device = -1);
 
 } /*----- end namespace SPECTRUM ----- */
 

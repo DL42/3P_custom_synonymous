@@ -77,7 +77,7 @@ public:
 		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(in,i); }
 	}
 
-	friend sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device);
+	friend void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device);
 
 	~transfer_allele_trajectories(){ time_samples = 0; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory
 };
@@ -169,7 +169,7 @@ __global__ void  binom_exact(double * d_histogram, const float * const d_mutatio
 }
 
 //single-population sfs
-sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device){
+void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device){
 
 	set_cuda_device(cuda_device);
 
@@ -248,7 +248,6 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, co
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
 
-	sfs mySFS;
 	mySFS.frequency_spectrum = h_histogram;
 	mySFS.num_populations = 1;
 	mySFS.sample_size = new int[1];
@@ -262,8 +261,6 @@ sfs site_frequency_spectrum(const GO_Fish::allele_trajectories & all_results, co
 	cudaCheckErrorsAsync(cudaFree(d_mutations_freq),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_histogram),-1,-1);
 	cudaCheckErrorsAsync(cudaStreamDestroy(stream),-1,-1)
-
-	return mySFS;
 }
 
 } /*----- end namespace SPECTRUM ----- */

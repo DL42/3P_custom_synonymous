@@ -37,8 +37,9 @@ void run_speed_test()
 	bool printSFS = true; //calculate and print out the SFS
 	int start_index = 0;
 	int print_num = 50;
+	SPECTRUM::sfs mySFS;
 	if(printSFS){
-		SPECTRUM::sfs mySFS = SPECTRUM::site_frequency_spectrum(a,0,0,50);
+		SPECTRUM::site_frequency_spectrum(mySFS,a,0,0,50);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.sample_size[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
@@ -52,9 +53,9 @@ void run_speed_test()
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    a.sim_input_constants.compact_rate = 20;
+    a.sim_input_constants.compact_rate = 35;
     a.sim_input_constants.num_generations = pow(10.f,3);
-    a.sim_input_constants.num_sites = 10*2*pow(10.f,7);
+    a.sim_input_constants.num_sites = 2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
     a.sim_input_constants.seed2 = 0xdecafbad;
 	DFE = true;
@@ -162,29 +163,42 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 void run_validation_test(){
 
 	GO_Fish::allele_trajectories b;
-    float gamma = 0; //effective selection
+    float gamma = -20; //effective selection
 	float h = 0.5; //dominance
-	float F = 0.0; //inbreeding
+	float F = 1.0; //inbreeding
 	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
-	b.sim_input_constants.num_sites = 10*2*pow(10.f,7); //number of sites
+	b.sim_input_constants.num_generations = total_number_of_generations;
+	b.sim_input_constants.num_sites = 200*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	b.sim_input_constants.num_populations = 1; //number of populations
-	int num_iter = 50;
+	int num_iter = 10;
     bool DFE = false;
     b.sim_input_constants.compact_rate = 35;
     double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
+    SPECTRUM::sfs * my_spectra = new SPECTRUM::sfs[num_iter];
 
 	for(int i = 0; i < num_iter; i++){
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
 		GO_Fish::run_sim(b, GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing());
-		if(i==0){ std::cout<< "chi-gram number of mutations:"<<std::endl; }
+		SPECTRUM::site_frequency_spectrum(my_spectra[i],b,0,0,200);
+		if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
 		std::cout<< (int)expected_total_SNPs << "\t" << b.maximal_num_mutations() << "\t" << ((b.maximal_num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;
 	}
 
+	std::cout<<std::endl<<"SFS :"<<std::endl<< "allele count\t# mutations"<< std::endl;
+	int start_index = 0;
+	int print_num = my_spectra[0].sample_size[0];
+	for(int printIndex = start_index; printIndex < start_index+print_num; printIndex++){
+		std::cout<<printIndex;
+		for(int i = 0; i < num_iter; i++){ std::cout<< "\t" << my_spectra[i].frequency_spectrum[printIndex]; }
+		std::cout<<std::endl;
+	}
+
 	delete [] expectation;
+	delete [] my_spectra;
 }
