@@ -143,12 +143,12 @@ __device__ double atomicAddDouble(double* address, double val)
 __global__ void  binom_exact(double * d_histogram, const float * const d_mutations_freq, const double * const d_binom_coeff, const int half_n, const int num_levels, float num_sites, int num_mutations, int Nchrome_e){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
-	//typedef cub::BlockReduce<double, 1024> BlockReduceT;
-	//__shared__ typename BlockReduceT::TempStorage temp_storage;
-	double thread_data;
+	typedef cub::BlockReduce<double, 1024> BlockReduceT;
+	__shared__ typename BlockReduceT::TempStorage temp_storage;
+	double thread_data[1];
 
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
-		thread_data = 0;
+		thread_data[1] = 0;
 		//if(myIDx == 0 && idy == 26){ printf("(%e,%d,%d)",d_binom_coeff[26],num_levels,half_n); }
 		for(int idx = (myIDx+1); idx < num_mutations; idx+= blockDim.x*gridDim.x){
 			double p = ((double)round((double)Nchrome_e*d_mutations_freq[idx]))/((double)Nchrome_e);
@@ -156,14 +156,14 @@ __global__ void  binom_exact(double * d_histogram, const float * const d_mutatio
 			double coeff;
 			if(idy < half_n){ coeff = d_binom_coeff[idy]; }
 			else{ coeff = d_binom_coeff[num_levels-idy]; }
-			thread_data += (pow(p,idy)*pow(q,num_levels-idy))*coeff;
+			thread_data[1] += (pow(p,idy)*pow(q,num_levels-idy))*coeff;
 			//if(idy == 26){ printf("(%e,%d,%e,%e,%e,%e,%e,%d,%d)\t",thread_data[0],d_pop_histogram[idx],pow(p,idy),pow(q,num_levels-idy),coeff,p,q,idx,idy); }
 		}
-		//double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
-		//if(myIDx == 0){
-			if(idy == num_levels){ atomicAddDouble(&d_histogram[0],thread_data); }
-			else{ atomicAddDouble(&d_histogram[idy],thread_data); }
-		//}
+		double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
+		if(threadIdx.x == 0){
+			if(idy == num_levels){ atomicAddDouble(&d_histogram[0],aggregate); }
+			else{ atomicAddDouble(&d_histogram[idy],aggregate); }
+		}
 	}
 	if(myIDx == 0 && myIDy == 0){  atomicAddDouble(&d_histogram[0],(double)(num_sites-num_mutations));  }
 }
