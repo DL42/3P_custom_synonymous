@@ -161,7 +161,7 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 void run_validation_test(){
 
 	GO_Fish::allele_trajectories b;
-    float gamma = -20; //effective selection
+    float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 1.0; //inbreeding
 	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
@@ -172,31 +172,54 @@ void run_validation_test(){
 	b.sim_input_constants.num_sites = 200*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	b.sim_input_constants.num_populations = 1; //number of populations
-	int num_iter = 10;
+	int num_iter = 50;
     bool DFE = false;
-    b.sim_input_constants.compact_rate = 35;
-    double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
-    double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
+    b.sim_input_constants.compact_rate = 5;
+   // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
+    //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
     SPECTRUM::sfs * my_spectra = new SPECTRUM::sfs[num_iter];
 
+    cudaEvent_t start, stop;
+    float elapsedTime;
+    int sample_size = 200;
 	for(int i = 0; i < num_iter; i++){
+		if(i == round(num_iter/2.f)){
+			cudaEventCreate(&start);
+			cudaEventCreate(&stop);
+			cudaEventRecord(start, 0);
+		}
+
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim(b, GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing());
-		SPECTRUM::site_frequency_spectrum(my_spectra[i],b,0,0,200);
-		if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
-		std::cout<< (int)expected_total_SNPs << "\t" << b.maximal_num_mutations() << "\t" << ((b.maximal_num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;
+		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::do_nothing(), GO_Fish::do_nothing());
+		SPECTRUM::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
+		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
+		//std::cout<<b.maximal_num_mutations()<<std::endl;
+		//std::cout<< (int)expected_total_SNPs << "\t" << b.maximal_num_mutations() << "\t" << ((b.maximal_num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;
 	}
 
-	std::cout<<std::endl<<"SFS :"<<std::endl<< "allele count\t# mutations"<< std::endl;
-	int start_index = 0;
-	int print_num = my_spectra[0].sample_size[0];
-	for(int printIndex = start_index; printIndex < start_index+print_num; printIndex++){
-		std::cout<<printIndex;
-		for(int i = 0; i < num_iter; i++){ std::cout<< "\t" << my_spectra[i].frequency_spectrum[printIndex]; }
-		std::cout<<std::endl;
-	}
+	elapsedTime = 0;
+	cudaEventRecord(stop, 0);
+	cudaEventSynchronize(stop);
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
 
-	delete [] expectation;
+	std::cout<<"\ntime elapsed: %f\n"<< 2*elapsedTime/num_iter;
+	//----- end speed test -----
+	//
+	//if(my_spectra[0].frequency_spectrum[0] < 0){ std::cout<<std::endl<<0<<"\t"<<my_spectra[0].frequency_spectrum[0]<<std::endl; }
+	std::cout<<std::endl<<"SFS :"<<std::endl<< "allele count\tavg# mutations\tstandard dev\tcoeff of variation (aka relative standard deviation)"<< std::endl;
+	float avg_num_mutations = 0;
+	for(int i = 0; i < sample_size; i++){
+		double avg = 0;
+		double std = 0;
+		for(int j = 0; j < num_iter; j++){ avg += my_spectra[j].frequency_spectrum[i]/num_iter; if(i==0){ avg_num_mutations += ((float)my_spectra[j].num_mutations)/num_iter; }}
+		for(int j = 0; j < num_iter; j++){ std += 1.0/(num_iter-1)*pow(my_spectra[j].frequency_spectrum[i]-avg,2); }
+		std = sqrt(std);
+		std::cout<<i<<"\t"<<avg<<"\t"<<std<<"\t"<<(std/avg)<<std::endl;
+	}
+	std::cout<<avg_num_mutations<<std::endl;
+	//delete [] expectation;
 	delete [] my_spectra;
 }

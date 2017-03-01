@@ -188,7 +188,7 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
 	if(sample_size == 0){ num_levels = population_size; }
 	int num_mutations = sample.time_samples[sample_index]->num_mutations;
-	int num_sites = sample.time_samples[sample_index]->num_sites;
+	float num_sites = sample.time_samples[sample_index]->num_sites;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(double)),-1,-1);
@@ -234,7 +234,7 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 		cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
 		//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
 
-		const dim3 gridsize(20,20,1);
+		const dim3 gridsize(20,50,1);
 		num_threads = 1024;
 		cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
 		binom_exact<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations, population_size);
