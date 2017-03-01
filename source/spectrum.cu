@@ -30,7 +30,7 @@ class transfer_allele_trajectories{
 			extinct = in.time_samples[sample_index]->extinct;
 			Nchrom_e = in.time_samples[sample_index]->Nchrom_e;
 		}
-		~time_sample(){ mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; } //don't actually delete information, just null pointers as this just points to the real data held
+		~time_sample(){ mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; } //don't actually delete information, just null pointers as this just points to the real data held
 	};
 
 	time_sample ** time_samples;
@@ -79,7 +79,7 @@ public:
 
 	friend void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device);
 
-	~transfer_allele_trajectories(){ time_samples = 0; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory
+	~transfer_allele_trajectories(){ delete [] time_samples; time_samples = NULL; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory, delete [] time_samples won't call individual destructors and even if it did, the spectrum time sample destructors don't delete anything
 };
 
 sfs::sfs(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
@@ -227,9 +227,9 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 
 		void *d_temp_storage = NULL;
 		size_t temp_storage_bytes = 0;
-		cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n);
-		cudaMalloc(&d_temp_storage, temp_storage_bytes);
-		cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n);
+		cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
+		cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),-1,-1);
+		cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
 		cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
 		cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
 		//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);

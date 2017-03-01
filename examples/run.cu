@@ -164,17 +164,17 @@ void run_validation_test(){
     float gamma = 0; //effective selection
 	float h = 0.5; //dominance
 	float F = 1.0; //inbreeding
-	int N_ind = 0.03*pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
+	int N_ind = pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
 	float s = gamma/(2*N_ind); //selection coefficient
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
 	b.sim_input_constants.num_generations = total_number_of_generations;
-	b.sim_input_constants.num_sites = 200*pow(10.f,7); //number of sites
+	b.sim_input_constants.num_sites = 20*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	b.sim_input_constants.num_populations = 1; //number of populations
 	int num_iter = 50;
     bool DFE = false;
-    b.sim_input_constants.compact_rate = 5;
+    b.sim_input_constants.compact_rate = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
     SPECTRUM::sfs * my_spectra = new SPECTRUM::sfs[num_iter];
@@ -205,7 +205,7 @@ void run_validation_test(){
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	std::cout<<"\ntime elapsed: %f\n"<< 2*elapsedTime/num_iter;
+	std::cout<<"\ntime elapsed: "<< 2*elapsedTime/num_iter<<std::endl;
 	//----- end speed test -----
 	//
 	//if(my_spectra[0].frequency_spectrum[0] < 0){ std::cout<<std::endl<<0<<"\t"<<my_spectra[0].frequency_spectrum[0]<<std::endl; }
