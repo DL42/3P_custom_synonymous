@@ -151,8 +151,8 @@ __global__ void  binom_exact(double * d_histogram, const float * const d_mutatio
 		thread_data[1] = 0;
 		//if(myIDx == 0 && idy == 26){ printf("(%e,%d,%d)",d_binom_coeff[26],num_levels,half_n); }
 		for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
-			double p = ((double)round((double)Nchrome_e*d_mutations_freq[idx]))/((double)Nchrome_e);
-			double q = (Nchrome_e-(double)round((double)Nchrome_e*d_mutations_freq[idx]))/((double)Nchrome_e);
+			double p = (double)d_mutations_freq[idx];
+			double q = 1-p;
 			double coeff;
 			if(idy < half_n){ coeff = d_binom_coeff[idy]; }
 			else{ coeff = d_binom_coeff[num_levels-idy]; }
