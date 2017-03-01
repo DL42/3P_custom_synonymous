@@ -81,8 +81,6 @@ void run_speed_test()
 	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
 	//----- end speed test -----
 	//
-	cudaDeviceSynchronize();
-	cudaDeviceReset();
 }
 
 ////////////////////////////////////////////////////////////

@@ -97,7 +97,13 @@ inline void allele_trajectories::delete_time_sample(int index){
 	}
 }
 
-inline void allele_trajectories::free_memory(){ if(time_samples){ delete [] time_samples; } time_samples = 0; length = 0; }
+inline void allele_trajectories::free_memory(){
+	if(time_samples){
+		for(int i = 0; i < length; i++){ delete time_samples[i]; }
+		delete [] time_samples;
+	}
+	time_samples = NULL; length = 0;
+}
 
 inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	free_memory(); //overwrite old data if any

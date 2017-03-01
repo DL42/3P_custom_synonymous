@@ -12,10 +12,10 @@ namespace GO_Fish{
 
 allele_trajectories::time_sample::time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; /*set pointers to NULL*/}
 allele_trajectories::time_sample::~time_sample(){
-	if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); mutations_freq = 0; }
-	if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); mutations_ID = 0; }
-	if(extinct){ delete [] extinct; extinct = 0; }
-	if(Nchrom_e){ delete [] Nchrom_e; Nchrom_e = 0; }
+	if(mutations_freq){ cudaCheckErrors(cudaFreeHost(mutations_freq),-1,-1); mutations_freq = NULL; }
+	if(mutations_ID){ cudaCheckErrors(cudaFreeHost(mutations_ID),-1,-1); mutations_ID = NULL; }
+	if(extinct){ delete [] extinct; extinct = NULL; }
+	if(Nchrom_e){ delete [] Nchrom_e; Nchrom_e = NULL; }
 }
 
 allele_trajectories::allele_trajectories(): length(0) { time_samples = 0; }
