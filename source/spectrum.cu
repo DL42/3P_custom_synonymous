@@ -150,7 +150,7 @@ __global__ void  binom_exact(double * d_histogram, const float * const d_mutatio
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
 		thread_data[1] = 0;
 		//if(myIDx == 0 && idy == 26){ printf("(%e,%d,%d)",d_binom_coeff[26],num_levels,half_n); }
-		for(int idx = (myIDx+1); idx < num_mutations; idx+= blockDim.x*gridDim.x){
+		for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
 			double p = ((double)round((double)Nchrome_e*d_mutations_freq[idx]))/((double)Nchrome_e);
 			double q = (Nchrome_e-(double)round((double)Nchrome_e*d_mutations_freq[idx]))/((double)Nchrome_e);
 			double coeff;
