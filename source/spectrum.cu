@@ -149,15 +149,17 @@ __global__ void  binom_exact(double * d_histogram, const float * const d_mutatio
 
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
 		thread_data[1] = 0;
-		//if(myIDx == 0 && idy == 26){ printf("(%e,%d,%d)",d_binom_coeff[26],num_levels,half_n); }
 		for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
-			double p = (double)d_mutations_freq[idx];
-			double q = 1-p;
+			float pf = d_mutations_freq[idx];
+			float qf = 1-pf;
+			double pd = (double)pf;
+			double qd = 1-pd;
 			double coeff;
 			if(idy < half_n){ coeff = d_binom_coeff[idy]; }
 			else{ coeff = d_binom_coeff[num_levels-idy]; }
-			thread_data[1] += (pow(p,idy)*pow(q,num_levels-idy))*coeff;
-			//if(idy == 26){ printf("(%e,%d,%e,%e,%e,%e,%e,%d,%d)\t",thread_data[0],d_pop_histogram[idx],pow(p,idy),pow(q,num_levels-idy),coeff,p,q,idx,idy); }
+			double powp = powf(pf,idy); if(powp == 0){ powp = pow(pd,idy); }
+			double powq = powf(qf,num_levels-idy); if(powq == 0){ powq = pow(qd,num_levels-idy); }
+			thread_data[1] += coeff*(powp*powq);
 		}
 		double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
 		if(threadIdx.x == 0){
