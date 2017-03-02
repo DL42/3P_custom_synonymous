@@ -140,7 +140,7 @@ __device__ double atomicAddDouble(double* address, double val)
     return __longlong_as_double(old);
 }
 
-__global__ void  binom_exact(double * d_histogram, const float * const d_mutations_freq, const double * const d_binom_coeff, const int half_n, const int num_levels, float num_sites, int num_mutations, int Nchrome_e){
+__global__ void binom_exact(double * d_histogram, const float * const d_mutations_freq, const double * const d_binom_coeff, const int half_n, const int num_levels, float num_sites, int num_mutations){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
 	typedef cub::BlockReduce<double, 1024> BlockReduceT;
@@ -239,7 +239,7 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 		const dim3 gridsize(20,50,1);
 		num_threads = 1024;
 		cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
-		binom_exact<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations, population_size);
+		binom_exact<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
 		cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
