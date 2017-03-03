@@ -248,14 +248,21 @@ __host__ __device__ __forceinline__ int poiscdfinv(float p, float mean){
 	return 70; //17 for mean <= 3, 24 limit for mean <= 6, 32 limit for mean <= 10, 36 limit for mean <= 12, 41 limit for mean <= 15, 58 limit for mean <= 25, 70 limit for mean <= 33; max float between 0 and 1 is 0.99999999
 }
 
+__host__ __device__ __forceinline__ int ApproxRandPois1(float mean, float var, float p, float N, int2 seed, int id, int generation, int population){
+	uint4 i = Philox(seed, id, generation, population, 0);
+	if(mean <= RNG_MEAN_BOUNDARY_NORM){ return poiscdfinv(uint_float_01(i.x), mean); }
+	else if(mean >= N-RNG_MEAN_BOUNDARY_NORM){ return N - poiscdfinv(uint_float_01(i.x), N-mean); } //flip side of poisson, when 1-p is small
+	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
+}
+
 __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, float p, float N, int2 seed, int id, int generation, int population){
 	uint4 i = Philox(seed, id, generation, population, 0);
 	if(mean <= RNG_MEAN_BOUNDARY_NORM){
 		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return binomcdfinv(uint_float_01(i.x), mean, mean/N, N); } else{ return poiscdfinv(uint_float_01(i.x), mean); }
 	}
-	else if(mean >= N-RNG_MEAN_BOUNDARY_NORM){
+	else if(mean >= N-RNG_MEAN_BOUNDARY_NORM){ //flip side of binomial, when 1-p is small
 		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return N - binomcdfinv(uint_float_01(i.x), N-mean, (N-mean)/N, N); } else{ return N - poiscdfinv(uint_float_01(i.x), N-mean); }
-	} //flip side of binomial, when 1-p is small
+	}
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 

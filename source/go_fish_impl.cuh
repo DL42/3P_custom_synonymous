@@ -66,7 +66,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, float * mse_int
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
-		freq_index[offset+id] = max(RNG::ApproxRandBinom1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//mutations are poisson distributed in each frequency class //for round(lambda);//rounding can significantly under count for large N:  //
+		freq_index[offset+id] = max(RNG::ApproxRandPois1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//mutations are poisson distributed in each frequency class //for round(lambda);//rounding can significantly under count for large N:  //
 	}
 }
 
@@ -459,7 +459,7 @@ __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mut
 		if(Nchrom_e == 0 || mutations.h_extinct[pop]){ continue; }
 		float mu = mu_rate(pop, generation);
 		float lambda = mu*Nchrom_e*mutations.h_num_sites;
-		int temp = max(RNG::ApproxRandBinom1(lambda, lambda, mu, Nchrom_e*mutations.h_num_sites, seed, 1, generation, pop),0);
+		int temp = max(RNG::ApproxRandPois1(lambda, lambda, mu, Nchrom_e*mutations.h_num_sites, seed, 1, generation, pop),0);
 		num_new_mutations += temp;
 		mutations.h_new_mutation_Indices[pop+1] = num_new_mutations + mutations.h_mutations_Index;
 	}
