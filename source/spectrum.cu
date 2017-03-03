@@ -8,6 +8,7 @@
 #include "../source/shared.cuh"
 #include <cub/device/device_scan.cuh>
 #include <cub/block/block_reduce.cuh>
+#include <math_constants.h>
 
 namespace SPECTRUM{
 
@@ -170,6 +171,55 @@ __global__ void binom_exact(double * d_histogram, const float * const d_mutation
 	if(myIDx == 0 && myIDy == 0){  atomicAddDouble(&d_histogram[0],(double)(num_sites-num_mutations));  }
 }
 
+
+__host__ __device__ __forceinline__ double normpdf64(int x, double my_mean, double my_var){
+	double rval = exp(-1.0*pow(x-my_mean,2)/(2.0*my_var))/sqrt(2.0*my_var*CUDART_PI);
+	if(isnan(rval)){ return 0; }
+	return rval;
+}
+
+__host__ __device__ __forceinline__ double poispdf64(int x, double my_mean){
+	double rval = exp(-1.0*my_mean)*pow(my_mean,x)/tgamma(x+1.0);
+	if(isnan(rval)){ return 0; }
+	return  rval;
+}
+
+
+__global__ void binom_approx(double * d_histogram, const float * const d_mutations_freq, const int num_levels, float num_sites, int num_mutations){
+	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
+		int myIDy = blockIdx.y;
+		typedef cub::BlockReduce<double, 1024> BlockReduceT;
+		__shared__ typename BlockReduceT::TempStorage temp_storage;
+		double thread_data[1];
+
+		for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
+			thread_data[1] = 0;
+			for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
+				float pf = d_mutations_freq[idx];
+				float qf = 1-pf;
+				float mean = num_levels*pf;
+				float var = num_levels*pf*qf;
+				if(mean <= 12 || ((num_levels - mean) <= 12)){
+					int input1;
+					float input2;
+					if(mean <= 12){ input1 = idy; input2 = mean; }else{ input1 = num_levels - idy; input2 = num_levels - mean; }
+					double rval = poispdf64(input1, input2);
+					thread_data[1] += rval;
+				}
+				else{
+					double rval = normpdf64(idy,mean,var);
+					thread_data[1] += rval;
+				}//
+			}
+			double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
+			if(threadIdx.x == 0){
+				if(idy == num_levels){ atomicAddDouble(&d_histogram[0],aggregate); }
+				else{ atomicAddDouble(&d_histogram[idy],aggregate); }
+			}
+		}
+		if(myIDx == 0 && myIDy == 0){  atomicAddDouble(&d_histogram[0],(double)(num_sites-num_mutations));  }
+}
+
 //single-population sfs
 void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size, int cuda_device){
 
@@ -211,38 +261,46 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 		cudaCheckErrorsAsync(cudaFree(d_pop_histogram),-1,-1);
 	}
 	else{
-		int half_n;
-		if((num_levels) % 2 == 0){ half_n = (num_levels)/2+1; }
-		else{ half_n = (num_levels+1)/2; }
+		bool exact = false;
+		if(exact){
+			int half_n;
+			if((num_levels) % 2 == 0){ half_n = (num_levels)/2+1; }
+			else{ half_n = (num_levels+1)/2; }
 
-		double * d_binom_partial_coeff;
-		cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_partial_coeff, half_n*sizeof(double)),-1,-1);
-		int num_threads = 1024;
-		if(half_n < 1024){ num_threads = 256; if(half_n < 256){  num_threads = 128; } }
-		int num_blocks = max(num_levels/num_threads,1);
-		binom_coeff<<<num_blocks,num_threads,0,stream>>>(d_binom_partial_coeff, half_n, num_levels);
-		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+			double * d_binom_partial_coeff;
+			cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_partial_coeff, half_n*sizeof(double)),-1,-1);
+			int num_threads = 1024;
+			if(half_n < 1024){ num_threads = 256; if(half_n < 256){  num_threads = 128; } }
+			int num_blocks = max(num_levels/num_threads,1);
+			binom_coeff<<<num_blocks,num_threads,0,stream>>>(d_binom_partial_coeff, half_n, num_levels);
+			cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
-		double * d_binom_coeff;
-		CustomMultiply mul_op;
-		cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(double)),-1,-1);
+			double * d_binom_coeff;
+			CustomMultiply mul_op;
+			cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(double)),-1,-1);
 
-		void *d_temp_storage = NULL;
-		size_t temp_storage_bytes = 0;
-		cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
-		cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),-1,-1);
-		cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
-		cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
-		cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
-		//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
+			void *d_temp_storage = NULL;
+			size_t temp_storage_bytes = 0;
+			cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
+			cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),-1,-1);
+			cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
+			cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
+			cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
+			//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
 
-		const dim3 gridsize(20,50,1);
-		num_threads = 1024;
-		cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
-		binom_exact<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
-		cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+			const dim3 gridsize(20,50,1);
+			num_threads = 1024;
+			cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
+			binom_exact<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
+			cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
-		cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
+			cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
+		}else{
+			const dim3 gridsize(20,50,1);
+			cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
+			binom_approx<<<gridsize,1024,0,stream>>>(d_histogram, d_mutations_freq, num_levels, num_sites, num_mutations);
+			cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
+		}
 	}
 
 	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(double)),-1,-1);
