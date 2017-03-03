@@ -24,8 +24,11 @@ struct sfs{
 	~sfs();
 };
 
-//single-population sfs
-void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const unsigned int sample_size = 0, int cuda_device = -1);
+//frequency histogram of mutations at a single time point in a single population
+void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device = -1);
+
+//single-population SFS
+void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device = -1);
 
 } /*----- end namespace SPECTRUM ----- */
 
