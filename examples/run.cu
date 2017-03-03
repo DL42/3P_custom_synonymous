@@ -172,7 +172,7 @@ void run_validation_test(){
 	b.sim_input_constants.num_sites = 20*2*pow(10.f,7); //number of sites
 	float m = 0.00; //migration rate
 	b.sim_input_constants.num_populations = 1; //number of populations
-	int num_iter = 2;
+	int num_iter = 50;
     bool DFE = false;
     b.sim_input_constants.compact_rate = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
@@ -181,7 +181,7 @@ void run_validation_test(){
 
     cudaEvent_t start, stop;
     float elapsedTime;
-    int sample_size = 2000;
+    int sample_size = 200;
 	for(int i = 0; i < num_iter; i++){
 		if(i == round(num_iter/2.f)){
 			cudaEventCreate(&start);
