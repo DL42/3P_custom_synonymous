@@ -258,6 +258,8 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 
 	int num_levels = sample_size;
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
+	if((sample_size <= 0) || (sample_size >= population_size)){ fprintf(stderr,"site_frequency_spectrum error: requested sample_size out of range [1,population_size): sample_size %d [1,%d)",sample_size,population_size); exit(1); }
+
 	if(sample_size == 0){ num_levels = population_size; }
 	int num_mutations = sample.time_samples[sample_index]->num_mutations;
 	float num_sites = sample.sim_run_constants.num_sites;
@@ -265,8 +267,6 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(double)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
-
-	if(sample_size <= 0){ fprintf(stderr,"site_frequency_spectrum error: sample_size must be greater than 0: request sample_size: %d",sample_size); exit(1); }
 
 	int half_n;
 	if((num_levels) % 2 == 0){ half_n = (num_levels)/2+1; }
