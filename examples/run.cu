@@ -53,7 +53,7 @@ void run_speed_test()
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    a.sim_input_constants.compact_interval = 35;
+    a.sim_input_constants.compact_interval = 0;
     a.sim_input_constants.num_generations = pow(10.f,3);
     a.sim_input_constants.num_sites = 2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
@@ -67,9 +67,15 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,GO_Fish::do_something(),GO_Fish::do_something());
 		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl; }
 	}
+	std::cout<< std::endl<<a.num_time_samples()<<std::endl;
+	for(int i = 0; i < a.num_time_samples(); i++){
+		std::cout<<a.frequency(i,0,1)<<"\t"<<a.frequency(i,0,100000)<<"\t"<<a.frequency(i,0,1000000)<<std::endl;
+	}
+
+	std::cout<<std::endl;
 
 	elapsedTime = 0;
 	cudaEventRecord(stop, 0);

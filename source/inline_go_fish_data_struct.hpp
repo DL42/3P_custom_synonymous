@@ -68,10 +68,10 @@ inline mutID allele_trajectories::mutation_ID_time_sample(int sample_index, int 
 	if((sample_index >= 0 && sample_index < length)){
 		if(mutation_index >= 0 && mutation_index < time_samples[sample_index]->num_mutations){
 			mutID temp;
-			temp.origin_generation = time_samples[sample_index]->mutations_ID[mutation_index].origin_generation;
-			temp.origin_population = time_samples[sample_index]->mutations_ID[mutation_index].origin_population;
-			temp.origin_threadID = abs(time_samples[sample_index]->mutations_ID[mutation_index].origin_threadID); //so the user doesn't get confused by the preservation flag on ID
-			temp.DFE_category = time_samples[sample_index]->mutations_ID[mutation_index].DFE_category;
+			temp.origin_generation = time_samples[length-1]->mutations_ID[mutation_index].origin_generation; //only the final generation stores mutation_IDs of the simulation
+			temp.origin_population = time_samples[length-1]->mutations_ID[mutation_index].origin_population;
+			temp.origin_threadID = abs(time_samples[length-1]->mutations_ID[mutation_index].origin_threadID); //so the user doesn't get confused by the preservation flag on ID
+			temp.DFE_category = time_samples[length-1]->mutations_ID[mutation_index].DFE_category;
 			return temp;
 		}
 		fprintf(stderr,"mutation_ID error: requested mutation index out of bounds: sample %d, mutation %d [0 %d)\n",sample_index,mutation_index,time_samples[sample_index]->num_mutations); exit(1);
