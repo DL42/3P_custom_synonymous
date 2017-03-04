@@ -69,8 +69,8 @@ const_equal_migration::const_equal_migration(float m, int n) : m(m), num_pop(n){
 /* ----- end of migration models ----- */
 
 /* ----- preserving & sampling functions ----- */
-do_array::do_array(): length(0), generation_shift(0) { array = NULL; }
-do_array::do_array(const bool * const in_array, int length, int generation_shift/* = 0*/): length(length), generation_shift(generation_shift) { array = in_array; }
+//on_off_array::on_off_array(): length(0), generation_shift(0) { array = NULL; }
+//on_off_array::on_off_array(const bool * const in_array, int length, int generation_shift/* = 0*/): length(length), generation_shift(generation_shift) { array = in_array; }
 /* ----- end of preserving & sampling functions ----- */
 
 }

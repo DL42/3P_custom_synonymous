@@ -160,15 +160,15 @@ __host__ __device__ __forceinline__ int piecewise_migration<Functor_m1,Functor_m
 /* ----- end of migration models ----- */
 
 /* ----- preserving & sampling functions ----- */
-__host__ __forceinline__ bool do_nothing::operator()(const int generation) const{ return false; }
+__host__ __forceinline__ bool off::operator()(const int generation) const{ return false; }
 
-__host__ __forceinline__ bool do_something::operator()(const int generation) const{ return true; }
+__host__ __forceinline__ bool on::operator()(const int generation) const{ return true; }
 
-__host__ __forceinline__ bool do_array::operator()(const int generation) const {
+/*__host__ __forceinline__ bool on_off_array::operator()(const int generation) const {
 	int gen = generation - generation_shift;
 	if((gen < 0) | (gen > length)){ fprintf(stderr,"do_array functor generation error,\t generation %d\t shifted generation %d\t array length %d\n",generation,gen,length); exit(1); }
 	return array[gen];
-}
+}*/
 
 template <typename Functor_stable, typename Functor_action>
 pulse<Functor_stable,Functor_action>::pulse() : Fgen(0), generation_shift(0) { f1 = Functor_stable(); f2 = Functor_action(); }
@@ -176,6 +176,13 @@ template <typename Functor_stable, typename Functor_action>
 pulse<Functor_stable,Functor_action>::pulse(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift/*= 0*/) : Fgen(Fgen), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
 template <typename Functor_stable, typename Functor_action>
 __host__ __forceinline__ bool pulse<Functor_stable,Functor_action>::operator()(const int generation) const{ if(generation-generation_shift == Fgen){ return f2(generation); } return f1(generation); }
+
+template <typename Functor_first, typename Functor_second>
+switch_function<Functor_first,Functor_second>::switch_function() : Fgen(0), generation_shift(0) { f1 = Functor_first(); f2 = Functor_second(); }
+template <typename Functor_first, typename Functor_second>
+switch_function<Functor_first,Functor_second>::switch_function(Functor_first f1_in, Functor_second f2_in, int Fgen, int generation_shift /*= 0*/) : Fgen(Fgen), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
+template <typename Functor_first, typename Functor_second>
+__host__ __forceinline__ bool switch_function<Functor_first,Functor_second>::operator()(const int generation) const{ if(generation-generation_shift < Fgen){ return f1(generation); } return f2(generation); }
 /* ----- end of preserving & sampling functions ----- */
 
 }/* ----- end namespace GO_Fish ----- */

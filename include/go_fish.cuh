@@ -229,19 +229,20 @@ struct piecewise_migration
 /* ----- end of migration models ----- */
 
 /* ----- preserving & sampling functions ----- */
-struct do_nothing{ __host__ __forceinline__ bool operator()(const int generation) const; };
+struct off{ __host__ __forceinline__ bool operator()(const int generation) const; };
 
-struct do_something{__host__ __forceinline__ bool operator()(const int generation) const; };
+struct on{__host__ __forceinline__ bool operator()(const int generation) const; };
 
-struct do_array{
+//fix - use vectors
+/*struct on_off_array{
 	const bool * array;
 	int length;
 	int generation_shift;
-	do_array();
-	do_array(const bool * const in_array, int length, int generation_shift = 0);
+	on_off_array();
+	on_off_array(const bool * const in_array, int length, int generation_shift = 0);
 	__host__ __forceinline__ bool operator()(const int generation) const;
 	~do_array();
-};
+}; */
 
 //returns the result of Functor_stable except at time Fgen(-generation_shift) returns the result of Functor_action
 template <typename Functor_stable, typename Functor_action>
@@ -251,6 +252,17 @@ struct pulse{
 	Functor_action f2;
 	pulse();
 	pulse(Functor_stable f1_in, Functor_action f2_in, int Fgen, int generation_shift = 0);
+	__host__ __forceinline__ bool operator()(const int generation) const;
+};
+
+//returns the result of Functor_first until time Fgen(-generation_shift), then returns the result of Functor_second
+template <typename Functor_first, typename Functor_second>
+struct switch_function{
+	int Fgen, generation_shift;
+	Functor_first f1;
+	Functor_second f2;
+	switch_function();
+	switch_function(Functor_first f1_in, Functor_second f2_in, int Fgen, int generation_shift = 0);
 	__host__ __forceinline__ bool operator()(const int generation) const;
 };
 /* ----- end of preserving & sampling functions ----- */
