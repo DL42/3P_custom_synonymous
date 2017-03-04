@@ -674,8 +674,6 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- end -----
 	//----- end -----
 
-	if(cudaStreamQuery(control_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[0]), generation, -1); } //wait for writes to host to finish
-
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 	for(int stream = 0; stream < num_control_streams; stream++){ cudaCheckErrorsAsync(cudaStreamDestroy(control_streams[stream]),generation,stream); cudaCheckErrorsAsync(cudaEventDestroy(control_events[stream]),generation,stream); }
 
@@ -683,6 +681,8 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	delete [] pop_events;
 	delete [] control_streams;
 	delete [] control_events;
+
+	cudaCheckErrors(cudaDeviceSynchronize(), generation, -1);
 }
 
 } /* ----- end namespace GO_Fish ----- */
