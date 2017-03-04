@@ -126,10 +126,10 @@ void run_prev_sim_n_allele_traj_test(){
 	std::cout<<std::endl<<"starting number of mutations: " << a.num_mutations_time_sample(0) <<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 	int mutation_range_begin = 0; int mutation_range_end = 10;
 	std::cout<<"mutation IDs\tstart gen "<<a.sampled_generation(0)<<"\tfrequency\tfinal gen "<<a.final_generation()<<"\tfrequency"<<std::endl;
-	for(int i = mutation_range_begin; i < mutation_range_end; i++){ std::cout<<"\t\t"<<a.mutation_ID_time_sample(0,i).toString()<<"\t"<<a.frequency(0,0,i)<<"\t\t"<<a.mutation_ID_all_samples(i).toString()<<"\t"<<a.frequency(1,0,i)<<std::endl; }
+	for(int i = mutation_range_begin; i < mutation_range_end; i++){ std::cout<<"\t\t"<<a.mutation_ID(i).toString()<<"\t"<<a.frequency(0,0,i)<<"\t\t"<<a.mutation_ID(i).toString()<<"\t"<<a.frequency(1,0,i)<<std::endl; }
 	mutation_range_begin = 11000; mutation_range_end = 11010;
 	std::cout<<"mutation IDs\tID\tstart_frequency\tfinal_frequency"<<std::endl;
-	for(int i = mutation_range_begin; i < mutation_range_end; i++){ std::cout<<"\t\t"<<a.mutation_ID_all_samples(i).toString()<<"\t"<<a.frequency(0,0,i)<<"\t"<<a.frequency(1,0,i)<<std::endl; }
+	for(int i = mutation_range_begin; i < mutation_range_end; i++){ std::cout<<"\t\t"<<a.mutation_ID(i).toString()<<"\t"<<a.frequency(0,0,i)<<"\t"<<a.frequency(1,0,i)<<std::endl; }
 
 	a.sim_input_constants.init_mse = true;
 	a.sim_input_constants.seed1 = 0xdecafbad; //random number seeds

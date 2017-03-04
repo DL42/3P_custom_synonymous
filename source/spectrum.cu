@@ -19,13 +19,11 @@ class transfer_allele_trajectories{
 		GO_Fish::mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 		bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
 		int * Nchrom_e; //effective number of chromosomes in each population
-		int num_populations; //number of populations in freq array (array length, rows)
 		int num_mutations; //number of mutations in array (array length for age/freq, columns)
-		float num_sites; //number of sites in simulation
 		int sampled_generation; //number of generations in the simulation at point of sampling
 
-		time_sample(): num_populations(0), num_mutations(0), num_sites(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; }
-		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_populations(in.time_samples[sample_index]->num_populations), num_mutations(in.time_samples[sample_index]->num_mutations), num_sites(in.time_samples[sample_index]->num_sites), sampled_generation(in.time_samples[sample_index]->sampled_generation){
+		time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; }
+		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_mutations(in.time_samples[sample_index]->num_mutations), sampled_generation(in.time_samples[sample_index]->sampled_generation){
 			mutations_freq = in.time_samples[sample_index]->mutations_freq;
 			mutations_ID = in.time_samples[sample_index]->mutations_ID;
 			extinct = in.time_samples[sample_index]->extinct;
@@ -38,39 +36,27 @@ class transfer_allele_trajectories{
 	unsigned int length;
 
 	//----- initialization parameters -----
-	struct sim_input_constants{
-		int seed1;
-		int seed2;
+	struct sim_constants{
 		int num_generations;
 		float num_sites;
 		int num_discrete_DFE_categories;
 		int num_populations;
-		bool init_mse;
-		int prev_sim_sample;
-		int compact_interval;
-		int device;
 
-		sim_input_constants();
-		sim_input_constants(const GO_Fish::allele_trajectories & in){
-			seed1 = in.sim_input_constants.seed1;
-			seed2 = in.sim_input_constants.seed2;
-			num_generations = in.sim_input_constants.num_generations;
-			num_sites = in.sim_input_constants.num_sites;
-			num_discrete_DFE_categories = in.sim_input_constants.num_discrete_DFE_categories;
-			num_populations = in.sim_input_constants.num_populations;
-			init_mse = in.sim_input_constants.init_mse;
-			prev_sim_sample = in.sim_input_constants.prev_sim_sample;
-			compact_interval = in.sim_input_constants.compact_interval;
-			device = in.sim_input_constants.device;
+		sim_constants();
+		sim_constants(const GO_Fish::allele_trajectories & in){
+			num_generations = in.sim_run_constants.num_generations;
+			num_sites = in.sim_run_constants.num_sites;
+			num_discrete_DFE_categories = in.sim_run_constants.num_discrete_DFE_categories;
+			num_populations = in.sim_run_constants.num_populations;
 		}
-	}sim_input_constants;
+	}sim_run_constants;
 	//----- end -----
 
 public:
 
 	transfer_allele_trajectories(): length(0) { time_samples = 0; }
 
-	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_input_constants(in){
+	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_run_constants(in){
 		if(!in.time_samples || in.length == 0){ fprintf(stderr,"error transferring allele_trajectories to spectrum: empty allele_trajectories\n"); exit(1); }
 		length = in.length;
 		time_samples = new time_sample *[length];
@@ -210,13 +196,13 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	float * d_mutations_freq;
 	double * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
-	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_input_constants.num_populations)){
-		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_input_constants.num_populations); exit(1);
+	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
+		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
 	}
 
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
 	int num_mutations = sample.time_samples[sample_index]->num_mutations;
-	float num_sites = sample.time_samples[sample_index]->num_sites;
+	float num_sites = sample.sim_run_constants.num_sites;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, population_size*sizeof(double)),-1,-1);
@@ -244,7 +230,7 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	mySFS.num_populations = 1;
 	mySFS.sample_size = new int[1];
 	mySFS.sample_size[0] = population_size;
-	mySFS.num_sites = sample.sim_input_constants.num_sites;
+	mySFS.num_sites = sample.sim_run_constants.num_sites;
 	mySFS.num_mutations = mySFS.num_sites - mySFS.frequency_spectrum[0];
 	mySFS.populations = new int[1];
 	mySFS.populations[0] = population_index;
@@ -266,15 +252,15 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	float * d_mutations_freq;
 	double * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
-	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_input_constants.num_populations)){
-		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_input_constants.num_populations); exit(1);
+	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
+		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
 	}
 
 	int num_levels = sample_size;
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
 	if(sample_size == 0){ num_levels = population_size; }
 	int num_mutations = sample.time_samples[sample_index]->num_mutations;
-	float num_sites = sample.time_samples[sample_index]->num_sites;
+	float num_sites = sample.sim_run_constants.num_sites;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(double)),-1,-1);
@@ -323,7 +309,7 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	mySFS.num_populations = 1;
 	mySFS.sample_size = new int[1];
 	mySFS.sample_size[0] = num_levels;
-	mySFS.num_sites = sample.sim_input_constants.num_sites;
+	mySFS.num_sites = sample.sim_run_constants.num_sites;
 	mySFS.num_mutations = mySFS.num_sites - mySFS.frequency_spectrum[0];
 	mySFS.populations = new int[1];
 	mySFS.populations[0] = population_index;

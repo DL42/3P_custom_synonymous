@@ -30,7 +30,7 @@ struct mutID{
 
 struct allele_trajectories{
 	//----- initialization parameters -----
-	struct sim_input_constants{
+	struct sim_constants{
 		int seed1;
 		int seed2;
 		int num_generations;
@@ -42,8 +42,11 @@ struct allele_trajectories{
 		int compact_interval;
 		int device;
 
-		sim_input_constants();
-	}sim_input_constants;
+		sim_constants();
+		inline void initialize(sim_constants & input);
+	};
+
+	sim_constants sim_input_constants; //for initializing the next simulation
 	//----- end -----
 
 	allele_trajectories();
@@ -54,23 +57,21 @@ struct allele_trajectories{
 	//number of reported mutations in the final time sample (maximal number of reported mutations in the allele_trajectories)
 	inline int maximal_num_mutations();
 	//number of reported mutations in the time sample index
-	inline int num_mutations_time_sample(int index);
+	inline int num_mutations_time_sample(int sample_index);
 
 	//final generation of simulation
 	inline int final_generation();
 	//generation of simulation in the time sample index
-	inline int sampled_generation(int index);
+	inline int sampled_generation(int sample_index);
 
 	//frequency of mutation at time sample sample_index, population population_index, mutation mutation_index
 	//frequency of mutation before it is generated in the simulation will be reported as 0 (not an error)
 	inline float frequency(int sample_index, int population_index, int mutation_index);
 
-	//mutation IDs in the final time sample (maximal set of mutations in the allele_trajectories)
-	inline mutID mutation_ID_all_samples(int mutation_index);
-	//mutation IDs from the time sample index
-	inline mutID mutation_ID_time_sample(int sample_index, int mutation_index);
+	//mutation IDs output from the simulation
+	inline mutID mutation_ID(int mutation_index);
 
-	inline void delete_time_sample(int index);
+	inline void delete_time_sample(int sample_index);
 
 	inline void free_memory();
 
@@ -88,9 +89,7 @@ private:
 		mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 		bool * extinct; //extinct[pop] == true, flag if population is extinct by time sample
 		int * Nchrom_e; //effective number of chromosomes in each population
-		int num_populations; //number of populations in freq array (array length, rows)
 		int num_mutations; //number of mutations in array (array length for age/freq, columns)
-		float num_sites; //number of sites in simulation
 		int sampled_generation; //number of generations in the simulation at point of sampling
 
 		time_sample();
@@ -99,8 +98,9 @@ private:
 
 	inline void initialize_sim_result_vector(int new_length);
 
-	time_sample ** time_samples;
-	unsigned int length;
+	sim_constants sim_run_constants; //stores inputs of the simulation run currently held by time_samples
+	time_sample ** time_samples; //the actual allele trajectories output from the simulation
+	unsigned int length; //number of time samples taken from the simulation
 };
 /* ----- end sim result output ----- */
 
