@@ -53,7 +53,7 @@ void run_speed_test()
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    a.sim_input_constants.compact_rate = 35;
+    a.sim_input_constants.compact_interval = 35;
     a.sim_input_constants.num_generations = pow(10.f,3);
     a.sim_input_constants.num_sites = 2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
@@ -174,7 +174,7 @@ void run_validation_test(){
 	b.sim_input_constants.num_populations = 1; //number of populations
 	int num_iter = 50;
     bool DFE = false;
-    b.sim_input_constants.compact_rate = 20;
+    b.sim_input_constants.compact_interval = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
     SPECTRUM::sfs * my_spectra = new SPECTRUM::sfs[num_iter];

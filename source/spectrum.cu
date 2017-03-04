@@ -47,7 +47,7 @@ class transfer_allele_trajectories{
 		int num_populations;
 		bool init_mse;
 		int prev_sim_sample;
-		int compact_rate;
+		int compact_interval;
 		int device;
 
 		sim_input_constants();
@@ -60,7 +60,7 @@ class transfer_allele_trajectories{
 			num_populations = in.sim_input_constants.num_populations;
 			init_mse = in.sim_input_constants.init_mse;
 			prev_sim_sample = in.sim_input_constants.prev_sim_sample;
-			compact_rate = in.sim_input_constants.compact_rate;
+			compact_interval = in.sim_input_constants.compact_interval;
 			device = in.sim_input_constants.device;
 		}
 	}sim_input_constants;

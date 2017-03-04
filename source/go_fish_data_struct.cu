@@ -20,6 +20,6 @@ allele_trajectories::time_sample::~time_sample(){
 
 allele_trajectories::allele_trajectories(): length(0) { time_samples = 0; }
 allele_trajectories::~allele_trajectories(){ free_memory(); }
-allele_trajectories::sim_input_constants::sim_input_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_discrete_DFE_categories(1), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_rate(35), device(-1) {}
+allele_trajectories::sim_input_constants::sim_input_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_discrete_DFE_categories(1), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_interval(35), device(-1) {}
 
 }/* ----- end namespace GO_Fish ----- */
