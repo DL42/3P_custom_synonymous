@@ -110,7 +110,6 @@ inline void allele_trajectories::sim_constants::initialize(sim_constants & input
 	num_populations = input.num_populations;
 	init_mse = input.init_mse;
 	prev_sim_sample = input.prev_sim_sample;
-	fast_data_sample = input.fast_data_sample;
 	compact_interval = input.compact_interval;
 	device = input.device;
 }
