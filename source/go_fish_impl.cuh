@@ -586,6 +586,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}
 	//----- end -----
 	//----- end -----
+	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 
 //	std::cout<< std::endl <<"initial length " << mutations.h_array_Length << std::endl;
 //	std::cout<<"initial num_mutations " << mutations.h_mutations_Index;
@@ -596,6 +597,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
+		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventCreateWithFlags(&pop_events[pop],cudaEventDisableTiming),-1,pop); }
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- migration, selection, drift -----
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -646,7 +648,10 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		}
 
 		//tell add mutations and migseldrift to pause here if not yet done streaming recoded data to host (store_time_sample) from previous generation
-		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],control_events[0],0),generation,pop); }
+		//for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],control_events[0],0),generation,pop); }
+		//cudaCheckErrors(cudaStreamSynchronize(control_streams[0]),generation,-1);
+		//cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),generation,-1);
+		//cudaCheckErrors(cudaStreamSynchronize(pop_streams[1]),generation,-1);
 
 		swap_freq_pointers(mutations); //even if previous kernels/cuda commands not finished yet, the fact that the pointer labels have switched doesn't change which pointers they were passed, still need to sync kernels with StreamWaitEvents but don't need to synchronize CPU and GPU here
 
@@ -660,6 +665,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 			store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 			sample_index++;
 		}
+		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 		//----- end -----
 	}
 
@@ -668,7 +674,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- end -----
 	//----- end -----
 
-	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
+	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); /*cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); */}
 	for(int stream = 0; stream < num_control_streams; stream++){ cudaCheckErrorsAsync(cudaStreamDestroy(control_streams[stream]),generation,stream); cudaCheckErrorsAsync(cudaEventDestroy(control_events[stream]),generation,stream); }
 
 	delete [] pop_streams;

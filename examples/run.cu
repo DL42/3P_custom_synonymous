@@ -24,11 +24,11 @@ void run_speed_test()
 	float gamma = 0; //effective selection
 	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
 	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
-	GO_Fish::off preserve; //don't preserve alleles from any generation
-	GO_Fish::off sample_strategy; //only sample final generation
+	//GO_Fish::off preserve; //don't preserve alleles from any generation
+	//GO_Fish::off sample_strategy; //only sample final generation
 	//----- end warm up scenario parameters -----
 
-	//----- warm up GPU -----
+	/*//----- warm up GPU -----
 	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,preserve,sample_strategy);
 	std::cout<<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 
@@ -46,15 +46,15 @@ void run_speed_test()
 
 	//GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
 	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,preserve,sample_strategy);
-	//----- end warm up GPU -----
+	//----- end warm up GPU -----*/
 
 	//----- speed test scenario parameters -----
     cudaEvent_t start, stop;
     float elapsedTime;
-    int num_iter = 10;
+    int num_iter = 1;
     a.sim_input_constants.compact_interval = 0;
-    a.sim_input_constants.num_generations = pow(10.f,3);
-    a.sim_input_constants.num_sites = 2*pow(10.f,7);
+    a.sim_input_constants.num_generations = 500;//pow(10.f,3);
+    a.sim_input_constants.num_sites = 0.1*2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
     a.sim_input_constants.seed2 = 0xdecafbad;
 	//----- end speed test scenario parameters -----
@@ -70,7 +70,7 @@ void run_speed_test()
 	}
 	std::cout<< std::endl<<a.num_time_samples()<<std::endl;
 	for(int i = 0; i < a.num_time_samples(); i++){
-		std::cout<<a.frequency(i,0,1)<<"\t"<<a.frequency(i,0,100000)<<"\t"<<a.frequency(i,0,1000000)<<std::endl;
+		std::cout<<a.mutation_ID(1).toString()<<" "<<a.frequency(i,0,1)<<"\t"<<a.mutation_ID(5000).toString()<<" "<<a.frequency(i,0,5000)<<"\t"<<a.mutation_ID(1000).toString()<<" "<<a.frequency(i,0,1000)<<std::endl;
 	}
 
 	std::cout<<std::endl;
