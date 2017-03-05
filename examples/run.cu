@@ -17,7 +17,6 @@ void run_speed_test()
 	a.sim_input_constants.num_populations = 1; //number of populations
 	a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
 	a.sim_input_constants.seed2 = 0xdecafbad;
-	bool DFE = false;
 	GO_Fish::const_parameter mutation(pow(10.f,-9)); //per-site mutation rate
 	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
 	GO_Fish::const_demography demography(pow(10.f,5)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
@@ -30,7 +29,7 @@ void run_speed_test()
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
-	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,preserve,sample_strategy);
 	std::cout<<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 
 	//----- print allele counts x to x+y of warm up GPU scenario -----
@@ -46,7 +45,7 @@ void run_speed_test()
 	//----- end print allele counts x to x+y of warm up GPU scenario -----
 
 	//GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
-	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,preserve,sample_strategy);
+	GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,preserve,sample_strategy);
 	//----- end warm up GPU -----
 
 	//----- speed test scenario parameters -----
@@ -58,7 +57,6 @@ void run_speed_test()
     a.sim_input_constants.num_sites = 2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
     a.sim_input_constants.seed2 = 0xdecafbad;
-	DFE = true;
 	//----- end speed test scenario parameters -----
 
     //----- speed test -----
@@ -67,7 +65,7 @@ void run_speed_test()
 	cudaEventRecord(start, 0);
 
 	for(int i = 0; i < num_iter; i++){
-		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,DFE,GO_Fish::on(),GO_Fish::on());
+		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,GO_Fish::on(),GO_Fish::on());
 		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl; }
 	}
 	std::cout<< std::endl<<a.num_time_samples()<<std::endl;
@@ -101,7 +99,6 @@ void run_prev_sim_n_allele_traj_test(){
 	a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
 	a.sim_input_constants.seed2 = 0xdecafbad;
 	a.sim_input_constants.init_mse = false;
-	bool DFE = false;
 	GO_Fish::const_parameter mutation1(1.07*pow(10.f,-9)); //per-site mutation rate
 	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
 	GO_Fish::const_demography demography(pow(10.f,4)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
@@ -115,13 +112,13 @@ void run_prev_sim_n_allele_traj_test(){
 	GO_Fish::pulse<GO_Fish::off,GO_Fish::on> sample_strategy(dont_sample,sample,0,a.sim_input_constants.num_generations); //sample starting generation of second simulation
 
 
-	GO_Fish::run_sim(a,mutation1,demography,migration,selection,inbreeding,dominance,DFE,dont_preserve,dont_sample); //only sample final generation
+	GO_Fish::run_sim(a,mutation1,demography,migration,selection,inbreeding,dominance,dont_preserve,dont_sample); //only sample final generation
 	std::cout<<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 
 	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
 	a.sim_input_constants.prev_sim_sample = 0;
 	GO_Fish::const_parameter mutation2(pow(10.f,-9)); //per-site mutation rate
-	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,DFE,dont_preserve,sample_strategy,a);
+	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,dont_preserve,sample_strategy,a);
 	std::cout<<std::endl<<"number of time samples: " << a.num_time_samples();
 	std::cout<<std::endl<<"starting number of mutations: " << a.num_mutations_time_sample(0) <<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 	int mutation_range_begin = 0; int mutation_range_end = 10;
@@ -135,7 +132,7 @@ void run_prev_sim_n_allele_traj_test(){
 	a.sim_input_constants.seed1 = 0xdecafbad; //random number seeds
 	a.sim_input_constants.seed2 = 0xbeeff00d;
 	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
-	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,DFE,dont_preserve,dont_sample);
+	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,dont_preserve,dont_sample);
 	std::cout<<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 }
 
@@ -179,7 +176,6 @@ void run_validation_test(){
 	float m = 0.00; //migration rate
 	b.sim_input_constants.num_populations = 1; //number of populations
 	int num_iter = 50;
-    bool DFE = false;
     b.sim_input_constants.compact_interval = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
@@ -197,7 +193,7 @@ void run_validation_test(){
 
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), DFE, GO_Fish::off(), GO_Fish::off());
+		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), GO_Fish::off(), GO_Fish::off());
 		SPECTRUM::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
 		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
 		//std::cout<<b.maximal_num_mutations()<<std::endl;

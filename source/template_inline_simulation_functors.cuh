@@ -12,15 +12,15 @@ namespace GO_Fish{
 
 /* ----- selection models ----- */
 /* ----- constant selection model ----- */
-__host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return s; }
+__host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq) const{ return s; }
 /* ----- end constant selection model ----- */
 
 /* ----- linear frequency dependent selection model ----- */
-__host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return slope*freq+intercept; }
+__host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq) const{ return slope*freq+intercept; }
 /* ----- end linear frequency dependent selection model ----- */
 
 /* ----- seasonal selection model ----- */
-__host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
+__host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal selection model ----- */
 
 /* ----- population specific selection model ----- */
@@ -29,7 +29,7 @@ population_specific_selection<Functor_sel,Functor_sel_pop>::population_specific_
 template <typename Functor_sel, typename Functor_sel_pop>
 population_specific_selection<Functor_sel,Functor_sel_pop>::population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  s = s_in; s_pop = s_pop_in; }
 template <typename Functor_sel, typename Functor_sel_pop>
-__host__ __device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{
+__host__ __device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq) const{
 	if(pop == population) return s_pop(population, generation-generation_shift, freq);
 	return s(population, generation-generation_shift, freq);
 }
@@ -41,7 +41,7 @@ piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection() : inflect
 template <typename Functor_sel1, typename Functor_sel2>
 piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { s1 = s1_in; s2 = s2_in; }
 template <typename Functor_sel1, typename Functor_sel2>
-__host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const{
+__host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq) const{
 	if(generation >= inflection_point+generation_shift){ return s2(population, generation-generation_shift, freq) ; }
 	return s1(population, generation-generation_shift, freq);
 };

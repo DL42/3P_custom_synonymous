@@ -31,7 +31,7 @@ struct mse_integrand{
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
 	__device__ __forceinline__ float operator()(float i) const{
-		float s = max(sel_coeff(pop, gen, i, make_int4(0)),-1.f);
+		float s = max(sel_coeff(pop, gen, i),-1.f);
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
 };
@@ -62,7 +62,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, float * mse_int
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
 		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
-		float s = sel_coeff(population, 0, i, make_int4(0));
+		float s = sel_coeff(population, 0, i);
 		float lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
@@ -100,13 +100,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function
 		}
 
-		int4 mutID[4];
-		mutID[0] = mutations_ID[4*id];
-		mutID[1] = mutations_ID[4*id+1];
-		mutID[2] = mutations_ID[4*id+2];
-		mutID[3] = mutations_ID[4*id+3];
-		float4 s = make_float4(max(sel_coeff(population,generation,i_mig.x,mutID[0]),-1.f),max(sel_coeff(population,generation,i_mig.y,mutID[1]),-1.f),max(sel_coeff(population,generation,i_mig.z,mutID[2]),-1.f),max(sel_coeff(population,generation,i_mig.w,mutID[3]),-1.f));
-
+		float4 s = make_float4(max(sel_coeff(population,generation,i_mig.x),-1.f),max(sel_coeff(population,generation,i_mig.y),-1.f),max(sel_coeff(population,generation,i_mig.z),-1.f),max(sel_coeff(population,generation,i_mig.w),-1.f));
 		float4 i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float4 mean = i_mig_sel*N; //expected allele count in new generation
 		int4 j_mig_sel_drift = clamp(RNG::ApproxRandBinom4(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
@@ -120,8 +114,8 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			i_mig += mig_prop(pop,population,generation)*i;
 		}
 
-		int4 mutID = mutations_ID[id];
-		float s = max(sel_coeff(population,generation,i_mig,mutID),-1.f);
+
+		float s = max(sel_coeff(population,generation,i_mig),-1.f);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);
 		float mean = i_mig_sel*N; //expected allele count in new generation
 		int j_mig_sel_drift = clamp(RNG::ApproxRandBinom1(mean,(1.0-i_mig_sel)*mean,i_mig_sel,N,seed,(id + 2),generation,population), 0, N);
@@ -503,13 +497,13 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 
 namespace GO_Fish{
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
-	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, discrete_DFE, preserve_mutations, take_sample, allele_trajectories());
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
+	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, allele_trajectories());
 }
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim){
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim){
 
 	using namespace go_fish_details;
 

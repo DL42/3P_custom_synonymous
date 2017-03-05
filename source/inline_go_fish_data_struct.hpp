@@ -106,7 +106,6 @@ inline void allele_trajectories::sim_constants::initialize(sim_constants & input
 	seed2 = input.seed2;
 	num_generations = input.num_generations;
 	num_sites = input.num_sites;
-	num_discrete_DFE_categories = input.num_discrete_DFE_categories;
 	num_populations = input.num_populations;
 	init_mse = input.init_mse;
 	prev_sim_sample = input.prev_sim_sample;

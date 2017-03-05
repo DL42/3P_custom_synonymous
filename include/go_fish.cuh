@@ -19,7 +19,7 @@ struct const_selection
 	float s;
 	const_selection();
 	const_selection(float s);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 struct linear_frequency_dependent_selection
@@ -28,7 +28,7 @@ struct linear_frequency_dependent_selection
 	float intercept;
 	linear_frequency_dependent_selection();
 	linear_frequency_dependent_selection(float slope, float intercept);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //models selection as a sine wave through time
@@ -42,7 +42,7 @@ struct seasonal_selection
 
 	seasonal_selection();
 	seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //one population, pop, has a different, selection functor, s_pop
@@ -54,7 +54,7 @@ struct population_specific_selection
 	Functor_sel_pop s_pop;
 	population_specific_selection();
 	population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq, const int4 mutation_ID) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //selection function changes at inflection_point
@@ -66,7 +66,7 @@ struct piecewise_selection
 	Functor_sel2 s2;
 	piecewise_selection();
 	piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq, const int4 mutation_ID = make_int4(0)) const;
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 /* ----- end selection models ----- */
 
@@ -268,11 +268,11 @@ struct switch_function{
 /* ----- end of preserving & sampling functions ----- */
 
 /* ----- go_fish_impl  ----- */
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_DFE, typename Functor_preserve, typename Functor_timesample>
-__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_DFE discrete_DFE, const Functor_preserve preserve_mutations, const Functor_timesample take_sample);
+template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
+__host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample);
 /* ----- end go_fish_impl ----- */
 
 } /* ----- end namespace GO_Fish ----- */

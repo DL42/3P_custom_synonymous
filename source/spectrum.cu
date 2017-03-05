@@ -39,14 +39,12 @@ class transfer_allele_trajectories{
 	struct sim_constants{
 		int num_generations;
 		float num_sites;
-		int num_discrete_DFE_categories;
 		int num_populations;
 
 		sim_constants();
 		sim_constants(const GO_Fish::allele_trajectories & in){
 			num_generations = in.sim_run_constants.num_generations;
 			num_sites = in.sim_run_constants.num_sites;
-			num_discrete_DFE_categories = in.sim_run_constants.num_discrete_DFE_categories;
 			num_populations = in.sim_run_constants.num_populations;
 		}
 	}sim_run_constants;
