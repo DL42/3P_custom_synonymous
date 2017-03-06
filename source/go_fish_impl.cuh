@@ -389,7 +389,8 @@ __host__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, co
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,-1);
 
 	int h_num_seg_mutations;
-	cudaCheckErrors(cudaMemcpy(&h_num_seg_mutations, &d_scan_Index[(padded_mut_index>>10)-1], sizeof(int), cudaMemcpyDeviceToHost),generation,-1); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
+	cudaCheckErrors(cudaMemcpyAsync(&h_num_seg_mutations, &d_scan_Index[(padded_mut_index>>10)-1], sizeof(int), cudaMemcpyDeviceToHost, control_streams[0]),generation,-1);
+	cudaStreamSynchronize(control_streams[0]); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
 
 	int old_array_Length = mutations.h_array_Length;
 	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_interval, generation, final_generation);
