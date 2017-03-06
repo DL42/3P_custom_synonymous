@@ -586,7 +586,6 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}
 	//----- end -----
 	//----- end -----
-	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 
 //	std::cout<< std::endl <<"initial length " << mutations.h_array_Length << std::endl;
 //	std::cout<<"initial num_mutations " << mutations.h_mutations_Index;
@@ -597,7 +596,6 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 
 	while((generation+1) <= final_generation){ //end of simulation
 		generation++;
-		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventCreateWithFlags(&pop_events[pop],cudaEventDisableTiming),-1,pop); }
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
 		//----- migration, selection, drift -----
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -637,25 +635,23 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		mutations.h_mutations_Index = mutations.h_new_mutation_Indices[mutations.h_num_populations];
 		//----- end -----
 
+		bool preserve = (preserve_mutations(generation) | take_sample(generation)); //preserve mutations in sample
+
 		for(int pop1 = 0; pop1 < mutations.h_num_populations; pop1++){
 			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2+mutations.h_num_populations],0), generation, pop1*mutations.h_num_populations+pop2); //wait to do the next round of mig_sel_drift until
 			}
-			if((generation == next_compact_generation || generation == final_generation)){
+			if(generation == next_compact_generation || generation == final_generation || preserve){
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1],0), generation, pop1); //wait to compact/sample until after mig_sel_drift and add_new_mut are done
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1+mutations.h_num_populations],0), generation, pop1);
 			}
 		}
 
 		//tell add mutations and migseldrift to pause here if not yet done streaming recoded data to host (store_time_sample) from previous generation
-		//for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],control_events[0],0),generation,pop); }
-		//cudaCheckErrors(cudaStreamSynchronize(control_streams[0]),generation,-1);
-		//cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),generation,-1);
-		//cudaCheckErrors(cudaStreamSynchronize(pop_streams[1]),generation,-1);
+		if(take_sample(generation-1)){ for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],control_events[0],0),generation,pop); } }
 
 		swap_freq_pointers(mutations); //even if previous kernels/cuda commands not finished yet, the fact that the pointer labels have switched doesn't change which pointers they were passed, still need to sync kernels with StreamWaitEvents but don't need to synchronize CPU and GPU here
 
-		bool preserve = (preserve_mutations(generation) | take_sample(generation)); //preserve mutations in sample
 		//----- compact every compact_interval generations, final generation, and before preserving mutations; compact_interval == 0 shuts off compact -----
 		if((generation == next_compact_generation || generation == final_generation || preserve) && compact_interval > 0){ compact(mutations, mu_rate, demography, FI, generation, final_generation, preserve, compact_interval, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_interval;  }
 		//----- end -----
@@ -665,7 +661,6 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 			store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 			sample_index++;
 		}
-		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 		//----- end -----
 	}
 
@@ -674,7 +669,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- end -----
 	//----- end -----
 
-	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); /*cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); */}
+	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 	for(int stream = 0; stream < num_control_streams; stream++){ cudaCheckErrorsAsync(cudaStreamDestroy(control_streams[stream]),generation,stream); cudaCheckErrorsAsync(cudaEventDestroy(control_events[stream]),generation,stream); }
 
 	delete [] pop_streams;
