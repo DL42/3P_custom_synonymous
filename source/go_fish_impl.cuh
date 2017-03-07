@@ -153,7 +153,7 @@ __global__ void flag_segregating_mutations(unsigned int * flag, unsigned int * c
 			if(index >= mutations_Index){ zero *= 1; one = 0; }
 			else{
 				for(int pop = 0; pop < num_populations; pop++){
-					if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway)
+					if(demography(pop,generation) > 0){ //not protected if population goes extinct but demography function becomes non-zero again (shouldn't happen anyway, error msg will be spit out in check_sim_paramters)
 						float i = mutations_freq[pop*array_Length+index];
 						zero = zero & boundary_0(i);
 						one = one & boundary_1(i);
@@ -477,7 +477,7 @@ template <typename Functor_demography, typename Functor_inbreeding>
 __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & out_sampled_generation, float *& out_mutations_freq, GO_Fish::mutID *& out_mutations_ID, bool *& out_extinct, int *& out_Nchrom_e, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, int final_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out_num_mutations = mutations.h_mutations_Index;
 	out_sampled_generation = sampled_generation;
-	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float)),sampled_generation,-1); //should allow for simultaneous transfer to host
+	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float)),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
 	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), mutations.h_num_populations, cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //removes padding
 	if(sampled_generation == final_generation){
 		cudaCheckErrors(cudaMallocHost((void**)&out_mutations_ID, out_num_mutations*sizeof(GO_Fish::mutID)),sampled_generation,-1);
