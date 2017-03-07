@@ -83,23 +83,17 @@ __global__ void population_hist(unsigned int * out_histogram, float * in_mutatio
 	if(myID == 0){  atomicAdd(&out_histogram[0], (num_sites - num_mutations));  }
 }
 
-__global__ void uint_to_double(double * out_array, unsigned int * in_array, int N){
+__global__ void uint_to_float(float * out_array, unsigned int * in_array, int N){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < N; id+= blockDim.x*gridDim.x){ out_array[id] = in_array[id]; }
 }
 
-__global__ void binom_coeff(double * binom_coeff, int half_n, int n){
+__global__ void binom_coeff(float * binom_coeff, int half_n, int n){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 
-	for(int idx = (myIDx+1); idx < half_n; idx+= blockDim.x*gridDim.x){ binom_coeff[idx] =  ((n+1.0-idx)/((double)idx)); }
-	if(myIDx == 0){ binom_coeff[0] = 1.0; }
+	for(int idx = (myIDx+1); idx < half_n; idx+= blockDim.x*gridDim.x){ binom_coeff[idx] =  logf((n+1.f-idx)/((float)idx)); }
+	if(myIDx == 0){ binom_coeff[0] = 0.0; }
 }
-
-struct CustomMultiply
-{
-    template <typename T>
-    __device__ __forceinline__ T operator()(const T &a, const T &b) const { return a*b; }
-};
 
 __global__ void print_Device_array_float(float * array, int num){
 
@@ -115,73 +109,34 @@ __global__ void print_Device_array_double(double * array, int start, int end){
 	printf("\n");
 }
 
-__device__ double atomicAddDouble(double* address, double val)
-{
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-                __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-    return __longlong_as_double(old);
-}
-
-__host__ __device__ __forceinline__ double normpdf64(int x, double my_mean, double my_var){
-	double rval = exp(-1.0*pow(x-my_mean,2)/(2.0*my_var))/sqrt(2.0*my_var*CUDART_PI);
-	if(isnan(rval)){ return 0; }
-	return rval;
-}
-
-__host__ __device__ __forceinline__ double poispdf64(int x, double my_mean){
-	double rval = exp(-1.0*my_mean)*pow(my_mean,x)/tgamma(x+1.0);
-	if(isnan(rval)){ return 0; }
-	return  rval;
-}
-
-#define PDF_MEAN_BOUNDARY_NORM_POIS 12
-
-__global__ void binom(double * d_histogram, const float * const d_mutations_freq, const double * const d_binom_coeff, const int half_n, const int num_levels, float num_sites, int num_mutations){
+template <int BLOCK_THREADS>
+__global__ void binom(float * d_histogram, const float * const d_mutations_freq, const float * const d_binom_coeff, const int half_n, const int num_levels, float num_sites, int num_mutations){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
-	typedef cub::BlockReduce<double, 1024> BlockReduceT;
+	typedef cub::BlockReduce<float, BLOCK_THREADS> BlockReduceT;
 	__shared__ typename BlockReduceT::TempStorage temp_storage;
-	double thread_data[1];
+	float thread_data[1];
 
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
-		thread_data[1] = 0;
+		thread_data[0] = 0;
 		for(int idx = myIDx; idx < num_mutations; idx+= blockDim.x*gridDim.x){
 			float pf = d_mutations_freq[idx];
-			float qf = 1-pf;
-			double pd = (double)pf;
-			double qd = 1-pd;
-			double coeff;
-			if(idy < half_n){ coeff = d_binom_coeff[idy]; }
-			else{ coeff = d_binom_coeff[num_levels-idy]; }
-			if(isinf(coeff)){ //if coefficients have gotten too large for the binomial coefficient calculation, switch to normal and poisson pdf approximation (starts happening around a sample size > 1020)
-				double mean = num_levels*pd;
-				double var = num_levels*pd*qd;
-				if(mean <= PDF_MEAN_BOUNDARY_NORM_POIS || ((num_levels - mean) <= PDF_MEAN_BOUNDARY_NORM_POIS)){
-					int input1;
-					float input2;
-					if(mean <= PDF_MEAN_BOUNDARY_NORM_POIS){ input1 = idy; input2 = mean; }else{ input1 = num_levels - idy; input2 = num_levels - mean; }
-					thread_data[1] += poispdf64(input1, input2);
-				}
-				else{ thread_data[1] += normpdf64(idy,mean,var); }
-			}
-			else{ //use exact binomial pdf
-				double powp = powf(pf,idy); if(powp == 0){ powp = pow(pd,idy); }
-				double powq = powf(qf,num_levels-idy); if(powq == 0){ powq = pow(qd,num_levels-idy); }
-				thread_data[1] += coeff*(powp*powq);
-			}
+			if(pf > 0 && pf < 1){ //segregating in this population
+				float qf = 1-pf;
+				float powp = idy*logf(pf);
+				float powq = (num_levels-idy)*logf(qf);
+				float coeff;
+				if(idy < half_n){ coeff = d_binom_coeff[idy]; } else{ coeff = d_binom_coeff[num_levels-idy]; }
+				thread_data[0] += expf(coeff+powp+powq);
+			}else if(idy == 0){ thread_data[0] += 1.f; } //segregating in other populations: this is the marginal SFS in one population, so they count as monomorphic only
 		}
-		double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
+		float aggregate = BlockReduceT(temp_storage).Sum(thread_data);
 		if(threadIdx.x == 0){
-			if(idy == num_levels){ atomicAddDouble(&d_histogram[0],aggregate); }
-			else{ atomicAddDouble(&d_histogram[idy],aggregate); }
+			if(idy == num_levels){ atomicAdd(&d_histogram[0],aggregate); }
+			else{ atomicAdd(&d_histogram[idy],aggregate);  }
 		}
 	}
-	if(myIDx == 0 && myIDy == 0){  atomicAddDouble(&d_histogram[0],(double)(num_sites-num_mutations));  }
+	if(myIDx == 0 && myIDy == 0){  atomicAdd(&d_histogram[0],(float)(num_sites-num_mutations));  }
 }
 
 //frequency histogram of mutations at a single time point in a single population
@@ -192,7 +147,7 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	cudaCheckErrors(cudaStreamCreate(&stream),-1,-1);
 
 	float * d_mutations_freq;
-	double * d_histogram, * h_histogram;
+	float * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
 	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
 		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
@@ -203,7 +158,7 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	float num_sites = sample.sim_run_constants.num_sites;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, population_size*sizeof(double)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, population_size*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
 
 	unsigned int * d_pop_histogram;
@@ -215,12 +170,12 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	int num_threads = 1024;
 	if(population_size < 1024){ num_threads = 256; if(population_size < 256){  num_threads = 128; } }
 	int num_blocks = max(population_size/num_threads,1);
-	uint_to_double<<<num_blocks,num_threads,0,stream>>>(d_histogram, d_pop_histogram, population_size);
+	uint_to_float<<<num_blocks,num_threads,0,stream>>>(d_histogram, d_pop_histogram, population_size);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_pop_histogram),-1,-1);
 
-	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, population_size*sizeof(double)),-1,-1);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, population_size*sizeof(double), cudaMemcpyDeviceToHost, stream),-1,-1);
+	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, population_size*sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, population_size*sizeof(float), cudaMemcpyDeviceToHost, stream),-1,-1);
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
 
@@ -248,7 +203,7 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	cudaCheckErrors(cudaStreamCreate(&stream),-1,-1);
 
 	float * d_mutations_freq;
-	double * d_histogram, * h_histogram;
+	float * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
 	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
 		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
@@ -263,43 +218,42 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	float num_sites = sample.sim_run_constants.num_sites;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(double)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
 
 	int half_n;
 	if((num_levels) % 2 == 0){ half_n = (num_levels)/2+1; }
 	else{ half_n = (num_levels+1)/2; }
 
-	double * d_binom_partial_coeff;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_partial_coeff, half_n*sizeof(double)),-1,-1);
+	float * d_binom_partial_coeff;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_partial_coeff, half_n*sizeof(float)),-1,-1);
 	int num_threads = 1024;
 	if(half_n < 1024){ num_threads = 256; if(half_n < 256){  num_threads = 128; } }
 	int num_blocks = max(num_levels/num_threads,1);
 	binom_coeff<<<num_blocks,num_threads,0,stream>>>(d_binom_partial_coeff, half_n, num_levels);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
-	double * d_binom_coeff;
-	CustomMultiply mul_op;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(double)),-1,-1);
+	float * d_binom_coeff;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(float)),-1,-1);
 
 	void *d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, half_n, stream),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),-1,-1);
-	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveScan(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, mul_op, half_n, stream),-1,-1);
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, half_n, stream),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
 	//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
 
-	const dim3 gridsize(20,50,1);
-	num_threads = 1024;
-	cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(double), stream),-1,-1);
-	binom<<<gridsize,num_threads,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
+	const dim3 gridsize(200,20,1);
+	const int num_threads_binom = 1024;
+	cudaCheckErrorsAsync(cudaMemsetAsync(d_histogram, 0, num_levels*sizeof(float), stream),-1,-1);
+	binom<num_threads_binom><<<gridsize,num_threads_binom,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
 
-	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(double)),-1,-1);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, num_levels*sizeof(double), cudaMemcpyDeviceToHost, stream),-1,-1);
+	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, num_levels*sizeof(float), cudaMemcpyDeviceToHost, stream),-1,-1);
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
 

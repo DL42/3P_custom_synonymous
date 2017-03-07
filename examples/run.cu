@@ -219,6 +219,7 @@ void run_validation_test(){
 		for(int j = 0; j < num_iter; j++){ std += 1.0/(num_iter-1)*pow(my_spectra[j].frequency_spectrum[i]-avg,2); }
 		std = sqrt(std);
 		std::cout<<i<<"\t"<<avg<<"\t"<<std<<"\t"<<(std/avg)<<std::endl;
+		//std::cout<<avg<<std::endl;
 	}
 	std::cout<<avg_num_mutations<<std::endl;
 	//delete [] expectation;
