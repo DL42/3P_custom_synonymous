@@ -97,7 +97,7 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 		float4 i_mig = make_float4(0);
 		for(int pop = 0; pop < num_populations; pop++){
 			float4 i = reinterpret_cast<float4*>(prev_freq)[pop*array_Length/4+id]; //allele frequency in previous population //make sure array length is divisible by 4 (preferably divisible by 32 or warp_size)!!!!!!
-			i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function
+			i_mig += mig_prop(pop,population,generation)*i; //if population is size 0 or extinct < this does not protect user if they have an incorrect migration function (shouldn't happen anyway, error msg will be spit out in check_sim_paramters)
 		}
 
 		float4 s = make_float4(max(sel_coeff(population,generation,i_mig.x),-1.f),max(sel_coeff(population,generation,i_mig.y),-1.f),max(sel_coeff(population,generation,i_mig.z),-1.f),max(sel_coeff(population,generation,i_mig.w),-1.f));
@@ -113,7 +113,6 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 			float i = prev_freq[pop*array_Length+id]; //allele frequency in previous population
 			i_mig += mig_prop(pop,population,generation)*i;
 		}
-
 
 		float s = max(sel_coeff(population,generation,i_mig),-1.f);
 		float i_mig_sel = (s*i_mig*i_mig+i_mig+(F+h-h*F)*s*i_mig*(1-i_mig))/(i_mig*i_mig*s+(F+2*h-2*h*F)*s*i_mig*(1-i_mig)+1);

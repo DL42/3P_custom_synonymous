@@ -52,8 +52,8 @@ void run_speed_test()
     cudaEvent_t start, stop;
     float elapsedTime;
     int num_iter = 10;
-    a.sim_input_constants.compact_interval = 0;
-    a.sim_input_constants.num_generations = 1000;//pow(10.f,3);
+    a.sim_input_constants.compact_interval = 35;
+    a.sim_input_constants.num_generations = pow(10.f,3);
     a.sim_input_constants.num_sites = 2*pow(10.f,7);
     a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
     a.sim_input_constants.seed2 = 0xdecafbad;
@@ -64,16 +64,7 @@ void run_speed_test()
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	for(int i = 0; i < num_iter; i++){
-		GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,GO_Fish::off(),GO_Fish::on());
-		if(i==0){ std::cout<< std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl; }
-	}
-	std::cout<< std::endl<<a.num_time_samples()<<std::endl;
-	for(int i = 0; i < a.num_time_samples(); i++){
-		std::cout<<a.mutation_ID(1).toString()<<" "<<a.frequency(i,0,1)<<"\t"<<a.mutation_ID(50000).toString()<<" "<<a.frequency(i,0,50000)<<"\t"<<a.mutation_ID(120000).toString()<<" "<<a.frequency(i,0,120000)<<std::endl;
-	}
-
-	std::cout<<std::endl;
+	for(int i = 0; i < num_iter; i++){ GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,GO_Fish::off(),GO_Fish::off()); }
 
 	elapsedTime = 0;
 	cudaEventRecord(stop, 0);
@@ -81,6 +72,14 @@ void run_speed_test()
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
+
+	std::cout<< std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
+	std::cout<< std::endl<<a.num_time_samples()<<std::endl;
+	for(int i = 0; i < a.num_time_samples(); i++){
+		std::cout<<a.mutation_ID(1).toString()<<" "<<a.frequency(i,0,1)<<"\t"<<a.mutation_ID(50000).toString()<<" "<<a.frequency(i,0,50000)<<"\t"<<a.mutation_ID(100000).toString()<<" "<<a.frequency(i,0,100000)<<std::endl;
+	}
+
+	std::cout<<std::endl;
 
 	printf("time elapsed: %f\n\n", elapsedTime/num_iter);
 	//----- end speed test -----
