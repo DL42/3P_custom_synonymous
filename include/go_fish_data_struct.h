@@ -42,7 +42,6 @@ struct allele_trajectories{
 		int device;
 
 		sim_constants();
-		inline void initialize(sim_constants & input);
 	};
 
 	sim_constants sim_input_constants; //for initializing the next simulation
@@ -94,6 +93,8 @@ private:
 		time_sample();
 		~time_sample();
 	};
+
+	inline void initialize_run_constants();
 
 	inline void initialize_sim_result_vector(int new_length);
 

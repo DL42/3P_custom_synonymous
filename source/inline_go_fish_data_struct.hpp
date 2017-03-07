@@ -101,25 +101,24 @@ inline void allele_trajectories::free_memory(){
 	time_samples = NULL; length = 0;
 }
 
-inline void allele_trajectories::sim_constants::initialize(sim_constants & input){
-	seed1 = input.seed1;
-	seed2 = input.seed2;
-	num_generations = input.num_generations;
-	num_sites = input.num_sites;
-	num_populations = input.num_populations;
-	init_mse = input.init_mse;
-	prev_sim_sample = input.prev_sim_sample;
-	compact_interval = input.compact_interval;
-	device = input.device;
+inline void allele_trajectories::initialize_run_constants(){
+	sim_run_constants.seed1 = sim_input_constants.seed1;
+	sim_run_constants.seed2 = sim_input_constants.seed2;
+	sim_run_constants.num_generations = sim_input_constants.num_generations;
+	sim_run_constants.num_sites = sim_input_constants.num_sites;
+	sim_run_constants.num_populations = sim_input_constants.num_populations;
+	sim_run_constants.init_mse = sim_input_constants.init_mse;
+	sim_run_constants.prev_sim_sample = sim_input_constants.prev_sim_sample;
+	sim_run_constants.compact_interval = sim_input_constants.compact_interval;
+	sim_run_constants.device = sim_input_constants.device;
 }
-
 
 inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	free_memory(); //overwrite old data if any
 	length = new_length;
 	time_samples = new time_sample *[length];
 	for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(); }
-	sim_run_constants.initialize(sim_input_constants);
+	initialize_run_constants();
 }
 
 } /* ----- end namespace GO_Fish ----- */
