@@ -16,24 +16,24 @@ class transfer_allele_trajectories{
 
 	struct time_sample{
 		float * mutations_freq; //allele frequency of mutations in final generation
-		GO_Fish::mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 		bool * extinct; //extinct[pop] == true, flag if population is extinct by end of simulation
 		int * Nchrom_e; //effective number of chromosomes in each population
-		int num_mutations; //number of mutations in array (array length for age/freq, columns)
+		int num_mutations; //number of mutations in frequency array (columns array length for freq)
 		int sampled_generation; //number of generations in the simulation at point of sampling
 
-		time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = 0; mutations_ID = 0; extinct = 0; Nchrom_e = 0; }
+		time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; }
 		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_mutations(in.time_samples[sample_index]->num_mutations), sampled_generation(in.time_samples[sample_index]->sampled_generation){
 			mutations_freq = in.time_samples[sample_index]->mutations_freq;
-			mutations_ID = in.time_samples[sample_index]->mutations_ID;
 			extinct = in.time_samples[sample_index]->extinct;
 			Nchrom_e = in.time_samples[sample_index]->Nchrom_e;
 		}
-		~time_sample(){ mutations_freq = NULL; mutations_ID = NULL; extinct = NULL; Nchrom_e = NULL; } //don't actually delete information, just null pointers as this just points to the real data held
+		~time_sample(){ mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; } //don't actually delete information, just null pointers as this just points to the real data held
 	};
 
 	time_sample ** time_samples;
-	unsigned int length;
+	GO_Fish::mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
+	unsigned int num_samples;
+	int all_mutations; //number of mutations in mutation ID array - maximal set of mutations in the simulation
 
 	//----- initialization parameters -----
 	struct sim_constants{
@@ -50,23 +50,22 @@ class transfer_allele_trajectories{
 	}sim_run_constants;
 	//----- end -----
 
-public:
+	transfer_allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = 0; mutations_ID = 0; }
 
-	transfer_allele_trajectories(): length(0) { time_samples = 0; }
+	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_run_constants(in), all_mutations(in.all_mutations) {
+		if(!in.time_samples || in.num_samples == 0){ fprintf(stderr,"error transferring allele_trajectories to spectrum: empty allele_trajectories\n"); exit(1); }
+		num_samples = in.num_samples;
+		time_samples = new time_sample *[num_samples];
 
-	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_run_constants(in){
-		if(!in.time_samples || in.length == 0){ fprintf(stderr,"error transferring allele_trajectories to spectrum: empty allele_trajectories\n"); exit(1); }
-		length = in.length;
-		time_samples = new time_sample *[length];
-
-		for(int i = 0; i < length; i++){ time_samples[i] = new time_sample(in,i); }
+		for(int i = 0; i < num_samples; i++){ time_samples[i] = new time_sample(in,i); }
+		mutations_ID = in.mutations_ID;
 	}
 
-	friend void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
+	friend void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
 
 	friend void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device);
 
-	~transfer_allele_trajectories(){ delete [] time_samples; time_samples = NULL; length = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory, delete [] time_samples won't call individual destructors and even if it did, the spectrum time sample destructors don't delete anything
+	~transfer_allele_trajectories(){ delete [] time_samples; time_samples = NULL; mutations_ID = NULL; num_samples = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory, delete [] time_samples won't call individual destructors and even if it did, the spectrum time sample destructors don't delete anything
 };
 
 sfs::sfs(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
@@ -140,7 +139,7 @@ __global__ void binom(float * d_histogram, const float * const d_mutations_freq,
 }
 
 //frequency histogram of mutations at a single time point in a single population
-void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device){
+void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device){
 	set_cuda_device(cuda_device);
 
 	cudaStream_t stream;
@@ -149,8 +148,8 @@ void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_
 	float * d_mutations_freq;
 	float * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
-	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
-		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
+	if(!(sample_index >= 0 && sample_index < sample.num_samples) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
+		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.num_samples,population_index,sample.sim_run_constants.num_populations); exit(1);
 	}
 
 	int population_size = sample.time_samples[sample_index]->Nchrom_e[population_index];
@@ -205,8 +204,8 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	float * d_mutations_freq;
 	float * d_histogram, * h_histogram;
 	transfer_allele_trajectories sample(all_results);
-	if(!(sample_index >= 0 && sample_index < sample.length) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
-		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.length,population_index,sample.sim_run_constants.num_populations); exit(1);
+	if(!(sample_index >= 0 && sample_index < sample.num_samples) || !(population_index >= 0 && population_index < sample.sim_run_constants.num_populations)){
+		fprintf(stderr,"site_frequency_spectrum error: requested indices out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,sample.num_samples,population_index,sample.sim_run_constants.num_populations); exit(1);
 	}
 
 	int num_levels = sample_size;

@@ -52,7 +52,7 @@ struct allele_trajectories{
 	//number of time samples taken during simulation run
 	inline int num_time_samples();
 
-	//number of reported mutations in the final time sample (maximal number of reported mutations in the allele_trajectories)
+	//number of reported mutations in the final time sample (maximal number of stored mutations in the allele_trajectories)
 	inline int maximal_num_mutations();
 	//number of reported mutations in the time sample index
 	inline int num_mutations_time_sample(int sample_index);
@@ -69,9 +69,13 @@ struct allele_trajectories{
 	//mutation IDs output from the simulation
 	inline mutID mutation_ID(int mutation_index);
 
+	//deletes a single time sample
+	//does not delete mutations_ID but does move the apparent length of the array, all_mutations, to the number of mutations in the next last time sample if the final time sample is deleted
+	//if deleting the last time sample left in allele trajectories, will free all memory including mutations_ID
 	inline void delete_time_sample(int sample_index);
 
-	inline void free_memory();
+	//deletes all memory held by allele_trajectories
+	void free_memory();
 
 	~allele_trajectories();
 
@@ -84,10 +88,9 @@ private:
 
 	struct time_sample{
 		float * mutations_freq; //allele frequency of mutations in final generation
-		mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 		bool * extinct; //extinct[pop] == true, flag if population is extinct by time sample
 		int * Nchrom_e; //effective number of chromosomes in each population
-		int num_mutations; //number of mutations in array (array length for age/freq, columns)
+		int num_mutations; //number of mutations in frequency array (columns array length for freq)
 		int sampled_generation; //number of generations in the simulation at point of sampling
 
 		time_sample();
@@ -100,7 +103,9 @@ private:
 
 	sim_constants sim_run_constants; //stores inputs of the simulation run currently held by time_samples
 	time_sample ** time_samples; //the actual allele trajectories output from the simulation
-	unsigned int length; //number of time samples taken from the simulation
+	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
+	int all_mutations; //number of mutations in mutation ID array - maximal set of mutations stored in allele_trajectories
+	unsigned int num_samples; //number of time samples taken from the simulation
 };
 /* ----- end sim result output ----- */
 

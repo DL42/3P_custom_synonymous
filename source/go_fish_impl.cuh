@@ -474,7 +474,7 @@ __host__ __forceinline__ int calc_sim_result_vector_length(Functor_timesample ta
 }
 
 template <typename Functor_demography, typename Functor_inbreeding>
-__host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & out_sampled_generation, float *& out_mutations_freq, GO_Fish::mutID *& out_mutations_ID, bool *& out_extinct, int *& out_Nchrom_e, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, int final_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
+__host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & out_max_num_mutations, int & out_sampled_generation, float *& out_mutations_freq, GO_Fish::mutID *& out_mutations_ID, bool *& out_extinct, int *& out_Nchrom_e, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, int final_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out_num_mutations = mutations.h_mutations_Index;
 	out_sampled_generation = sampled_generation;
 	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float)),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
@@ -482,7 +482,8 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 	if(sampled_generation == final_generation){
 		cudaCheckErrors(cudaMallocHost((void**)&out_mutations_ID, out_num_mutations*sizeof(GO_Fish::mutID)),sampled_generation,-1);
 		cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //mutations array is 1D
-	}else{ out_mutations_ID = NULL; }
+		out_max_num_mutations = out_num_mutations;
+	}
 	out_extinct = new bool[mutations.h_num_populations];
 	out_Nchrom_e = new int[mutations.h_num_populations];
 	for(int i = 0; i < mutations.h_num_populations; i++){
@@ -552,13 +553,13 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take many generations to reach equilibrium) -----
 		int sample_index = all_results.sim_run_constants.prev_sim_sample;
-		if((sample_index >= 0 && sample_index < all_results.length) && prev_sim.time_samples){
+		if((sample_index >= 0 && sample_index < all_results.num_samples) && prev_sim.time_samples){
 			float prev_sim_num_sites = prev_sim.sim_run_constants.num_sites;
 			int prev_sim_num_populations = prev_sim.sim_run_constants.num_populations;
 			if(mutations.h_num_sites == prev_sim_num_sites && mutations.h_num_populations == prev_sim_num_populations){
 				//initialize from previous simulation
 				//const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, const float * const prev_sim_mutations_freq, const GO_Fish::mutID * const prev_sim_mutations_ID
-				init_blank_prev_run(mutations, generation, final_generation, true, prev_sim_num_sites, prev_sim_num_populations, prev_sim.time_samples[sample_index]->sampled_generation, prev_sim.time_samples[sample_index]->extinct, prev_sim.time_samples[sample_index]->num_mutations, prev_sim.time_samples[sample_index]->mutations_freq, prev_sim.time_samples[sample_index]->mutations_ID, mu_rate, demography, FI, preserve_mutations, take_sample, compact_interval, pop_streams, pop_events);
+				init_blank_prev_run(mutations, generation, final_generation, true, prev_sim_num_sites, prev_sim_num_populations, prev_sim.time_samples[sample_index]->sampled_generation, prev_sim.time_samples[sample_index]->extinct, prev_sim.time_samples[sample_index]->num_mutations, prev_sim.time_samples[sample_index]->mutations_freq, prev_sim.mutations_ID, mu_rate, demography, FI, preserve_mutations, take_sample, compact_interval, pop_streams, pop_events);
 			}else{
 				fprintf(stderr,"run_sim error: prev_sim parameters do not match current simulation parameters: prev_sim num_sites %f\tcurrent_sim num_sites %f,\tprev_sim num_populations %d\tcurrent_sim num_populations %d\n",prev_sim_num_sites,mutations.h_num_sites,prev_sim_num_populations,mutations.h_num_populations); exit(1);
 			}
@@ -569,7 +570,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		}
 		else{
 			if(!prev_sim.time_samples){ fprintf(stderr,"run_sim error: requested time sample from empty prev_sim\n"); exit(1); }
-			fprintf(stderr,"run_sim error: requested sample index out of bounds for prev_sim: sample %d\t[0\t %d)\n",sample_index,prev_sim.length); exit(1);
+			fprintf(stderr,"run_sim error: requested sample index out of bounds for prev_sim: sample %d\t[0\t %d)\n",sample_index,prev_sim.num_samples); exit(1);
 		}
 
 		check_sim_parameters(mu_rate, demography, mig_prop, FI, mutations, generation);
@@ -583,7 +584,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	int sample_index = 0;
 	if(take_sample(generation) && generation != final_generation){
 		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop],0), generation, pop); } //wait to sample until after initialization is done
-		store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
+		store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 		sample_index++;
 	}
 	//----- end -----
@@ -660,14 +661,14 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 
 		//----- take time samples of allele trajectories -----
 		if(take_sample(generation) && generation != final_generation){
-			store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
+			store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
 
 	//----- take final time sample of allele trajectories -----
-	store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
+	store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 	//----- end -----
 	//----- end -----
 

@@ -38,7 +38,7 @@ void run_speed_test()
 	int print_num = 50;
 	SPECTRUM::sfs mySFS;
 	if(printSFS){
-		SPECTRUM::population_histogram(mySFS,a,0,0);
+		SPECTRUM::population_frequency_histogram(mySFS,a,0,0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.sample_size[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}

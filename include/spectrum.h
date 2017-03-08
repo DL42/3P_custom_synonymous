@@ -25,7 +25,7 @@ struct sfs{
 };
 
 //frequency histogram of mutations at a single time point in a single population
-void population_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device = -1);
+void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device = -1);
 
 //single-population SFS
 void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device = -1);
