@@ -293,8 +293,9 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	int prefix_sum_result;
 	int final_freq_count;
 	//final index is numfreq-1
-	cudaCheckErrors(cudaMemcpy(&prefix_sum_result, &d_scan_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost),0,-1); //has to be in sync with host as result is used straight afterwards
-	cudaCheckErrors(cudaMemcpy(&final_freq_count, &d_freq_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost),0,-1); //has to be in sync with host as result is used straight afterwards
+	cudaCheckErrorsAsync(cudaMemcpyAsync(&prefix_sum_result, &d_scan_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost, pop_streams[0]),0,-1); //has to be in sync with host as result is used straight afterwards
+	cudaCheckErrorsAsync(cudaMemcpyAsync(&final_freq_count, &d_freq_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost, pop_streams[0]),0,-1); //has to be in sync with host as result is used straight afterwards
+	if(cudaStreamQuery(pop_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),0,-1); } //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
 	int num_mutations = prefix_sum_result+final_freq_count;
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_interval, 0, final_generation);
 	//cout<<"initial length " << mutations.h_array_Length << endl;
@@ -348,7 +349,7 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 
 	if(prev_sim_num_mutations != 0 && use_prev_sim){
 		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim_mutations_freq, prev_sim_num_mutations*sizeof(float), prev_sim_num_mutations*sizeof(float), prev_sim_num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
-		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim_mutations_ID, prev_sim_num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1);
+		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim_mutations_ID, prev_sim_num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1); //While host can continue, memory copies will not overlap as in the same direction
 		if(preserve_mutations(generation_shift) | take_sample(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[1],pop_streams[1]),0,-1);
@@ -388,8 +389,8 @@ __host__ void compact(sim_struct & mutations, const Functor_mutation mu_rate, co
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,-1);
 
 	int h_num_seg_mutations;
-	cudaCheckErrors(cudaMemcpyAsync(&h_num_seg_mutations, &d_scan_Index[(padded_mut_index>>10)-1], sizeof(int), cudaMemcpyDeviceToHost, control_streams[0]),generation,-1);
-	cudaStreamSynchronize(control_streams[0]); //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
+	cudaCheckErrorsAsync(cudaMemcpyAsync(&h_num_seg_mutations, &d_scan_Index[(padded_mut_index>>10)-1], sizeof(int), cudaMemcpyDeviceToHost, control_streams[0]),generation,-1);
+	if(cudaStreamQuery(control_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[0]),generation,-1); } //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
 
 	int old_array_Length = mutations.h_array_Length;
 	set_Index_Length(mutations, h_num_seg_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_interval, generation, final_generation);
@@ -581,6 +582,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- take time samples of allele trajectory -----
 	int sample_index = 0;
 	if(take_sample(generation) && generation != final_generation){
+		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop],0), generation, pop); } //wait to sample until after initialization is done
 		store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.time_samples[sample_index]->mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 		sample_index++;
 	}
