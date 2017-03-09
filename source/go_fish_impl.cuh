@@ -333,7 +333,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 
 //assumes prev_sim.num_sites is equivalent to current simulations num_sites or prev_sim.num_mutations == 0 (initialize to blank)
 template <typename Functor_mutation, typename Functor_demography, typename Functor_inbreeding, typename Functor_preserve, typename Functor_timesample>
-__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, const float * const prev_sim_mutations_freq, const GO_Fish::mutID * const prev_sim_mutations_ID, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const int compact_interval, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
+__host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift, int & final_generation, const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, float * prev_sim_mutations_freq, GO_Fish::mutID * prev_sim_mutations_ID, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_inbreeding FI, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const int compact_interval, cudaStream_t * pop_streams, cudaEvent_t * pop_events){
 	//if prev_sim.num_mutations == 0 or num sites or num_populations between two runs are not equivalent, don't copy (initialize to blank)
 	int num_mutations = 0;
 	if(prev_sim_num_mutations != 0 && use_prev_sim){
@@ -349,8 +349,12 @@ __host__ void init_blank_prev_run(sim_struct & mutations, int & generation_shift
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_ID, mutations.h_array_Length*sizeof(int4)),0,-1);
 
 	if(prev_sim_num_mutations != 0 && use_prev_sim){
+		cudaCheckErrors(cudaHostRegister(prev_sim_mutations_freq,prev_sim_num_populations*prev_sim_num_mutations*sizeof(float),cudaHostRegisterPortable),generation_shift,-1); //pinned memory allows for asynchronous transfer to host
 		cudaCheckErrorsAsync(cudaMemcpy2DAsync(mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), prev_sim_mutations_freq, prev_sim_num_mutations*sizeof(float), prev_sim_num_mutations*sizeof(float), prev_sim_num_populations, cudaMemcpyHostToDevice, pop_streams[0]),0,-1);
+		cudaCheckErrors(cudaHostUnregister(prev_sim_mutations_freq),generation_shift,-1);
+		cudaCheckErrors(cudaHostRegister(prev_sim_mutations_ID,prev_sim_num_mutations*sizeof(GO_Fish::mutID),cudaHostRegisterPortable),generation_shift,-1); //pinned memory allows for asynchronous transfer to host
 		cudaCheckErrorsAsync(cudaMemcpyAsync(mutations.d_mutations_ID, prev_sim_mutations_ID, prev_sim_num_mutations*sizeof(int4), cudaMemcpyHostToDevice, pop_streams[1]),0,-1); //While host can continue, memory copies will not overlap as in the same direction
+		cudaCheckErrors(cudaHostUnregister(prev_sim_mutations_ID),generation_shift,-1);
 		if(preserve_mutations(generation_shift) | take_sample(generation_shift)){ preserve_prev_run_mutations<<<200,512,0,pop_streams[1]>>>(mutations.d_mutations_ID, mutations.h_mutations_Index); }
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[1],pop_streams[1]),0,-1);
@@ -478,11 +482,15 @@ template <typename Functor_demography, typename Functor_inbreeding>
 __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & out_max_num_mutations, int & out_sampled_generation, float *& out_mutations_freq, GO_Fish::mutID *& out_mutations_ID, bool *& out_extinct, int *& out_Nchrom_e, sim_struct & mutations, Functor_demography demography, Functor_inbreeding FI, int sampled_generation, int final_generation, cudaStream_t * control_streams, cudaEvent_t * control_events){
 	out_num_mutations = mutations.h_mutations_Index;
 	out_sampled_generation = sampled_generation;
-	cudaCheckErrors(cudaMallocHost((void**)&out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float)),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
+	out_mutations_freq = new float[mutations.h_num_populations*out_num_mutations];
+	cudaCheckErrors(cudaHostRegister(out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
 	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), mutations.h_num_populations, cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //removes padding
+	cudaCheckErrors(cudaHostUnregister(out_mutations_freq),sampled_generation,-1);
 	if(sampled_generation == final_generation){
-		cudaCheckErrors(cudaMallocHost((void**)&out_mutations_ID, out_num_mutations*sizeof(GO_Fish::mutID)),sampled_generation,-1);
+		out_mutations_ID = new GO_Fish::mutID[out_num_mutations];
+		cudaCheckErrors(cudaHostRegister(out_mutations_ID,out_num_mutations*sizeof(int4),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
 		cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //mutations array is 1D
+		cudaCheckErrors(cudaHostUnregister(out_mutations_ID),sampled_generation,-1);
 		out_max_num_mutations = out_num_mutations;
 	}
 	out_extinct = new bool[mutations.h_num_populations];
@@ -554,13 +562,12 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		//----- end -----
 	}else{
 		//----- initialize from results of previous simulation run or initialize to blank (blank will often take many generations to reach equilibrium) -----
-		int sample_index = all_results.sim_run_constants.prev_sim_sample;
+		int sample_index = all_results.sim_input_constants.prev_sim_sample;
 		if((sample_index >= 0 && sample_index < all_results.num_samples) && prev_sim.time_samples){
 			float prev_sim_num_sites = prev_sim.sim_run_constants.num_sites;
 			int prev_sim_num_populations = prev_sim.sim_run_constants.num_populations;
 			if(mutations.h_num_sites == prev_sim_num_sites && mutations.h_num_populations == prev_sim_num_populations){
 				//initialize from previous simulation
-				//const bool use_prev_sim, const float prev_sim_num_sites, const int prev_sim_num_populations, const int prev_sim_sampled_generation, const bool * const prev_sim_extinct, const int prev_sim_num_mutations, const float * const prev_sim_mutations_freq, const GO_Fish::mutID * const prev_sim_mutations_ID
 				init_blank_prev_run(mutations, generation, final_generation, true, prev_sim_num_sites, prev_sim_num_populations, prev_sim.time_samples[sample_index]->sampled_generation, prev_sim.time_samples[sample_index]->extinct, prev_sim.time_samples[sample_index]->num_mutations, prev_sim.time_samples[sample_index]->mutations_freq, prev_sim.mutations_ID, mu_rate, demography, FI, preserve_mutations, take_sample, compact_interval, pop_streams, pop_events);
 			}else{
 				fprintf(stderr,"run_sim error: prev_sim parameters do not match current simulation parameters: prev_sim num_sites %f\tcurrent_sim num_sites %f,\tprev_sim num_populations %d\tcurrent_sim num_populations %d\n",prev_sim_num_sites,mutations.h_num_sites,prev_sim_num_populations,mutations.h_num_populations); exit(1);
@@ -674,7 +681,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	//----- end -----
 	//----- end -----
 
-	cudaCheckErrors(cudaStreamSynchronize(control_streams[0]), generation, -1); //ensures writes to host are finished before host can manipulate the data
+	if(cudaStreamQuery(control_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[0]), generation, -1); } //ensures writes to host are finished before host can manipulate the data
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamDestroy(pop_streams[pop]),generation,pop); cudaCheckErrorsAsync(cudaEventDestroy(pop_events[pop]),generation,pop); }
 	for(int stream = 0; stream < num_control_streams; stream++){ cudaCheckErrorsAsync(cudaStreamDestroy(control_streams[stream]),generation,stream); cudaCheckErrorsAsync(cudaEventDestroy(control_events[stream]),generation,stream); }

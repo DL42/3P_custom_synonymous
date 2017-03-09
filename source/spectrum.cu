@@ -158,7 +158,9 @@ void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajector
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, population_size*sizeof(float)),-1,-1);
+	cudaCheckErrors(cudaHostRegister(&sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaHostRegisterPortable),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
+	cudaCheckErrors(cudaHostUnregister(&sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations]),-1,-1);
 
 	unsigned int * d_pop_histogram;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_pop_histogram, population_size*sizeof(unsigned int)),-1,-1);
@@ -220,7 +222,9 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_mutations_freq, sample.time_samples[sample_index]->num_mutations*sizeof(float)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_histogram, num_levels*sizeof(float)),-1,-1);
+	cudaCheckErrors(cudaHostRegister(&sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaHostRegisterPortable),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(d_mutations_freq, &sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations], num_mutations*sizeof(float), cudaMemcpyHostToDevice, stream),-1,-1);
+	cudaCheckErrors(cudaHostUnregister(&sample.time_samples[sample_index]->mutations_freq[population_index*num_mutations]),-1,-1);
 
 	int half_n;
 	if((num_levels) % 2 == 0){ half_n = (num_levels)/2+1; }
