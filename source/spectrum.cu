@@ -69,7 +69,7 @@ class transfer_allele_trajectories{
 };
 
 sfs::sfs(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
-sfs::~sfs(){ if(frequency_spectrum){ cudaCheckErrors(cudaFreeHost(frequency_spectrum),-1,-1); frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
+sfs::~sfs(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
 
 __global__ void population_hist(unsigned int * out_histogram, float * in_mutation_freq, int Nchrome_e, int num_mutations, int num_sites){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -173,8 +173,10 @@ void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajector
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_pop_histogram),-1,-1);
 
-	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, population_size*sizeof(float)),-1,-1);
+	h_histogram = new float[population_size];
+	cudaCheckErrors(cudaHostRegister(h_histogram, sizeof(float)*population_size, cudaHostRegisterPortable),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, population_size*sizeof(float), cudaMemcpyDeviceToHost, stream),-1,-1);
+	cudaCheckErrors(cudaHostUnregister(h_histogram),-1,-1);
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
 
@@ -251,8 +253,10 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
 
-	cudaCheckErrors(cudaMallocHost((void**)&h_histogram, num_levels*sizeof(float)),-1,-1);
+	h_histogram = new float[num_levels];
+	cudaCheckErrors(cudaHostRegister(h_histogram, sizeof(float)*num_levels, cudaHostRegisterPortable),-1,-1);
 	cudaCheckErrorsAsync(cudaMemcpyAsync(h_histogram, d_histogram, num_levels*sizeof(float), cudaMemcpyDeviceToHost, stream),-1,-1);
+	cudaCheckErrors(cudaHostUnregister(h_histogram),-1,-1);
 
 	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), -1, -1); } //wait for writes to host to finish
 
