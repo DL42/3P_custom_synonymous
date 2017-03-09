@@ -97,6 +97,10 @@ private:
 		~time_sample();
 	};
 
+	allele_trajectories(const allele_trajectories & in); //no copying allowed
+
+	allele_trajectories & operator = (const allele_trajectories & in); //no copying allowed
+
 	inline void initialize_run_constants();
 
 	inline void initialize_sim_result_vector(int new_length);
