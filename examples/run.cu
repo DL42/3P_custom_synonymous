@@ -163,11 +163,10 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 void run_validation_test(){
 
 	GO_Fish::allele_trajectories b;
-    float gamma = 0; //effective selection
 	float h = 0.5; //dominance
-	float F = 1.0; //inbreeding
-	int N_ind = pow(10.f,5)*(1+F);//300;// //bug at N_ind = 300, F =0.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes
-	float s = gamma/(2*N_ind); //selection coefficient
+	float F = 0.0; //inbreeding
+	int N_ind = pow(10.f,5);//300;// //bug at N_ind = 300, F =0.0/1.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
+    float gamma = -5*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and gamma are invariant to inbreeding
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
 	b.sim_input_constants.num_generations = total_number_of_generations;
@@ -192,7 +191,7 @@ void run_validation_test(){
 
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(s), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), GO_Fish::off(), GO_Fish::off());
+		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(gamma,GO_Fish::const_demography(N_ind),GO_Fish::const_parameter(F)), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), GO_Fish::off(), GO_Fish::off());
 		SPECTRUM::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
 		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
 		//std::cout<<b.maximal_num_mutations()<<std::endl;
@@ -212,11 +211,12 @@ void run_validation_test(){
 	//if(my_spectra[0].frequency_spectrum[0] < 0){ std::cout<<std::endl<<0<<"\t"<<my_spectra[0].frequency_spectrum[0]<<std::endl; }
 	std::cout<<std::endl<<"SFS :"<<std::endl<< "allele count\tavg# mutations\tstandard dev\tcoeff of variation (aka relative standard deviation)"<< std::endl;
 	float avg_num_mutations = 0;
-	for(int i = 0; i < sample_size; i++){
+	for(int i = 1; i < sample_size; i++){
 		double avg = 0;
 		double std = 0;
-		for(int j = 0; j < num_iter; j++){ avg += my_spectra[j].frequency_spectrum[i]/num_iter; if(i==0){ avg_num_mutations += ((float)my_spectra[j].num_mutations)/num_iter; }}
-		for(int j = 0; j < num_iter; j++){ std += 1.0/(num_iter-1)*pow(my_spectra[j].frequency_spectrum[i]-avg,2); }
+		float num_mutations;
+		for(int j = 0; j < num_iter; j++){ num_mutations = my_spectra[j].num_mutations; avg += my_spectra[j].frequency_spectrum[i]/(num_iter*num_mutations); if(i==1){ avg_num_mutations += ((float)num_mutations)/num_iter; }}
+		for(int j = 0; j < num_iter; j++){ num_mutations = my_spectra[j].num_mutations; std += 1.0/(num_iter-1)*pow(my_spectra[j].frequency_spectrum[i]/num_mutations-avg,2); }
 		std = sqrt(std);
 		std::cout<<i<<"\t"<<avg<<"\t"<<std<<"\t"<<(std/avg)<<std::endl;
 		//std::cout<<avg<<std::endl;

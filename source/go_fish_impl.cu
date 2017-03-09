@@ -9,11 +9,32 @@
 
 namespace go_fish_details{
 
+/*
+ *  CUB scan (sum) phenomenon: float errors in the mse_integral can accumulate differently each run
+ *  e.g.
+ *  GO_Fish::const_parameter mutation(pow(10.f,-9)); //per-site mutation rate
+	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
+	GO_Fish::const_demography demography(pow(10.f,5)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	GO_Fish::const_equal_migration migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
+	float gamma = -5; //effective selection
+	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
+	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
+ *  a.sim_input_constants.compact_interval = 20;
+    a.sim_input_constants.num_generations = pow(10.f,3);
+    a.sim_input_constants.num_sites = 20*2*pow(10.f,7);
+    a.sim_input_constants.seed1 = 0xbeeff00d + 2*14; //random number seeds
+    a.sim_input_constants.seed2 = 0xdecafbad - 2*14;
+
+    one solution is to round the results in reverse array
+ */
+
 __global__ void reverse_array(float * array, const int N){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
 		float temp = array[N - id - 1];
 		array[N - id - 1] = array[id];
+		//float temp = roundf(10000*array[N - id - 1])/10000.f;
+		//array[N - id - 1] = roundf(10000*array[id])/10000.f;
 		array[id] = temp;
 	}
 }
@@ -81,6 +102,34 @@ __global__ void sum_Device_array_float(float * array, int start, int end){
 		j += array[i];
 	}
 	printf("%lf\n",j);
+}
+
+__global__ void compareDevicearray(int * array1, int * array2, int array_length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < array_length; id+= blockDim.x*gridDim.x){
+		if(array1[id] != array2[id]){ printf("%d,%d,%d\t",id,array1[id],array2[id]); }
+	}
+}
+
+__global__ void copyDevicearray(int * array1, int * array2, int array_length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < array_length; id+= blockDim.x*gridDim.x){ array1[id] = array2[id]; }
+}
+
+__global__ void compareDevicearray(float * array1, float * array2, int array_length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < array_length; id+= blockDim.x*gridDim.x){
+		if(array1[id] != array2[id]){ printf("%d,%f,%f\t",id,array1[id],array2[id]); return; }
+	}
+}
+
+__global__ void copyDevicearray(float * array1, float * array2, int array_length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < array_length; id+= blockDim.x*gridDim.x){ array1[id] = array2[id]; }
+}
+
+__global__ void print_Device_array_float(float * array, int num){
+	printf("%5.10e\n",array[num]);
 }*/
 
 __global__ void add_new_mutations(float * mutations_freq, int4 * mutations_ID, const int prev_mutations_Index, const int new_mutations_Index, const int array_Length, float freq, const int population, const int num_populations, const int generation){

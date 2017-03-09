@@ -79,13 +79,14 @@ __global__ void initialize_mse_mutation_array(float * mutations_freq, const int 
 __global__ void mse_set_mutID(int4 * mutations_ID, const float * const mutations_freq, const int mutations_Index, const int num_populations, const int array_Length, const bool preserve_mutations);
 
 /*__global__ void print_Device_array_uint(unsigned int * array, int num);
-
 __global__ void sum_Device_array_bit(unsigned int * array, int num);
-
 __global__ void sum_Device_array_uint(unsigned int * array, int num);
-
 __global__ void sum_Device_array_float(float * array, int start, int end);
-*/
+__global__ void compareDevicearray(int * array1, int * array2, int array_length);
+__global__ void copyDevicearray(int * array1, int * array2, int array_length);
+__global__ void compareDevicearray(float * array1, float * array2, int array_length);
+__global__ void copyDevicearray(float * array1, float * array2, int array_length);
+__global__ void print_Device_array_float(float * array, int num);*/
 
 //calculates new frequencies for every mutation in the population
 //seed for random number generator philox's key space, id, generation for its counter space in the pseudorandom sequence

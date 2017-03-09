@@ -12,14 +12,26 @@ namespace GO_Fish{
 
 /* ----- selection models ----- */
 /* ----- constant selection model ----- */
+template <typename Functor_demography, typename Functor_inbreeding>
+const_selection::const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift /*= 0*/){ s = gamma/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift))); }
 __host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq) const{ return s; }
 /* ----- end constant selection model ----- */
 
 /* ----- linear frequency dependent selection model ----- */
+template <typename Functor_demography, typename Functor_inbreeding>
+linear_frequency_dependent_selection::linear_frequency_dependent_selection(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift /*= 0*/){
+	slope = gamma_slope/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
+	intercept = gamma_intercept/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
+}
 __host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq) const{ return slope*freq+intercept; }
 /* ----- end linear frequency dependent selection model ----- */
 
 /* ----- seasonal selection model ----- */
+template <typename Functor_demography, typename Functor_inbreeding>
+seasonal_selection::seasonal_selection(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho /*= 0*/, int generation_shift /*= 0*/, int forward_generation_shift /*= 0*/) : pi(pi), rho(rho), generation_shift(generation_shift) {
+	A = gamma_A/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
+	D = gamma_D/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
+}
 __host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal selection model ----- */
 

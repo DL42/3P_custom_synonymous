@@ -19,6 +19,8 @@ struct const_selection
 	float s;
 	const_selection();
 	const_selection(float s);
+	template <typename Functor_demography, typename Functor_inbreeding>
+	const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -28,6 +30,8 @@ struct linear_frequency_dependent_selection
 	float intercept;
 	linear_frequency_dependent_selection();
 	linear_frequency_dependent_selection(float slope, float intercept);
+	template <typename Functor_demography, typename Functor_inbreeding>
+	linear_frequency_dependent_selection(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -42,6 +46,8 @@ struct seasonal_selection
 
 	seasonal_selection();
 	seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	template <typename Functor_demography, typename Functor_inbreeding>
+	seasonal_selection(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
