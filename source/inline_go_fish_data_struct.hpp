@@ -20,6 +20,9 @@ std::string tostring(const T& value)
 
 inline std::string mutID::toString(){ return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(DFE_category)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
+//return sim_constants of the simulation currently held by allele_trajectories
+inline allele_trajectories::sim_constants allele_trajectories::last_run_constants(){ return sim_run_constants; }
+
 inline int allele_trajectories::num_time_samples(){ return num_samples; }
 
 //number of reported mutations in the final time sample (maximal number of reported mutations in the allele_trajectories)
@@ -95,24 +98,12 @@ inline void allele_trajectories::delete_time_sample(int sample_index){
 	}
 }
 
-inline void allele_trajectories::initialize_run_constants(){
-	sim_run_constants.seed1 = sim_input_constants.seed1;
-	sim_run_constants.seed2 = sim_input_constants.seed2;
-	sim_run_constants.num_generations = sim_input_constants.num_generations;
-	sim_run_constants.num_sites = sim_input_constants.num_sites;
-	sim_run_constants.num_populations = sim_input_constants.num_populations;
-	sim_run_constants.init_mse = sim_input_constants.init_mse;
-	sim_run_constants.prev_sim_sample = sim_input_constants.prev_sim_sample;
-	sim_run_constants.compact_interval = sim_input_constants.compact_interval;
-	sim_run_constants.device = sim_input_constants.device;
-}
-
 inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	free_memory(); //overwrite old data if any
 	num_samples = new_length;
 	time_samples = new time_sample *[num_samples];
 	for(int i = 0; i < num_samples; i++){ time_samples[i] = new time_sample(); }
-	initialize_run_constants();
+	sim_run_constants = sim_input_constants;
 }
 
 } /* ----- end namespace GO_Fish ----- */

@@ -49,6 +49,9 @@ struct allele_trajectories{
 
 	allele_trajectories();
 
+	//return sim_constants of the simulation currently held by allele_trajectories
+	inline sim_constants last_run_constants();
+
 	//number of time samples taken during simulation run
 	inline int num_time_samples();
 
