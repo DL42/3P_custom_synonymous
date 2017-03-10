@@ -20,6 +20,17 @@ std::string tostring(const T& value)
 
 inline std::string mutID::toString(){ return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(DFE_category)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
+inline allele_trajectories::sim_constants::sim_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_interval(35), device(-1) {}
+
+inline allele_trajectories::time_sample::time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; /*set pointers to NULL*/}
+inline allele_trajectories::time_sample::~time_sample(){
+	if(mutations_freq){ delete [] mutations_freq; mutations_freq = NULL; }
+	if(extinct){ delete [] extinct; extinct = NULL; }
+	if(Nchrom_e){ delete [] Nchrom_e; Nchrom_e = NULL; }
+}
+
+inline allele_trajectories::allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = NULL; mutations_ID = NULL; }
+
 //return sim_constants of the simulation currently held by allele_trajectories
 inline allele_trajectories::sim_constants allele_trajectories::last_run_constants(){ return sim_run_constants; }
 
@@ -88,6 +99,7 @@ inline void allele_trajectories::delete_time_sample(int sample_index){
 				if(i < sample_index){ temp[i] = time_samples[i]; }
 				else if (i > sample_index){ temp[i-1] = time_samples[i]; }
 			}
+			delete [] time_samples;
 			time_samples = temp;
 			num_samples -= 1;
 			all_mutations = time_samples[num_samples-1]->num_mutations; //new maximal number of mutations if last time sample has been deleted, moves the apparent length of mutID array, but does not delete extra data
@@ -105,7 +117,10 @@ inline void allele_trajectories::free_memory(){
 	}
 	if(mutations_ID){ delete [] mutations_ID; }
 	time_samples = NULL; num_samples = 0; mutations_ID = NULL; all_mutations = 0;
+	sim_run_constants = sim_constants(); //don't reset sim_input_constants because then can't use this function in initialize_sim_result_vector
 }
+
+inline allele_trajectories::~allele_trajectories(){ free_memory(); }
 
 inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	free_memory(); //overwrite old data if any

@@ -41,13 +41,13 @@ struct allele_trajectories{
 		int compact_interval;
 		int device;
 
-		sim_constants();
+		inline sim_constants();
 	};
 
 	sim_constants sim_input_constants; //for initializing the next simulation
 	//----- end -----
 
-	allele_trajectories();
+	inline allele_trajectories();
 
 	//return sim_constants of the simulation currently held by allele_trajectories
 	inline sim_constants last_run_constants();
@@ -80,7 +80,7 @@ struct allele_trajectories{
 	//deletes all memory held by allele_trajectories
 	inline void free_memory();
 
-	~allele_trajectories();
+	inline ~allele_trajectories();
 
 	template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
@@ -110,9 +110,9 @@ private:
 
 	sim_constants sim_run_constants; //stores inputs of the simulation run currently held by time_samples
 	time_sample ** time_samples; //the actual allele trajectories output from the simulation
+	int num_samples; //number of time samples taken from the simulation
 	mutID * mutations_ID; //unique ID consisting of generation, population, threadID, and device
 	int all_mutations; //number of mutations in mutation ID array - maximal set of mutations stored in allele_trajectories
-	unsigned int num_samples; //number of time samples taken from the simulation
 };
 /* ----- end sim result output ----- */
 
