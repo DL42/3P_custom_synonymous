@@ -36,7 +36,7 @@ void run_speed_test()
 	bool printSFS = true; //calculate and print out the SFS
 	int start_index = 0;
 	int print_num = 50;
-	SPECTRUM::sfs mySFS;
+	SPECTRUM::SFS mySFS;
 	if(printSFS){
 		SPECTRUM::population_frequency_histogram(mySFS,a,0,0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
@@ -166,7 +166,7 @@ void run_validation_test(){
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
 	int N_ind = pow(10.f,5);//300;// //bug at N_ind = 300, F =0.0/1.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
-    float gamma = -5*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and gamma are invariant to inbreeding
+    float gamma = 0*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and gamma are invariant to inbreeding
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
 	b.sim_input_constants.num_generations = total_number_of_generations;
@@ -177,7 +177,7 @@ void run_validation_test(){
     b.sim_input_constants.compact_interval = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
-    SPECTRUM::sfs * my_spectra = new SPECTRUM::sfs[num_iter];
+    SPECTRUM::SFS * my_spectra = new SPECTRUM::SFS[num_iter];
 
     cudaEvent_t start, stop;
     float elapsedTime;

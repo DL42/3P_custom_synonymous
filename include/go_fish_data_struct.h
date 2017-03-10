@@ -78,7 +78,7 @@ struct allele_trajectories{
 	inline void delete_time_sample(int sample_index);
 
 	//deletes all memory held by allele_trajectories
-	inline void free_memory();
+	inline void reset();
 
 	inline ~allele_trajectories();
 

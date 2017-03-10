@@ -91,7 +91,7 @@ inline mutID allele_trajectories::mutation_ID(int mutation_index){
 
 inline void allele_trajectories::delete_time_sample(int sample_index){
 	if(sample_index >= 0 && sample_index < num_samples){
-		if(num_samples == 1){ free_memory(); }
+		if(num_samples == 1){ reset(); }
 		else{
 			delete time_samples[sample_index];
 			time_sample ** temp = new time_sample * [num_samples-1];
@@ -110,23 +110,26 @@ inline void allele_trajectories::delete_time_sample(int sample_index){
 	}
 }
 
-inline void allele_trajectories::free_memory(){
+inline void allele_trajectories::reset(){
 	if(time_samples){
 		for(int i = 0; i < num_samples; i++){ delete time_samples[i]; }
 		delete [] time_samples;
 	}
 	if(mutations_ID){ delete [] mutations_ID; }
 	time_samples = NULL; num_samples = 0; mutations_ID = NULL; all_mutations = 0;
-	sim_run_constants = sim_constants(); //don't reset sim_input_constants because then can't use this function in initialize_sim_result_vector
+	sim_run_constants = sim_constants();
+	sim_input_constants = sim_constants();
 }
 
-inline allele_trajectories::~allele_trajectories(){ free_memory(); }
+inline allele_trajectories::~allele_trajectories(){ reset(); }
 
 inline void allele_trajectories::initialize_sim_result_vector(int new_length){
-	free_memory(); //overwrite old data if any
+	sim_constants temp = sim_input_constants; //store sim_input_constants as in this context they are still valid
+	reset(); //overwrite old data if any
 	num_samples = new_length;
 	time_samples = new time_sample *[num_samples];
 	for(int i = 0; i < num_samples; i++){ time_samples[i] = new time_sample(); }
+	sim_input_constants = temp;
 	sim_run_constants = sim_input_constants;
 }
 

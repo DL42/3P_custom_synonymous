@@ -26,6 +26,8 @@ namespace go_fish_details{
     a.sim_input_constants.seed2 = 0xdecafbad - 2*14;
 
     one solution is to round the results in reverse array
+    another is to ignore (currently implemented)
+    another is to switch back to using doubles ... at least when summing up the mse_integral (difference in speed was slight)
  */
 
 __global__ void reverse_array(float * array, const int N){

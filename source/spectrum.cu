@@ -61,15 +61,15 @@ class transfer_allele_trajectories{
 		mutations_ID = in.mutations_ID;
 	}
 
-	friend void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
+	friend void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
 
-	friend void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device);
+	friend void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device);
 
 	~transfer_allele_trajectories(){ delete [] time_samples; time_samples = NULL; mutations_ID = NULL; num_samples = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory, delete [] time_samples won't call individual destructors and even if it did, the spectrum time sample destructors don't delete anything
 };
 
-sfs::sfs(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
-sfs::~sfs(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
+SFS::SFS(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
+SFS::~SFS(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
 
 __global__ void population_hist(unsigned int * out_histogram, float * in_mutation_freq, int Nchrome_e, int num_mutations, int num_sites){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -139,7 +139,7 @@ __global__ void binom(float * d_histogram, const float * const d_mutations_freq,
 }
 
 //frequency histogram of mutations at a single time point in a single population
-void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device){
+void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device){
 	set_cuda_device(cuda_device);
 
 	cudaStream_t stream;
@@ -198,7 +198,7 @@ void population_frequency_histogram(sfs & mySFS, const GO_Fish::allele_trajector
 }
 
 //single-population SFS
-void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device){
+void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device){
 
 	set_cuda_device(cuda_device);
 
@@ -256,6 +256,8 @@ void site_frequency_spectrum(sfs & mySFS, const GO_Fish::allele_trajectories & a
 	binom<num_threads_binom><<<gridsize,num_threads_binom,0,stream>>>(d_histogram, d_mutations_freq, d_binom_coeff, half_n, num_levels, num_sites, num_mutations);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
+	//slight differences in each run of the above reduction are due to different floating point error accumulations as different blocks execute in different orders each time
+	//can be ignored, might switch back to using doubles (at least for summing into d_histogram & not calculating d_binom_coeff, speed difference was negligble for the former)
 
 	h_histogram = new float[num_levels];
 	cudaCheckErrors(cudaHostRegister(h_histogram, sizeof(float)*num_levels, cudaHostRegisterPortable),-1,-1);
