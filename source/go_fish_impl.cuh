@@ -184,7 +184,7 @@ struct sim_struct{
 	//device arrays
 	float * d_mutations_freq; //allele frequency of current mutations
 	float * d_prev_freq; // meant for storing frequency values so changes in previous populations' frequencies don't affect later populations' migration
-	int4 * d_mutations_ID;  //generation in which mutation appeared, population in which mutation first arose, ID that generated mutation, discrete DFE category
+	int4 * d_mutations_ID;  //generation in which mutation appeared, population in which mutation first arose, ID that generated mutation (negative value indicates preserved state), reserved for later use
 
 	int h_num_populations; //number of populations in the simulation (# rows for freq)
 	int h_array_Length; //full length of the mutation array, total number of mutations across all populations (# columns for freq)
@@ -464,12 +464,6 @@ __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mut
 	}
 }
 
-__host__ __forceinline__ void swap_freq_pointers(sim_struct & mutations){
-	float * temp = mutations.d_prev_freq;
-	mutations.d_prev_freq = mutations.d_mutations_freq;
-	mutations.d_mutations_freq = temp;
-}
-
 template <typename Functor_timesample>
 __host__ __forceinline__ int calc_sim_result_vector_length(Functor_timesample take_sample, int starting_generation, int final_generation) {
 	int length = 0;
@@ -510,8 +504,7 @@ namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
-	allele_trajectories temp; //in future can change this directly to run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, allele_trajectories()); - as of now merely generates a warning that the copy constructor is unavailable which doesn't change the code, as CUDA moves to C++11, this warning will disappear
-	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, temp);
+	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, allele_trajectories());
 }
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
@@ -662,7 +655,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		//tell add mutations and migseldrift to pause here if not yet done streaming recoded data to host (store_time_sample) from previous generation
 		if(take_sample(generation-1)){ for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],control_events[0],0),generation,pop); } }
 
-		swap_freq_pointers(mutations); //even if previous kernels/cuda commands not finished yet, the fact that the pointer labels have switched doesn't change which pointers they were passed, still need to sync kernels with StreamWaitEvents but don't need to synchronize CPU and GPU here
+		std::swap(mutations.d_prev_freq,mutations.d_mutations_freq); //even if previous kernels/cuda commands not finished yet, the fact that the pointer labels have switched doesn't change which pointers they were passed, still need to sync kernels with StreamWaitEvents but don't need to synchronize CPU and GPU here
 
 		//----- compact every compact_interval generations, final generation, and before preserving mutations; compact_interval == 0 shuts off compact -----
 		if((generation == next_compact_generation || generation == final_generation || preserve) && compact_interval > 0){ compact(mutations, mu_rate, demography, FI, generation, final_generation, preserve, compact_interval, control_streams, control_events, pop_streams); next_compact_generation = generation + compact_interval;  }

@@ -23,6 +23,7 @@ class transfer_allele_trajectories{
 
 		time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; }
 		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_mutations(in.time_samples[sample_index]->num_mutations), sampled_generation(in.time_samples[sample_index]->sampled_generation){
+			//can replace with weak pointers when moving to CUDA 7+ and C++11
 			mutations_freq = in.time_samples[sample_index]->mutations_freq;
 			extinct = in.time_samples[sample_index]->extinct;
 			Nchrom_e = in.time_samples[sample_index]->Nchrom_e;
@@ -53,6 +54,7 @@ class transfer_allele_trajectories{
 	transfer_allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = 0; mutations_ID = 0; }
 
 	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_run_constants(in), all_mutations(in.all_mutations) {
+		//can replace with weak pointers when moving to CUDA 7+ and C++11
 		if(!in.time_samples || in.num_samples == 0){ fprintf(stderr,"error transferring allele_trajectories to spectrum: empty allele_trajectories\n"); exit(1); }
 		num_samples = in.num_samples;
 		time_samples = new time_sample *[num_samples];
