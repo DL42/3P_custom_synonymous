@@ -66,7 +66,6 @@ inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
 }
 
 inline allele_trajectories & allele_trajectories::operator= (allele_trajectories in){
-	using std::swap; //will use std::swap as a backup if it can't find the swap below through ADL
 	swap(*this, in);
 	return *this;
 }
