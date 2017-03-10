@@ -18,7 +18,9 @@ std::string tostring(const T& value)
     return oss.str();
 }
 
-inline std::string mutID::toString(){ return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+inline std::string mutID::toString() const{ return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+
+inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ stream << id.toString(); return stream; }
 
 inline allele_trajectories::sim_constants::sim_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_interval(35), device(-1) {}
 
@@ -65,7 +67,7 @@ inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
 	else{ time_samples = NULL; }
 }
 
-inline allele_trajectories & allele_trajectories::operator= (allele_trajectories in){
+inline allele_trajectories & allele_trajectories::operator=(allele_trajectories in){
 	swap(*this, in);
 	return *this;
 }
@@ -118,7 +120,7 @@ inline float allele_trajectories::frequency(int sample_index, int population_ind
 	}
 }
 
-inline mutID allele_trajectories::mutation_ID(int mutation_index){
+inline const mutID allele_trajectories::mutation_ID(int mutation_index){
 	if(num_samples > 0 && time_samples){
 		if(mutation_index >= 0 && mutation_index < all_mutations){
 			mutID temp;

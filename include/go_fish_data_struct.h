@@ -26,8 +26,11 @@ struct mutID{
     int reserved; //reserved for later use
 
     //returns a string constant of mutID
-    inline std::string toString();
+    inline std::string toString() const;
 };
+
+//returns a stream containing mutID.toString() for terminal and file I/O
+inline std::ostream & operator<<(std::ostream & stream, const mutID & id);
 
 struct allele_trajectories{
 	//----- initialization parameters -----
@@ -55,7 +58,7 @@ struct allele_trajectories{
 	inline allele_trajectories(const allele_trajectories & in);
 
 	//copy assignment
-	inline allele_trajectories & operator= (allele_trajectories in);
+	inline allele_trajectories & operator=(allele_trajectories in);
 
 	//returns sim_constants of the simulation currently held by allele_trajectories
 	inline sim_constants last_run_constants();
@@ -86,7 +89,7 @@ struct allele_trajectories{
 	inline float frequency(int sample_index, int population_index, int mutation_index);
 
 	//returns the mutation ID at mutation_index
-	inline mutID mutation_ID(int mutation_index);
+	inline const mutID mutation_ID(int mutation_index);
 
 	//deletes a single time sample
 	//does not delete mutations_ID but does move the apparent length of the array, all_mutations, to the number of mutations in the next last time sample if the final time sample is deleted
@@ -99,10 +102,11 @@ struct allele_trajectories{
 	//destructor
 	inline ~allele_trajectories();
 
+	//swaps information in allele_trajectories a and b
+	friend void swap(allele_trajectories & a, allele_trajectories & b);
+
 	template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
-
-	friend void swap(allele_trajectories & a, allele_trajectories & b);
 
 	friend class SPECTRUM::transfer_allele_trajectories;
 
