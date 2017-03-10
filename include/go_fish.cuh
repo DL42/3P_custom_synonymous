@@ -17,10 +17,10 @@ namespace GO_Fish{
 struct const_selection
 {
 	float s;
-	const_selection();
-	const_selection(float s);
+	inline const_selection();
+	inline const_selection(float s);
 	template <typename Functor_demography, typename Functor_inbreeding>
-	const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
+	inline const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -28,10 +28,10 @@ struct linear_frequency_dependent_selection
 {
 	float slope;
 	float intercept;
-	linear_frequency_dependent_selection();
-	linear_frequency_dependent_selection(float slope, float intercept);
+	inline linear_frequency_dependent_selection();
+	inline linear_frequency_dependent_selection(float slope, float intercept);
 	template <typename Functor_demography, typename Functor_inbreeding>
-	linear_frequency_dependent_selection(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
+	inline linear_frequency_dependent_selection(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -44,10 +44,10 @@ struct seasonal_selection
 	float D; //Offset
 	int generation_shift;
 
-	seasonal_selection();
-	seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	inline seasonal_selection();
+	inline seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
 	template <typename Functor_demography, typename Functor_inbreeding>
-	seasonal_selection(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0);
+	inline seasonal_selection(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -58,8 +58,8 @@ struct population_specific_selection
 	int pop, generation_shift;
 	Functor_sel s;
 	Functor_sel_pop s_pop;
-	population_specific_selection();
-	population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
+	inline population_specific_selection();
+	inline population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
@@ -70,8 +70,8 @@ struct piecewise_selection
 	int inflection_point, generation_shift;
 	Functor_sel1 s1;
 	Functor_sel2 s2;
-	piecewise_selection();
-	piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
+	inline piecewise_selection();
+	inline piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
 	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 /* ----- end selection models ----- */
@@ -80,8 +80,8 @@ struct piecewise_selection
 struct const_parameter
 {
 	float p;
-	const_parameter();
-	const_parameter(float p);
+	inline const_parameter();
+	inline const_parameter(float p);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 
@@ -94,8 +94,8 @@ struct seasonal_parameter
 	float D; //Offset
 	int generation_shift;
 
-	seasonal_parameter();
-	seasonal_parameter(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	inline seasonal_parameter();
+	inline seasonal_parameter(float A, float pi, float D, float rho = 0, int generation_shift = 0);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 
@@ -106,8 +106,8 @@ struct population_specific_parameter
 	int pop, generation_shift;
 	Functor_p p;
 	Functor_p_pop p_pop;
-	population_specific_parameter();
-	population_specific_parameter(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
+	inline population_specific_parameter();
+	inline population_specific_parameter(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 
@@ -118,8 +118,8 @@ struct piecewise_parameter
 	int inflection_point, generation_shift;
 	Functor_p1 p1;
 	Functor_p2 p2;
-	piecewise_parameter();
-	piecewise_parameter(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
+	inline piecewise_parameter();
+	inline piecewise_parameter(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
 	__host__ __forceinline__ float operator()(const int population, const int generation) const;
 };
 /* ----- end of mutation, dominance, & inbreeding models ----- */
@@ -128,8 +128,8 @@ struct piecewise_parameter
 struct const_demography
 {
 	int p;
-	const_demography();
-	const_demography(int p);
+	inline const_demography();
+	inline const_demography(int p);
 	__host__ __device__  __forceinline__ int operator()(const int population, const int generation) const;
 };
 
@@ -142,8 +142,8 @@ struct seasonal_demography
 	int D; //Offset
 	int generation_shift;
 
-	seasonal_demography();
-	seasonal_demography(float A, float pi, int D, float rho = 0, int generation_shift = 0);
+	inline seasonal_demography();
+	inline seasonal_demography(float A, float pi, int D, float rho = 0, int generation_shift = 0);
 	__host__ __device__  __forceinline__ int operator()(const int population, const int generation) const;
 };
 
@@ -154,8 +154,8 @@ struct exponential_growth
 	int initial_population_size;
 	int generation_shift;
 
-	exponential_growth();
-	exponential_growth(float rate, int initial_population_size, int generation_shift = 0);
+	inline exponential_growth();
+	inline exponential_growth(float rate, int initial_population_size, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
 };
 
@@ -167,8 +167,8 @@ struct logistic_growth
 	int carrying_capacity;
 	int generation_shift;
 
-	logistic_growth();
-	logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift = 0);
+	inline logistic_growth();
+	inline logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
 };
 
@@ -179,8 +179,8 @@ struct population_specific_demography
 	int pop, generation_shift;
 	Functor_p p;
 	Functor_p_pop p_pop;
-	population_specific_demography();
-	population_specific_demography(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
+	inline population_specific_demography();
+	inline population_specific_demography(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
 };
 
@@ -191,8 +191,8 @@ struct piecewise_demography
 	int inflection_point, generation_shift;
 	Functor_p1 p1;
 	Functor_p2 p2;
-	piecewise_demography();
-	piecewise_demography(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
+	inline piecewise_demography();
+	inline piecewise_demography(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int population, const int generation) const;
 };
 /* ----- end of demography models ----- */
@@ -202,9 +202,9 @@ struct const_equal_migration
 {
 	float m;
 	int num_pop;
-	const_equal_migration();
-	const_equal_migration(int n);
-	const_equal_migration(float m, int n);
+	inline const_equal_migration();
+	inline const_equal_migration(int n);
+	inline const_equal_migration(float m, int n);
 	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
 };
 
@@ -215,8 +215,8 @@ struct const_directional_migration
 	float m;
 	int pop1, pop2;
 	Functor_m1 rest;
-	const_directional_migration();
-	const_directional_migration(float m, int pop1, int pop2, Functor_m1 rest_in);
+	inline const_directional_migration();
+	inline const_directional_migration(float m, int pop1, int pop2, Functor_m1 rest_in);
 	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const;
 };
 
@@ -227,8 +227,8 @@ struct piecewise_migration
 	int inflection_point, generation_shift;
 	Functor_m1 m1;
 	Functor_m2 m2;
-	piecewise_migration();
-	piecewise_migration(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift = 0);
+	inline piecewise_migration();
+	inline piecewise_migration(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift = 0);
 	__host__ __device__ __forceinline__ int operator()(const int pop_FROM, const int pop_TO, const int generation) const;
 };
 
@@ -244,8 +244,8 @@ struct on{__host__ __forceinline__ bool operator()(const int generation) const; 
 	const bool * array;
 	int length;
 	int generation_shift;
-	on_off_array();
-	on_off_array(const bool * const in_array, int length, int generation_shift = 0);
+	inline on_off_array();
+	inline on_off_array(const bool * const in_array, int length, int generation_shift = 0);
 	__host__ __forceinline__ bool operator()(const int generation) const;
 	~do_array();
 }; */
@@ -267,8 +267,8 @@ struct switch_function{
 	int Fgen, generation_shift;
 	Functor_first f1;
 	Functor_second f2;
-	switch_function();
-	switch_function(Functor_first f1_in, Functor_second f2_in, int Fgen, int generation_shift = 0);
+	inline switch_function();
+	inline switch_function(Functor_first f1_in, Functor_second f2_in, int Fgen, int generation_shift = 0);
 	__host__ __forceinline__ bool operator()(const int generation) const;
 };
 /* ----- end of preserving & sampling functions ----- */
