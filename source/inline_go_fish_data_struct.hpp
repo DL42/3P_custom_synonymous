@@ -201,16 +201,6 @@ inline void swap(allele_trajectories & a, allele_trajectories & b){
 }
 
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A){
-/*	stream << "variable:" << "\t" << "input constants" << "\t" << "last simulation run constants" << std::endl;
-	stream << "seed1:" << "\t" << A.sim_input_constants.seed1 << "\t" << A.sim_run_constants.seed1 << std::endl;
-	stream << "seed2:" << "\t" << A.sim_input_constants.seed2 << "\t" << A.sim_run_constants.seed2 << std::endl;
-	stream << "num_generations:" << "\t" << A.sim_input_constants.num_generations << "\t" << A.sim_run_constants.num_generations << std::endl;
-	stream << "num_sites:" << "\t" << A.sim_input_constants.num_sites << "\t" << A.sim_run_constants.num_sites << std::endl;
-	stream << "num_populations:" << "\t" << A.sim_input_constants.num_populations << "\t" << A.sim_run_constants.num_populations << std::endl;
-	stream << "init_mse:" << "\t" << A.sim_input_constants.init_mse << "\t" << A.sim_run_constants.init_mse << std::endl;
-	stream << "prev_sim_sample:" << "\t" << A.sim_input_constants.prev_sim_sample << "\t" << A.sim_run_constants.prev_sim_sample << std::endl;
-	stream << "compact_interval:" << "\t" << A.sim_input_constants.compact_interval << "\t" << A.sim_run_constants.compact_interval << std::endl;
-	stream << "device:" << "\t" << A.sim_input_constants.device << "\t" << A.sim_run_constants.device << std::endl << std::endl;*/
 	stream << "variable" << "\t" << "run constants" << std::endl;
 	stream << "seed1:" << "\t" << A.sim_run_constants.seed1 << std::endl;
 	stream << "seed2:" << "\t" << A.sim_run_constants.seed2 << std::endl;
@@ -226,18 +216,11 @@ inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A)
 
 	int num_populations = A.sim_run_constants.num_populations;
 
-	/*
-			bool * extinct; //extinct[pop] == true, flag if population is extinct by time sample
-			int * Nchrom_e; //effective number of chromosomes in each population
-			int num_mutations; //number of mutations in frequency array (columns array length for freq)
-			int sampled_generation; //number of generations in the simulation at point of sampling
-	*/
-
 	stream << "generation:";
 	for(int j = 0; j < A.num_samples; j++){
 		stream << "\t" << A.sampled_generation(j);
 		for(int k = 0; k < num_populations-1; k++){ stream << "\t"; }
-	} stream << std::endl << "number of mutations:";
+	} stream << std::endl << "number of mutations reported:";
 
 	for(int j = 0; j < A.num_samples; j++){
 		stream << "\t" << A.num_mutations_time_sample(j);

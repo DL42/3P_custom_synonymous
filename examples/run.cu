@@ -142,6 +142,9 @@ void run_prev_sim_n_allele_traj_test(){
 
 	std::ofstream outfile;
 	outfile.open("afile.dat");
+	outfile<<a;
+	outfile.close();
+	outfile.open("bfile.dat");
 	outfile<<b;
 	outfile.close();
 
