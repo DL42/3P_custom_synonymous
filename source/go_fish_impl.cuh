@@ -8,8 +8,7 @@
 #ifndef GO_FISH_IMPL_CUH_
 #define GO_FISH_IMPL_CUH_
 
-#include <cub/device/device_scan.cuh>
-
+#include "../outside_libraries/cub/device/device_scan.cuh"
 #include "../source/shared.cuh"
 #include "../include/go_fish_data_struct.h"
 

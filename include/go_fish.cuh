@@ -8,7 +8,7 @@
 #ifndef GO_FISH_API_H_
 #define GO_FISH_API_H_
 #include <cuda_runtime.h>
-#include <helper_math.h>
+#include "../outside_libraries/helper_math.h"
 #include "../include/go_fish_data_struct.h"
 
 namespace GO_Fish{
