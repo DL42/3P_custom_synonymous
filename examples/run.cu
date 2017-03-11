@@ -4,6 +4,7 @@
  *      Author: David Lawrie
  */
 
+#include <fstream>
 #include "go_fish.cuh"
 #include "spectrum.h"
 #include "run.h"
@@ -139,6 +140,10 @@ void run_prev_sim_n_allele_traj_test(){
 	std::cout<<"mutation IDs\tID\tstart_frequency\tfinal_frequency"<<std::endl;
 	for(int i = mutation_range_begin; i < mutation_range_end; i++){ std::cout<<"\t\t"<<b.mutation_ID(i)<<"\t"<<b.frequency(0,0,i)<<"\t"<<b.frequency(1,0,i)<<std::endl; }
 
+	std::ofstream outfile;
+	outfile.open("afile.dat");
+	outfile<<b;
+	outfile.close();
 
 	a.sim_input_constants.init_mse = true;
 	a.sim_input_constants.seed1 = 0xdecafbad; //random number seeds

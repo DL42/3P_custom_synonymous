@@ -26,6 +26,7 @@ struct mutID{
     int reserved; //reserved for later use
 
     //returns a string constant of mutID
+    inline std::string toString();
     inline std::string toString() const;
 };
 
@@ -63,13 +64,19 @@ struct allele_trajectories{
 	//returns sim_constants of the simulation currently held by allele_trajectories
 	inline sim_constants last_run_constants();
 
+	//returns the number of populations in the simulation
+	inline int num_sites();
+
+	//returns the number of populations in the simulation
+	inline int num_populations();
+
 	//returns number of time samples taken during simulation run
 	inline int num_time_samples();
 
 	//returns number of reported mutations in the final time sample (maximal number of stored mutations in the allele_trajectories)
 	inline int maximal_num_mutations();
 
-	//returns number of segregating mutations reported by the simulation in the time sample index
+	//returns number of reported mutations in the time sample index
 	inline int num_mutations_time_sample(int sample_index);
 
 	//returns final generation of simulation
@@ -89,7 +96,7 @@ struct allele_trajectories{
 	inline float frequency(int sample_index, int population_index, int mutation_index);
 
 	//returns the mutation ID at mutation_index
-	inline const mutID mutation_ID(int mutation_index);
+	inline mutID mutation_ID(int mutation_index);
 
 	//deletes a single time sample
 	//does not delete mutations_ID but does move the apparent length of the array, all_mutations, to the number of mutations in the next last time sample if the final time sample is deleted
@@ -104,6 +111,9 @@ struct allele_trajectories{
 
 	//swaps information in allele_trajectories a and b
 	friend void swap(allele_trajectories & a, allele_trajectories & b);
+
+	//returns a stream containing allele_trajectories for terminal and file I/O
+	friend std::ostream & operator<<(std::ostream & stream, allele_trajectories & A);
 
 	template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);

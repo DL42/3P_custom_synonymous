@@ -18,7 +18,9 @@ std::string tostring(const T& value)
     return oss.str();
 }
 
-inline std::string mutID::toString() const{ return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+inline std::string mutID::toString() { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+
+inline std::string mutID::toString() const { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
 inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ stream << id.toString(); return stream; }
 
@@ -74,6 +76,10 @@ inline allele_trajectories & allele_trajectories::operator=(allele_trajectories 
 
 inline allele_trajectories::sim_constants allele_trajectories::last_run_constants(){ return sim_run_constants; }
 
+inline int allele_trajectories::num_sites(){ return sim_run_constants.num_sites; }
+
+inline int allele_trajectories::num_populations(){ return sim_run_constants.num_populations; }
+
 inline int allele_trajectories::num_time_samples(){ return num_samples; }
 
 inline int allele_trajectories::maximal_num_mutations(){ return all_mutations; }
@@ -94,18 +100,20 @@ inline int allele_trajectories::sampled_generation(int sample_index){
 
 inline bool allele_trajectories::extinct(int sample_index, int population_index){
 	if(!time_samples || num_samples == 0){ fprintf(stderr,"extinct error: empty allele_trajectories\n"); exit(1); }
-	if(sample_index < 0 || sample_index > num_samples){ fprintf(stderr,"extinct error: requested sample index out of bounds: sample %d [0 %d)\n",sample_index,num_samples); exit(1); }
+	int num_populations = sim_run_constants.num_populations;
+	if((sample_index < 0 || sample_index >= num_samples) || (population_index < 0 || population_index >= num_populations)){ fprintf(stderr,"extinct error: index out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,num_samples,population_index,num_populations); exit(1); }
 	return time_samples[sample_index]->extinct[population_index];
 }
 
 inline int allele_trajectories::effective_number_of_chromosomes(int sample_index, int population_index){
-	if(!time_samples || num_samples == 0){ fprintf(stderr,"population_size error: empty allele_trajectories\n"); exit(1); }
-	if(sample_index < 0 || sample_index > num_samples){ fprintf(stderr,"population_size error: requested sample index out of bounds: sample %d [0 %d)\n",sample_index,num_samples); exit(1); }
+	if(!time_samples || num_samples == 0){ fprintf(stderr,"effective_number_of_chromosomes error: empty allele_trajectories\n"); exit(1); }
+	int num_populations = sim_run_constants.num_populations;
+	if((sample_index < 0 || sample_index >= num_samples) || (population_index < 0 || population_index >= num_populations)){ fprintf(stderr,"effective_number_of_chromosomes error: index out of bounds: sample %d [0 %d), population %d [0 %d)\n",sample_index,num_samples,population_index,num_populations); exit(1); }
 	return time_samples[sample_index]->Nchrom_e[population_index];
 }
 
 inline float allele_trajectories::frequency(int sample_index, int population_index, int mutation_index){
-	int num_populations = sim_input_constants.num_populations;
+	int num_populations = sim_run_constants.num_populations;
 	int num_mutations;
 	if((sample_index >= 0 && sample_index < num_samples) && (population_index >= 0 && population_index < num_populations) && (mutation_index >= 0 && mutation_index < time_samples[num_samples-1]->num_mutations)){
 		num_mutations = time_samples[num_samples-1]->num_mutations;
@@ -120,7 +128,7 @@ inline float allele_trajectories::frequency(int sample_index, int population_ind
 	}
 }
 
-inline const mutID allele_trajectories::mutation_ID(int mutation_index){
+inline mutID allele_trajectories::mutation_ID(int mutation_index){
 	if(num_samples > 0 && time_samples){
 		if(mutation_index >= 0 && mutation_index < all_mutations){
 			mutID temp;
@@ -190,6 +198,79 @@ inline void swap(allele_trajectories & a, allele_trajectories & b){
 	std::swap(a.num_samples,b.num_samples);
 	std::swap(a.mutations_ID,b.mutations_ID);
 	std::swap(a.time_samples,b.time_samples);
+}
+
+inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A){
+/*	stream << "variable:" << "\t" << "input constants" << "\t" << "last simulation run constants" << std::endl;
+	stream << "seed1:" << "\t" << A.sim_input_constants.seed1 << "\t" << A.sim_run_constants.seed1 << std::endl;
+	stream << "seed2:" << "\t" << A.sim_input_constants.seed2 << "\t" << A.sim_run_constants.seed2 << std::endl;
+	stream << "num_generations:" << "\t" << A.sim_input_constants.num_generations << "\t" << A.sim_run_constants.num_generations << std::endl;
+	stream << "num_sites:" << "\t" << A.sim_input_constants.num_sites << "\t" << A.sim_run_constants.num_sites << std::endl;
+	stream << "num_populations:" << "\t" << A.sim_input_constants.num_populations << "\t" << A.sim_run_constants.num_populations << std::endl;
+	stream << "init_mse:" << "\t" << A.sim_input_constants.init_mse << "\t" << A.sim_run_constants.init_mse << std::endl;
+	stream << "prev_sim_sample:" << "\t" << A.sim_input_constants.prev_sim_sample << "\t" << A.sim_run_constants.prev_sim_sample << std::endl;
+	stream << "compact_interval:" << "\t" << A.sim_input_constants.compact_interval << "\t" << A.sim_run_constants.compact_interval << std::endl;
+	stream << "device:" << "\t" << A.sim_input_constants.device << "\t" << A.sim_run_constants.device << std::endl << std::endl;*/
+	stream << "variable" << "\t" << "run constants" << std::endl;
+	stream << "seed1:" << "\t" << A.sim_run_constants.seed1 << std::endl;
+	stream << "seed2:" << "\t" << A.sim_run_constants.seed2 << std::endl;
+	stream << "num_generations:" << "\t" << A.sim_run_constants.num_generations << std::endl;
+	stream << "num_sites:" << "\t" << A.sim_run_constants.num_sites << std::endl;
+	stream << "num_populations:" << "\t" << A.sim_run_constants.num_populations << std::endl;
+	stream << "init_mse:" << "\t" << A.sim_run_constants.init_mse << std::endl;
+	stream << "prev_sim_sample:" << "\t" << A.sim_run_constants.prev_sim_sample << std::endl;
+	stream << "compact_interval:" << "\t" << A.sim_run_constants.compact_interval << std::endl;
+	stream << "device:" << "\t" << A.sim_run_constants.device << std::endl << std::endl;
+
+	if(A.num_samples == 0){ stream << "no simulation stored" << std::endl; return stream; }
+
+	int num_populations = A.sim_run_constants.num_populations;
+
+	/*
+			bool * extinct; //extinct[pop] == true, flag if population is extinct by time sample
+			int * Nchrom_e; //effective number of chromosomes in each population
+			int num_mutations; //number of mutations in frequency array (columns array length for freq)
+			int sampled_generation; //number of generations in the simulation at point of sampling
+	*/
+
+	stream << "generation:";
+	for(int j = 0; j < A.num_samples; j++){
+		stream << "\t" << A.sampled_generation(j);
+		for(int k = 0; k < num_populations-1; k++){ stream << "\t"; }
+	} stream << std::endl << "number of mutations:";
+
+	for(int j = 0; j < A.num_samples; j++){
+		stream << "\t" << A.num_mutations_time_sample(j);
+		for(int k = 0; k < num_populations-1; k++){ stream << "\t"; }
+	} stream << std::endl << "population:" ;
+
+	for(int j = 0; j < A.num_samples; j++){
+		for(int k = 0; k < num_populations; k++){ stream << "\t" << k; }
+	} stream << std::endl << "effective population size (chromosomes):";
+
+	for(int j = 0; j < A.num_samples; j++){
+		for(int k = 0; k < num_populations; k++){ stream << "\t" << A.effective_number_of_chromosomes(j,k); }
+	} stream << std::endl << "population extinct:";
+
+	for(int j = 0; j < A.num_samples; j++){
+		for(int k = 0; k < num_populations; k++){ stream << "\t" << A.extinct(j,k); }
+	} stream << std::endl;
+
+	if(A.all_mutations == 0){ stream << std::endl << "no mutations stored" << std::endl; return stream; }
+
+	stream << "mutation ID (origin_generation,origin_population,origin_threadID,reserved)";
+	for(int j = 0; j < A.num_samples; j++){ for(int k = 0; k < num_populations; k++){ stream << "\t" << "frequency"; } }
+	stream << std::endl;
+
+	for(int i = 0; i < A.all_mutations; i++) {
+		stream << A.mutation_ID(i) <<":";
+		for(int j = 0; j < A.num_samples; j++){
+			for(int k = 0; k < num_populations; k++){ stream << "\t" << A.frequency(j,k,i); }
+		}
+		stream << std::endl;
+	}
+
+	return stream;
 }
 
 } /* ----- end namespace GO_Fish ----- */
