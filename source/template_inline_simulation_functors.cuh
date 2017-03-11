@@ -16,7 +16,7 @@ inline const_selection::const_selection() : s(0) {}
 inline const_selection::const_selection(float s) : s(s){ }
 template <typename Functor_demography, typename Functor_inbreeding>
 inline const_selection::const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift /*= 0*/){ s = gamma/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift))); }
-__host__ __device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq) const{ return s; }
+__device__ __forceinline__ float const_selection::operator()(const int population, const int generation, const float freq) const{ return s; }
 /* ----- end constant selection model ----- */
 
 /* ----- linear frequency dependent selection model ----- */
@@ -27,7 +27,7 @@ inline linear_frequency_dependent_selection::linear_frequency_dependent_selectio
 	slope = gamma_slope/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
 	intercept = gamma_intercept/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
 }
-__host__ __device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq) const{ return slope*freq+intercept; }
+__device__ __forceinline__ float linear_frequency_dependent_selection::operator()(const int population, const int generation, const float freq) const{ return slope*freq+intercept; }
 /* ----- end linear frequency dependent selection model ----- */
 
 /* ----- seasonal selection model ----- */
@@ -38,7 +38,7 @@ inline seasonal_selection::seasonal_selection(float gamma_A, float pi, float gam
 	A = gamma_A/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
 	D = gamma_D/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)));
 }
-__host__ __device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
+__device__ __forceinline__ float seasonal_selection::operator()(const int population, const int generation, const float freq) const{ return A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal selection model ----- */
 
 /* ----- population specific selection model ----- */
@@ -47,7 +47,7 @@ inline population_specific_selection<Functor_sel,Functor_sel_pop>::population_sp
 template <typename Functor_sel, typename Functor_sel_pop>
 inline population_specific_selection<Functor_sel,Functor_sel_pop>::population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  s = s_in; s_pop = s_pop_in; }
 template <typename Functor_sel, typename Functor_sel_pop>
-__host__ __device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq) const{
+__device__ __forceinline__ float population_specific_selection<Functor_sel,Functor_sel_pop>::operator()(const int population, const int generation, const float freq) const{
 	if(pop == population) return s_pop(population, generation-generation_shift, freq);
 	return s(population, generation-generation_shift, freq);
 }
@@ -59,7 +59,7 @@ inline piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection() : 
 template <typename Functor_sel1, typename Functor_sel2>
 inline piecewise_selection<Functor_sel1, Functor_sel2>::piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { s1 = s1_in; s2 = s2_in; }
 template <typename Functor_sel1, typename Functor_sel2>
-__host__ __device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq) const{
+__device__ __forceinline__ float piecewise_selection<Functor_sel1, Functor_sel2>::operator()(const int population, const int generation, const float freq) const{
 	if(generation >= inflection_point+generation_shift){ return s2(population, generation-generation_shift, freq) ; }
 	return s1(population, generation-generation_shift, freq);
 };

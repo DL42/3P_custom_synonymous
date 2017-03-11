@@ -21,7 +21,7 @@ struct const_selection
 	inline const_selection(float s);
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline const_selection(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 struct linear_frequency_dependent_selection
@@ -32,7 +32,7 @@ struct linear_frequency_dependent_selection
 	inline linear_frequency_dependent_selection(float slope, float intercept);
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline linear_frequency_dependent_selection(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //models selection as a sine wave through time
@@ -48,7 +48,7 @@ struct seasonal_selection
 	inline seasonal_selection(float A, float pi, float D, float rho = 0, int generation_shift = 0);
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline seasonal_selection(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //one population, pop, has a different, selection functor, s_pop
@@ -60,7 +60,7 @@ struct population_specific_selection
 	Functor_sel_pop s_pop;
 	inline population_specific_selection();
 	inline population_specific_selection(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 
 //selection function changes at inflection_point
@@ -72,7 +72,7 @@ struct piecewise_selection
 	Functor_sel2 s2;
 	inline piecewise_selection();
 	inline piecewise_selection(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
-	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
 };
 /* ----- end selection models ----- */
 
