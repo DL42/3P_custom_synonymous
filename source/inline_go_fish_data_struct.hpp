@@ -44,7 +44,7 @@ inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
 
 	if(all_mutations > 0){
 		mutations_ID = new mutID[all_mutations];
-		memcpy(mutations_ID, in.mutations_ID, all_mutations*sizeof(mutID));
+		memcpy(mutations_ID, in.mutations_ID, all_mutations*sizeof(mutID)); //using memcpy to ensure struct members remain in right memory order bit for bit for when transfering to GPU
 	}
 	else{ mutations_ID = NULL; }
 

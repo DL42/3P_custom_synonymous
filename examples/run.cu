@@ -115,10 +115,12 @@ void run_prev_sim_n_allele_traj_test(){
 	GO_Fish::run_sim(a,mutation1,demography,migration,selection,inbreeding,dominance,dont_preserve,dont_sample); //only sample final generation
 	std::cout<<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
 
+	GO_Fish::allele_trajectories c(a);
+
 	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
 	a.sim_input_constants.prev_sim_sample = 0;
 	GO_Fish::const_parameter mutation2(pow(10.f,-9)); //per-site mutation rate
-	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,dont_preserve,sample_strategy,a);
+	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,dont_preserve,sample_strategy,c);
 
 	std::cout<<std::endl<<"number of time samples: " << a.num_time_samples();
 	std::cout<<std::endl<<"starting number of mutations: " << a.num_mutations_time_sample(0) <<std::endl<<"final number of mutations: " << a.maximal_num_mutations() << std::endl;
