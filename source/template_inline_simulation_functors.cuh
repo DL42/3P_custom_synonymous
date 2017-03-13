@@ -21,7 +21,7 @@ namespace Sim_Model{
 *  -- | -- | --
 *  `1` | `1+hs` | `1+s`
 *
-*  where \p h is the dominance coefficience and AA, Aa, aa represent the various alleles.
+*  where \p h is the dominance coefficient and AA, Aa, aa represent the various alleles.
 *  Thus Effective Selection, \p gamma, is defined by `N_chromosome_e*s` which for outbreeding diploids is `2*N*s` and haploid is `N*s`
 *  where N is the number of individuals (as returned by demography functions).
 *  Diploids with inbreeding will have an effective strength of selection of `2*N*s/(1+F)`.

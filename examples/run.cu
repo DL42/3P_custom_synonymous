@@ -37,9 +37,9 @@ void run_speed_test()
 	bool printSFS = true; //calculate and print out the SFS
 	int start_index = 0;
 	int print_num = 50;
-	SPECTRUM::SFS mySFS;
+	Spectrum::SFS mySFS;
 	if(printSFS){
-		SPECTRUM::population_frequency_histogram(mySFS,a,0,0);
+		Spectrum::population_frequency_histogram(mySFS,a,0,0);
 		std::cout<< "allele count\t# mutations"<< std::endl;
 		for(int printIndex = start_index; printIndex < min((mySFS.sample_size[0]-start_index),start_index+print_num); printIndex++){ std::cout<< (printIndex) << "\t" << mySFS.frequency_spectrum[printIndex] << std::endl;}
 	}
@@ -200,7 +200,7 @@ void run_validation_test(){
     b.sim_input_constants.compact_interval = 20;
    // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
     //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
-    SPECTRUM::SFS * my_spectra = new SPECTRUM::SFS[num_iter];
+    Spectrum::SFS * my_spectra = new Spectrum::SFS[num_iter];
 
     cudaEvent_t start, stop;
     float elapsedTime;
@@ -215,7 +215,7 @@ void run_validation_test(){
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
 		GO_Fish::run_sim((b), Sim_Model::F_mu_h_constant(mu), Sim_Model::demography_constant(N_ind), Sim_Model::migration_constant_equal(m,b.sim_input_constants.num_populations), Sim_Model::selection_constant(gamma,Sim_Model::demography_constant(N_ind),Sim_Model::F_mu_h_constant(F)), Sim_Model::F_mu_h_constant(F), Sim_Model::F_mu_h_constant(h), Sim_Model::bool_off(), Sim_Model::bool_off());
-		SPECTRUM::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
+		Spectrum::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
 		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
 		//std::cout<<b.maximal_num_mutations()<<std::endl;
 		//std::cout<< (int)expected_total_SNPs << "\t" << b.maximal_num_mutations() << "\t" << ((b.maximal_num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;

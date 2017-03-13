@@ -15,7 +15,7 @@
 #include <sstream>
 
 //!\cond
-namespace SPECTRUM_details{ class transfer_allele_trajectories; } //for passing data to SPECTRUM functions
+namespace Spectrum_details{ class transfer_allele_trajectories; } //for passing data to SPECTRUM functions
 //!\endcond
 
 //!Namespace for single locus, forward Wright-Fisher simulation and output data structures
@@ -24,19 +24,20 @@ namespace GO_Fish{
 /* ----- sim result output ----- */
 //!mutation ID of each mutation in the simulation
 struct mutID{
-	int origin_generation; //!<generation in which mutation appeared in simulation
-	int origin_population; //!<population in which mutation first arose
-	int origin_threadID;//!<threadID that generated mutation
-    int reserved; //!<reserved for later use, currently 0
+	int origin_generation; /**<\brief generation in which mutation appeared in simulation */ /**<\t*/
+	int origin_population; /**<\brief population in which mutation first arose */ /**<\t*/
+	int origin_threadID;/**<\brief threadID that generated mutation */ /**<\t*/
+    int reserved; /**<\brief reserved for later use, currently 0 */ /**<\t*/
 
     //!default constructor
     inline mutID();
+
     //!constructor
 	inline mutID(int origin_generation, int origin_population, int origin_threadID, int reserved);
 
     //!returns a string constant of mutID
     inline std::string toString();
-    //!returns a string constant of mutID
+    //!\copydoc GO_Fish::mutID::toString()
     inline std::string toString() const;
 };
 
@@ -58,65 +59,61 @@ struct allele_trajectories{
 		inline sim_constants();
 	};
 
-	sim_constants sim_input_constants; //!<constants for initializing the next simulation
+	sim_constants sim_input_constants; /**<\brief constants for initializing the next simulation */ /**<\t*/
 	//----- end -----
 
-	//!default constructor
+	/**\brief default constructor */ /**\t*/
 	inline allele_trajectories();
 
-	//!copy constructor
+	/**\brief copy constructor */ /**\t*/
 	inline allele_trajectories(const allele_trajectories & in);
 
-	//!copy assignment
+	/**\brief copy assignment */ /**\t*/
 	inline allele_trajectories & operator=(allele_trajectories in);
 
-	//!returns sim_constants of the simulation currently held by allele_trajectories
+	/**\brief returns sim_constants of the simulation currently held by allele_trajectories */ /**\t*/
 	inline sim_constants last_run_constants();
 
-	//!returns the number of populations in the simulation
+	/**\brief returns the number of populations in the simulation */ /**\t*/
 	inline int num_sites();
 
-	//!returns the number of populations in the simulation
+	/**\brief returns the number of populations in the simulation */ /**maximum population_index*/
 	inline int num_populations();
 
-	//!returns number of time samples taken during simulation run
+	/**\brief returns number of time samples taken during simulation run */ /**maximum sample_index*/
 	inline int num_time_samples();
 
-	//!returns number of reported mutations in the final time sample (maximal number of stored mutations in the allele_trajectories)
+	/**\brief returns number of reported mutations in the final time sample (maximal number of stored mutations in the allele_trajectories) */ /**maximum mutation_index*/
 	inline int maximal_num_mutations();
 
-	//!returns number of reported mutations in the time sample index
+	/**\brief number of reported mutations in the time sample \p sample_index */ /**\t*/
 	inline int num_mutations_time_sample(int sample_index);
 
-	//!returns final generation of simulation
+	/**\brief returns final generation of simulation */ /**\t*/
 	inline int final_generation();
 
-	//!return generation of simulation in the time sample index
+	/**\brief return generation of simulation in the time sample \p sample_index */ /**\t*/
 	inline int sampled_generation(int sample_index);
 
-	//!returns whether or not population population_index is extinct in time sample sample_index
+	/**\brief returns whether or not population \p population_index is extinct in time sample \p sample_index */ /**\t*/
 	inline bool extinct(int sample_index, int population_index);
 
-	//!returns the effective number of chromosomes of population_index in time sample sample_index
+	/**\brief returns the effective number of chromosomes of population \p population_index in time sample \p sample_index */ /**\t*/
 	inline int effective_number_of_chromosomes(int sample_index, int population_index);
 
-	//!returns the frequency of the mutation at time sample sample_index, population population_index, mutation mutation_index
-	/*!frequency of mutation before it is generated in the simulation will be reported as 0 (not an error) */
+	/**\brief returns the frequency of the mutation at time sample \p sample_index, population \p population_index, mutation \p mutation_index */ /**\t*/
 	inline float frequency(int sample_index, int population_index, int mutation_index);
 
-	//!returns the mutation ID at mutation_index
+	/**\brief returns the mutation ID at \p mutation_index */ /**\t*/
 	inline mutID mutation_ID(int mutation_index);
 
-	//!deletes a single time sample
-	/*!does not delete mutations_ID but does move the apparent length of the array, all_mutations, to the number of mutations in the next last time sample if the final time sample is deleted
-	 *if deleting the last time sample left in allele trajectories, will free all memory including mutations_ID
-	 */
+	/**\brief deletes a single time sample, \p sample_index */ /**\t*/
 	inline void delete_time_sample(int sample_index);
 
-	//!deletes all memory held by allele_trajectories, resets constants to default
+	/**\brief deletes all memory held by allele_trajectories, resets constants to default */
 	inline void reset();
 
-	//!destructor
+	/**\brief destructor */ /**calls reset()*/
 	inline ~allele_trajectories();
 
 	friend void swap(allele_trajectories & a, allele_trajectories & b);
@@ -127,7 +124,7 @@ struct allele_trajectories{
 	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
 
 	//!\cond
-	friend class SPECTRUM_details::transfer_allele_trajectories;
+	friend class Spectrum_details::transfer_allele_trajectories;
 	//!\endcond
 private:
 
@@ -153,13 +150,13 @@ private:
 	int all_mutations; //number of mutations in mutation ID array - maximal set of mutations stored in allele_trajectories
 };
 
-//!returns a stream containing mutID.toString()
+/**\brief returns a stream containing mutID.toString() */ /**\t*/
 inline std::ostream & operator<<(std::ostream & stream, const mutID & id);
 
-//!returns a stream containing allele_trajectories
+//! returns a stream containing allele_trajectories
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A);
 
-//!swaps information in allele_trajectories a and b
+/**\brief swaps data held by allele_trajectories a and b */ /**\t*/
 inline void swap(allele_trajectories & a, allele_trajectories & b);
 
 /* ----- end sim result output ----- */

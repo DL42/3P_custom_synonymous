@@ -10,8 +10,9 @@
 
 namespace GO_Fish{
 
+/** \t */
 inline mutID::mutID() : origin_generation(0), origin_population(0), origin_threadID(0), reserved(0) {}
-
+/** \t */
 inline mutID::mutID(int origin_generation, int origin_population, int origin_threadID, int reserved) : origin_generation(origin_generation), origin_population(origin_population), origin_threadID(origin_threadID), reserved(reserved) {}
 
 //!\cond
@@ -24,6 +25,7 @@ std::string tostring(const T& value)
 }
 //!\endcond
 
+/** string format: (origin_generation,origin_population,origin_thread,reserved)*/
 inline std::string mutID::toString() { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
 inline std::string mutID::toString() const { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
@@ -42,7 +44,7 @@ inline allele_trajectories::time_sample::~time_sample(){
 inline allele_trajectories::allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = NULL; mutations_ID = NULL; }
 
 inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
-	//can replace with shared pointers when moving to CUDA 7+ and C++11 or simply replace this and copy assignment with move constructor & move assignment
+	//replace with shared pointers when moving to CUDA 7+ and C++11? or simply replace this and copy assignment with move constructor & move assignment? or leave as is?
 	sim_input_constants = in.sim_input_constants;
 	sim_run_constants = in.sim_run_constants;
 	num_samples = in.num_samples;
@@ -118,6 +120,7 @@ inline int allele_trajectories::effective_number_of_chromosomes(int sample_index
 	return time_samples[sample_index]->Nchrom_e[population_index];
 }
 
+/*!if the \p mutation_index is of a mutation that is in the simulation, but which had not arisen as of /p sample_index, the reported frequency will be 0*/
 inline float allele_trajectories::frequency(int sample_index, int population_index, int mutation_index){
 	int num_populations = sim_run_constants.num_populations;
 	int num_mutations;
@@ -141,6 +144,13 @@ inline mutID allele_trajectories::mutation_ID(int mutation_index){
 	}else{ fprintf(stderr,"mutation_ID error: empty allele_trajectories\n"); exit(1); }
 }
 
+
+/*!
+* Useful for when the allele_trajectories object is still in scope, but memory needs to be free and the data held in a particular time sample of the object is no longer needed.
+* If the final time sample is deleted, but there are still previous time samples remaining, then function does not delete any of the memory held by mutations_ID,
+* but does move the apparent length of the array, maximal_num_mutations(), to the number of mutations in the next last time sample.
+* If deleting the last time sample left in allele trajectories, will call reset().
+*/
 inline void allele_trajectories::delete_time_sample(int sample_index){
 	if(sample_index >= 0 && sample_index < num_samples){
 		if(num_samples == 1){ reset(); }
@@ -162,6 +172,7 @@ inline void allele_trajectories::delete_time_sample(int sample_index){
 	}
 }
 
+/**Useful for when the allele_trajectories object is still in scope, but memory needs to be free and the data held by the object is no longer needed.*/
 inline void allele_trajectories::reset(){
 	if(time_samples){
 		for(int i = 0; i < num_samples; i++){ delete time_samples[i]; }
