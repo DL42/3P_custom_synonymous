@@ -12,6 +12,7 @@
 #include "../source/shared.cuh"
 #include "../include/go_fish_data_struct.h"
 
+//!\cond
 namespace go_fish_details{
 
 __device__ __forceinline__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
@@ -498,7 +499,7 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 }
 
 } /* ----- end namespace go_fish_details ----- */
-
+//!\endcond
 namespace GO_Fish{
 
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>

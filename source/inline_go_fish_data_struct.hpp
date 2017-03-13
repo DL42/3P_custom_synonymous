@@ -10,6 +10,11 @@
 
 namespace GO_Fish{
 
+inline mutID::mutID() : origin_generation(0), origin_population(0), origin_threadID(0), reserved(0) {}
+
+inline mutID::mutID(int origin_generation, int origin_population, int origin_threadID, int reserved) : origin_generation(origin_generation), origin_population(origin_population), origin_threadID(origin_threadID), reserved(reserved) {}
+
+//!\cond
 template<typename T>
 std::string tostring(const T& value)
 {
@@ -17,6 +22,7 @@ std::string tostring(const T& value)
     oss << value;
     return oss.str();
 }
+//!\endcond
 
 inline std::string mutID::toString() { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
@@ -36,7 +42,7 @@ inline allele_trajectories::time_sample::~time_sample(){
 inline allele_trajectories::allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = NULL; mutations_ID = NULL; }
 
 inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
-	//can replace with shared pointers when moving to CUDA 7+ and C++11
+	//can replace with shared pointers when moving to CUDA 7+ and C++11 or simply replace this and copy assignment with move constructor & move assignment
 	sim_input_constants = in.sim_input_constants;
 	sim_run_constants = in.sim_run_constants;
 	num_samples = in.num_samples;
@@ -130,14 +136,7 @@ inline float allele_trajectories::frequency(int sample_index, int population_ind
 
 inline mutID allele_trajectories::mutation_ID(int mutation_index){
 	if(num_samples > 0 && time_samples){
-		if(mutation_index >= 0 && mutation_index < all_mutations){
-			mutID temp;
-			temp.origin_generation = mutations_ID[mutation_index].origin_generation;
-			temp.origin_population = mutations_ID[mutation_index].origin_population;
-			temp.origin_threadID = abs(mutations_ID[mutation_index].origin_threadID); //so the user doesn't get confused by the preservation flag on ID
-			temp.reserved = mutations_ID[mutation_index].reserved;
-			return temp;
-		}
+		if(mutation_index >= 0 && mutation_index < all_mutations){ return mutID(mutations_ID[mutation_index].origin_generation,mutations_ID[mutation_index].origin_population,abs(mutations_ID[mutation_index].origin_threadID),mutations_ID[mutation_index].reserved); } //absolute value the user doesn't get confused by the preservation flag on ID
 		fprintf(stderr,"mutation_ID error: requested mutation index out of bounds: mutation %d [0 %d)\n",mutation_index,maximal_num_mutations()); exit(1);
 	}else{ fprintf(stderr,"mutation_ID error: empty allele_trajectories\n"); exit(1); }
 }

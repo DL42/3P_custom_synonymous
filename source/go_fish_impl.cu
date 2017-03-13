@@ -7,6 +7,7 @@
 
 #include "go_fish_impl.cuh"
 
+//!\cond
 namespace go_fish_details{
 
 /*
@@ -192,4 +193,5 @@ __global__ void preserve_prev_run_mutations(int4 * mutations_ID, const int mutat
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){ mutations_ID[id].z = -1*abs(mutations_ID[id].z); } //preservation flag is a -ID, use of absolute value is to ensure that if ID is already
 }
 
-}
+} /* ----- end namespace go_fish_details ----- */
+//!\endcond

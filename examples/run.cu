@@ -18,15 +18,15 @@ void run_speed_test()
 	a.sim_input_constants.num_populations = 1; //number of populations
 	a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
 	a.sim_input_constants.seed2 = 0xdecafbad;
-	GO_Fish::const_parameter mutation(pow(10.f,-9)); //per-site mutation rate
-	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
-	GO_Fish::const_demography demography(pow(10.f,5)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
-	GO_Fish::const_equal_migration migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
+	Sim_Model::F_mu_h_constant mutation(pow(10.f,-9)); //per-site mutation rate
+	Sim_Model::F_mu_h_constant inbreeding(1.f); //constant inbreeding
+	Sim_Model::demography_constant demography(pow(10.f,5)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	Sim_Model::migration_constant_equal migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
 	float gamma = 0; //effective selection
-	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
-	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
-	GO_Fish::off preserve; //don't preserve alleles from any generation
-	GO_Fish::off sample_strategy; //only sample final generation
+	Sim_Model::selection_constant selection(gamma/(2*demography(0,0))); //constant selection coefficient
+	Sim_Model::F_mu_h_constant dominance(0.f); //constant allele dominance
+	Sim_Model::bool_off preserve; //don't preserve alleles from any generation
+	Sim_Model::bool_off sample_strategy; //only sample final generation
 	//----- end warm up scenario parameters -----
 
 	//----- warm up GPU -----
@@ -65,7 +65,7 @@ void run_speed_test()
 	cudaEventCreate(&stop);
 	cudaEventRecord(start, 0);
 
-	for(int i = 0; i < num_iter; i++){ GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,GO_Fish::off(),GO_Fish::off()); }
+	for(int i = 0; i < num_iter; i++){ GO_Fish::run_sim(a,mutation,demography,migration,selection,inbreeding,dominance,Sim_Model::bool_off(),Sim_Model::bool_off()); }
 
 	elapsedTime = 0;
 	cudaEventRecord(stop, 0);
@@ -99,17 +99,17 @@ void run_prev_sim_n_allele_traj_test(){
 	a.sim_input_constants.seed1 = 0xbeeff00d; //random number seeds
 	a.sim_input_constants.seed2 = 0xdecafbad;
 	a.sim_input_constants.init_mse = false;
-	GO_Fish::const_parameter mutation1(1.07*pow(10.f,-9)); //per-site mutation rate
-	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
-	GO_Fish::const_demography demography(pow(10.f,4)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
-	GO_Fish::const_equal_migration migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
+	Sim_Model::F_mu_h_constant mutation1(1.07*pow(10.f,-9)); //per-site mutation rate
+	Sim_Model::F_mu_h_constant inbreeding(1.f); //constant inbreeding
+	Sim_Model::demography_constant demography(pow(10.f,4)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
+	Sim_Model::migration_constant_equal migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
 	float gamma = 0; //effective selection
-	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
-	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
-	GO_Fish::off dont_preserve; //don't preserve alleles
-	GO_Fish::off dont_sample; //don't sample alleles
-	GO_Fish::on sample; //sample alleles
-	GO_Fish::pulse<GO_Fish::off,GO_Fish::on> sample_strategy(dont_sample,sample,0,a.sim_input_constants.num_generations); //sample starting generation of second simulation
+	Sim_Model::selection_constant selection(gamma/(2*demography(0,0))); //constant selection coefficient
+	Sim_Model::F_mu_h_constant dominance(0.f); //constant allele dominance
+	Sim_Model::bool_off dont_preserve; //don't preserve alleles
+	Sim_Model::bool_off dont_sample; //don't sample alleles
+	Sim_Model::bool_on sample; //sample alleles
+	Sim_Model::bool_pulse<Sim_Model::bool_off,Sim_Model::bool_on> sample_strategy(dont_sample,sample,0,a.sim_input_constants.num_generations); //sample starting generation of second simulation
 
 
 	GO_Fish::run_sim(a,mutation1,demography,migration,selection,inbreeding,dominance,dont_preserve,dont_sample); //only sample final generation
@@ -119,7 +119,7 @@ void run_prev_sim_n_allele_traj_test(){
 
 	a.sim_input_constants.num_generations = pow(10.f,3);//36;//50;//
 	a.sim_input_constants.prev_sim_sample = 0;
-	GO_Fish::const_parameter mutation2(pow(10.f,-9)); //per-site mutation rate
+	Sim_Model::F_mu_h_constant mutation2(pow(10.f,-9)); //per-site mutation rate
 	GO_Fish::run_sim(a,mutation2,demography,migration,selection,inbreeding,dominance,dont_preserve,sample_strategy,c);
 
 	std::cout<<std::endl<<"number of time samples: " << a.num_time_samples();
@@ -189,7 +189,7 @@ void run_validation_test(){
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding
 	int N_ind = pow(10.f,5);//300;// //bug at N_ind = 300, F =0.0/1.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
-    float gamma = 0*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and gamma are invariant to inbreeding
+    float gamma = 0*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and selection are invariant with respect to inbreeding
 	float mu = pow(10.f,-9); //per-site mutation rate
 	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
 	b.sim_input_constants.num_generations = total_number_of_generations;
@@ -214,7 +214,7 @@ void run_validation_test(){
 
 		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
 		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim((b), GO_Fish::const_parameter(mu), GO_Fish::const_demography(N_ind), GO_Fish::const_equal_migration(m,b.sim_input_constants.num_populations), GO_Fish::const_selection(gamma,GO_Fish::const_demography(N_ind),GO_Fish::const_parameter(F)), GO_Fish::const_parameter(F), GO_Fish::const_parameter(h), GO_Fish::off(), GO_Fish::off());
+		GO_Fish::run_sim((b), Sim_Model::F_mu_h_constant(mu), Sim_Model::demography_constant(N_ind), Sim_Model::migration_constant_equal(m,b.sim_input_constants.num_populations), Sim_Model::selection_constant(gamma,Sim_Model::demography_constant(N_ind),Sim_Model::F_mu_h_constant(F)), Sim_Model::F_mu_h_constant(F), Sim_Model::F_mu_h_constant(h), Sim_Model::bool_off(), Sim_Model::bool_off());
 		SPECTRUM::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
 		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
 		//std::cout<<b.maximal_num_mutations()<<std::endl;

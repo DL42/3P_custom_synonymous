@@ -10,7 +10,8 @@
 #include "../outside_libraries/cub/block/block_reduce.cuh"
 #include <math_constants.h>
 
-namespace SPECTRUM{
+//!\cond
+namespace SPECTRUM_details{
 
 class transfer_allele_trajectories{
 
@@ -23,7 +24,7 @@ class transfer_allele_trajectories{
 
 		time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; }
 		time_sample(const GO_Fish::allele_trajectories & in, int sample_index): num_mutations(in.time_samples[sample_index]->num_mutations), sampled_generation(in.time_samples[sample_index]->sampled_generation){
-			//can replace with weak pointers when moving to CUDA 7+ and C++11
+			//can replace with weak pointers when moving to CUDA 7+ and C++11 (or maybe not, see notes)
 			mutations_freq = in.time_samples[sample_index]->mutations_freq;
 			extinct = in.time_samples[sample_index]->extinct;
 			Nchrom_e = in.time_samples[sample_index]->Nchrom_e;
@@ -54,7 +55,7 @@ class transfer_allele_trajectories{
 	transfer_allele_trajectories(): num_samples(0), all_mutations(0) { time_samples = 0; mutations_ID = 0; }
 
 	transfer_allele_trajectories(const GO_Fish::allele_trajectories & in): sim_run_constants(in), all_mutations(in.all_mutations) {
-		//can replace with weak pointers when moving to CUDA 7+ and C++11
+		//can replace with weak pointers when moving to CUDA 7+ and C++11 (or maybe not, see notes)
 		if(!in.time_samples || in.num_samples == 0){ fprintf(stderr,"error transferring allele_trajectories to spectrum: empty allele_trajectories\n"); exit(1); }
 		num_samples = in.num_samples;
 		time_samples = new time_sample *[num_samples];
@@ -63,15 +64,12 @@ class transfer_allele_trajectories{
 		mutations_ID = in.mutations_ID;
 	}
 
-	friend void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
+	friend void SPECTRUM::population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device);
 
-	friend void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device);
+	friend void SPECTRUM::site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device);
 
 	~transfer_allele_trajectories(){ delete [] time_samples; time_samples = NULL; mutations_ID = NULL; num_samples = 0; } //don't actually delete anything, this is just a pointer class, actual data held by GO_Fish::trajectory, delete [] time_samples won't call individual destructors and even if it did, the spectrum time sample destructors don't delete anything
 };
-
-SFS::SFS(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
-SFS::~SFS(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
 
 __global__ void population_hist(unsigned int * out_histogram, float * in_mutation_freq, int Nchrome_e, int num_mutations, int num_sites){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -140,8 +138,17 @@ __global__ void binom(float * d_histogram, const float * const d_mutations_freq,
 	if(myIDx == 0 && myIDy == 0){  atomicAdd(&d_histogram[0],(float)(num_sites-num_mutations));  }
 }
 
+} /*----- end namespace SPECTRUM_details ----- */
+//!\endcond
+
+namespace SPECTRUM{
+
+SFS::SFS(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
+SFS::~SFS(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
+
 //frequency histogram of mutations at a single time point in a single population
 void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device){
+	using namespace SPECTRUM_details;
 	set_cuda_device(cuda_device);
 
 	cudaStream_t stream;
@@ -201,7 +208,7 @@ void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajector
 
 //single-population SFS
 void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device){
-
+	using namespace SPECTRUM_details;
 	set_cuda_device(cuda_device);
 
 	cudaStream_t stream;
