@@ -184,7 +184,6 @@ double* G(double gamma,double mu_site, double L, double N_chrome){
 }
 
 void run_validation_test(){
-
 	GO_Fish::allele_trajectories b;
 	float h = 0.5; //dominance
 	float F = 0.0; //inbreeding

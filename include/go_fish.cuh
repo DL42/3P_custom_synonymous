@@ -23,64 +23,66 @@ namespace Sim_Model{
 ///functor: models selection coefficient \p s as a constant across populations and over time
 struct selection_constant
 {
-	float s;
-	inline selection_constant();
-	inline selection_constant(float s);
+	float s; /**<\brief selection coefficient */ /**<\t*/
+	inline selection_constant(); /**<\brief default constructor */ /**<`s = 0`*/
+	inline selection_constant(float s); /**<\brief constructor */ /**<\t*/
 	template <typename Functor_demography, typename Functor_inbreeding>
-	inline selection_constant(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	inline selection_constant(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0); /**<\brief constructor: effective selection */
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; /**<\brief selection operator, returns selection coefficient for a given `population, generation, freq` */ /**<\t*/
 };
 
-///functor: models selection coefficient as linearly dependent on frequency
+/**\brief functor: models selection coefficient as linearly dependent on frequency */
 struct selection_linear_frequency_dependent
 {
-	float slope;
-	float intercept;
-	inline selection_linear_frequency_dependent();
-	inline selection_linear_frequency_dependent(float slope, float intercept);
+	float slope; /**<\brief slope of selection coefficient's linear dependence on frequency */ /**<\t*/
+	float intercept; /**<\brief selection coefficient's intercept with frequency 0 */ /**<\t*/
+	inline selection_linear_frequency_dependent(); /**<\brief default constructor */ /**<`slope = 0, intercept = 0`*/
+	inline selection_linear_frequency_dependent(float slope, float intercept); /**<\brief constructor */ /**<\t*/
 	template <typename Functor_demography, typename Functor_inbreeding>
-	inline selection_linear_frequency_dependent(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	inline selection_linear_frequency_dependent(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0); /**<\brief constructor: effective selection */
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
-///functor: models selection as a sine wave through time
+/**\brief functor: models selection as a sine wave through time */ /**useful for modeling cyclical/seasonal behavior over time*/
 struct selection_sine_wave
 {
-	float A; //Amplitude
-	float pi; //Frequency
-	float rho; //Phase
-	float D; //Offset
-	int generation_shift;
+	float A; /**<\brief Amplitude of sine wave */ /**<\t*/
+	float pi; /**<\brief Frequency of sine wave */ /**<\t*/
+	float rho; /**<\brief Phase of sine wave */ /**<\t*/
+	float D; /**<\brief Offset of sine wave */ /**<\t*/
+	int generation_shift; /**<\brief number of generations to shift function backwards */ /**< useful if you are starting the simulation from a previous simulation state and this function is expecting to start at 0 or any scenario where you want to shift the generation of the function relative to the simulation generation */
 
-	inline selection_sine_wave();
-	inline selection_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0);
+	inline selection_sine_wave(); /**<\brief default constructor */ /**<all parameters set to `0`*/
+	inline selection_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0); /**<\brief constructor */
 	template <typename Functor_demography, typename Functor_inbreeding>
-	inline selection_sine_wave(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	inline selection_sine_wave(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0); /**<\brief constructor: effective selection `gamma_A, gamma_D` */
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
 ///functor: one population, \p pop, has a different, selection function, \p s_pop, all other have function \p s
 template <typename Functor_sel, typename Functor_sel_pop>
 struct selection_population_specific
 {
-	int pop, generation_shift;
-	Functor_sel s;
-	Functor_sel_pop s_pop;
-	inline selection_population_specific();
-	inline selection_population_specific(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	int pop; /**<\brief population with specific selection function */ /**<\t*/
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
+	Functor_sel s; /**<\brief selection function applied to all other populations */ /**<\t*/
+	Functor_sel_pop s_pop; /**<\brief population specific selection function for \p pop */ /**<\t*/
+	inline selection_population_specific(); /**<\brief default constructor */
+	inline selection_population_specific(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0); /**<\brief constructor */ /**<\t*/
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
 ///functor: selection function changes from \p s1 to \p s2 at generation \p inflection_point
 template <typename Functor_sel1, typename Functor_sel2>
 struct selection_piecewise
 {
-	int inflection_point, generation_shift;
-	Functor_sel1 s1;
-	Functor_sel2 s2;
-	inline selection_piecewise();
-	inline selection_piecewise(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0);
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const;
+	int inflection_point; /**<\brief generation in which the selection function switches from `s1` to `s2` */ /**<\t*/
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
+	Functor_sel1 s1; /**<\brief first selection function */ /**<\t*/
+	Functor_sel2 s2; /**<\brief second selection function */ /**<\t*/
+	inline selection_piecewise(); /**<\brief default constructor */
+	inline selection_piecewise(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0); /**<\brief constructor */ /**<\t*/
+	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 /* ----- end selection models ----- *//** @} */
 
@@ -90,48 +92,50 @@ struct selection_piecewise
 ///functor: models parameter \p p as a constant across populations and over time
 struct F_mu_h_constant
 {
-	float p;
-	inline F_mu_h_constant();
-	inline F_mu_h_constant(float p);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+	float p; /**<\brief parameter constant */ /**<\t*/
+	inline F_mu_h_constant(); /**<\brief default constructor */ /**<`p = 0`*/
+	inline F_mu_h_constant(float p); /**<\brief constructor */ /**<\t*/
+	__host__ __forceinline__ float operator()(const int population, const int generation) const; /**<\brief Inbreeding/Mutation/Dominance operator, returns parameter \p p for a given `population, generation` */ /**<\t*/
 };
 
 ///functor: models parameter as a sine wave through time
 struct F_mu_h_sine_wave
 {
-	float A; //Amplitude
-	float pi; //Frequency
-	float rho; //Phase
-	float D; //Offset
-	int generation_shift;
+	float A; //!<\copydoc Sim_Model::selection_sine_wave::A
+	float pi; //!<\copydoc Sim_Model::selection_sine_wave::pi
+	float rho; //!<\copydoc Sim_Model::selection_sine_wave::rho
+	float D; //!<\copydoc Sim_Model::selection_sine_wave::D
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
-	inline F_mu_h_sine_wave();
-	inline F_mu_h_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+	inline F_mu_h_sine_wave(); //!<\copydoc Sim_Model::selection_sine_wave::selection_sine_wave()
+	inline F_mu_h_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0); //!<\copydoc Sim_Model::selection_sine_wave::selection_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0)
+	__host__ __forceinline__ float operator()(const int population, const int generation) const; //!<\copybrief Sim_Model::F_mu_h_constant::operator()(const int population, const int generation) const
 };
 
 ///functor: one population, \p pop, has a different, parameter function, \p p_pop, all others have function \p p
 template <typename Functor_p, typename Functor_p_pop>
 struct F_mu_h_population_specific
 {
-	int pop, generation_shift;
-	Functor_p p;
-	Functor_p_pop p_pop;
-	inline F_mu_h_population_specific();
-	inline F_mu_h_population_specific(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+	int pop; /**<\brief population with specific parameter function */ /**<\t*/
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
+	Functor_p p; /**<\brief parameter function applied to all other populations */ /**<\t*/
+	Functor_p_pop p_pop; /**<\brief population specific parameter function for \p pop */ /**<\t*/
+	inline F_mu_h_population_specific(); /**<\brief default constructor */
+	inline F_mu_h_population_specific(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift = 0); /**<\brief constructor */  /**<\t*/
+	__host__ __forceinline__ float operator()(const int population, const int generation) const; //!<\copybrief Sim_Model::F_mu_h_constant::operator()(const int population, const int generation) const
 };
 
 ///functor: parameter function changes from \p p1 to \p p2 at generation \p inflection_point
 template <typename Functor_p1, typename Functor_p2>
 struct F_mu_h_piecewise
 {
-	int inflection_point, generation_shift;
-	Functor_p1 p1;
-	Functor_p2 p2;
-	inline F_mu_h_piecewise();
-	inline F_mu_h_piecewise(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0);
-	__host__ __forceinline__ float operator()(const int population, const int generation) const;
+	int inflection_point; /**<\brief generation in which the Inbreeding/Mutation/Dominance function switches from `p1` to `p2` */ /**<\t*/
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
+	Functor_p1 p1; /**<\brief first parameter function */ /**<\t*/
+	Functor_p2 p2; /**<\brief second parameter function */ /**<\t*/
+	inline F_mu_h_piecewise(); /**<\brief default constructor */
+	inline F_mu_h_piecewise(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift = 0); /**<\brief constructor */
+	__host__ __forceinline__ float operator()(const int population, const int generation) const; //!<\copybrief Sim_Model::F_mu_h_constant::operator()(const int population, const int generation) const
 };
 /* ----- end of inbreeding, mutation, & dominance models ----- */ /** @} */
 
@@ -154,7 +158,7 @@ struct demography_sine_wave
 	float pi; //Frequency
 	float rho; //Phase
 	int D; //Offset
-	int generation_shift;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
 	inline demography_sine_wave();
 	inline demography_sine_wave(float A, float pi, int D, float rho = 0, int generation_shift = 0);
@@ -166,7 +170,7 @@ struct demography_exponential_growth
 {
 	float rate;
 	int initial_population_size;
-	int generation_shift;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
 	inline demography_exponential_growth();
 	inline demography_exponential_growth(float rate, int initial_population_size, int generation_shift = 0);
@@ -179,7 +183,7 @@ struct demography_logistic_growth
 	float rate;
 	int initial_population_size;
 	int carrying_capacity;
-	int generation_shift;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
 	inline demography_logistic_growth();
 	inline demography_logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift = 0);
@@ -190,7 +194,8 @@ struct demography_logistic_growth
 template <typename Functor_d, typename Functor_d_pop>
 struct demography_population_specific
 {
-	int pop, generation_shift;
+	int pop;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 	Functor_d d;
 	Functor_d_pop d_pop;
 	inline demography_population_specific();
@@ -202,7 +207,8 @@ struct demography_population_specific
 template <typename Functor_d1, typename Functor_d2>
 struct demography_piecewise
 {
-	int inflection_point, generation_shift;
+	int inflection_point;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 	Functor_d1 d1;
 	Functor_d2 d2;
 	inline demography_piecewise();
@@ -241,7 +247,8 @@ struct migration_constant_directional
 template <typename Functor_m1, typename Functor_m2>
 struct migration_piecewise
 {
-	int inflection_point, generation_shift;
+	int inflection_point;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 	Functor_m1 m1;
 	Functor_m2 m2;
 	inline migration_piecewise();
@@ -253,10 +260,10 @@ struct migration_piecewise
 /** \defgroup pres_samp Simulation Models: Preserve and Sampling Group *//**@{*/
 
 /* ----- preserving & sampling functions ----- */
-///functor: turns sampling and preserving off (for every generation except the final one which is always sampled)
+/**\brief functor: turns sampling and preserving off (for every generation except the final one which is always sampled) */ /**returns false*/
 struct bool_off{ __host__ __forceinline__ bool operator()(const int generation) const; };
 
-///functor: turns sampling and preserving on (for every generation except the final one which is always sampled)
+/**\brief functor: turns sampling and preserving on (for every generation except the final one which is always sampled) */ /**returns true*/
 struct bool_on{__host__ __forceinline__ bool operator()(const int generation) const; };
 
 //fix - use vectors
@@ -273,7 +280,8 @@ struct bool_on{__host__ __forceinline__ bool operator()(const int generation) co
 ///functor: returns the result of function \p f1 except at generation \p pulse returns the result of function \p f2
 template <typename Functor_stable, typename Functor_action>
 struct bool_pulse{
-	int pulse, generation_shift;
+	int pulse;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 	Functor_stable f1;
 	Functor_action f2;
 	bool_pulse();
@@ -284,7 +292,8 @@ struct bool_pulse{
 ///functor: returns the result of function \p f1 until generation \p inflection_point, then returns the result of function \p f2
 template <typename Functor_first, typename Functor_second>
 struct bool_piecewise{
-	int inflection_point, generation_shift;
+	int inflection_point;
+	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 	Functor_first f1;
 	Functor_second f2;
 	inline bool_piecewise();
