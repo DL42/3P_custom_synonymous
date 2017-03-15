@@ -1,5 +1,10 @@
 /*!\file
-\brief proto-API for building site frequency spectra
+* \brief proto-API for building site frequency spectra
+*
+* spectrum.h is a prototype API for accelerating site frequency spectrum analysis on the GPU.
+* Though functions Spectrum::population_frequency_histogram and Spectrum::site_frequency_spectrum are accelerated on the GPU,
+* the CUDA specific code is not in the spectrum.h header file and thus, like go_fish_data_struct.h, spectrum.h can be included
+* in either CUDA C/C++ (*.cu) or standard C/C++ (*.c/*.cpp) source files.
 */
 /*
  * spectrum.h

@@ -103,12 +103,14 @@ __device__ __forceinline__ float selection_sine_wave::operator()(const int popul
 	population_specific_constant first_second(neutral,purifying,1);
 	piecewise_constant third(positive,neutral,300);
 	Sim_Model::selection_population_specific<population_specific_constant,piecewise_constant> selection_model(first_second,third,2); \endcode
+	The modularity of these functor templates allow selection models to be extended to any number of populations and piecewise selection functions (including user defined functions).
  * */
 /**`pop = 0` \n `generation_shift = 0` \n
 Function `s` assigned default constructor of `Functor_sel`\n
 Function `s_pop` assigned default constructor of `Functor_sel_pop`*/
 template <typename Functor_sel, typename Functor_sel_pop>
 inline selection_population_specific<Functor_sel,Functor_sel_pop>::selection_population_specific() : pop(0), generation_shift(0) { s = Functor_sel(); s_pop = Functor_sel_pop(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_sel, typename Functor_sel_pop>
 inline selection_population_specific<Functor_sel,Functor_sel_pop>::selection_population_specific(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  s = s_in; s_pop = s_pop_in; }
 /** `if(pop == population) s = s_pop(population, generation-generation_shift, freq)`\n
@@ -134,12 +136,14 @@ __device__ __forceinline__ float selection_population_specific<Functor_sel,Funct
 	population_specific_constant first_second(neutral,purifying,1);
 	piecewise_constant third(positive,neutral,300);
 	Sim_Model::selection_population_specific<population_specific_constant,piecewise_constant> selection_model(first_second,third,2);\endcode
+	The modularity of these functor templates allow selection models to be extended to any number of populations and piecewise selection functions (including user defined functions).
  */
 /**`inflection_point = 0` \n `generation_shift = 0` \n
 Function `s1` assigned default constructor of `Functor_sel1`\n
 Function `s2` assigned default constructor of `Functor_sel2`*/
 template <typename Functor_sel1, typename Functor_sel2>
 inline selection_piecewise<Functor_sel1, Functor_sel2>::selection_piecewise() : inflection_point(0), generation_shift(0) { s1 = Functor_sel1(); s2 = Functor_sel2(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_sel1, typename Functor_sel2>
 inline selection_piecewise<Functor_sel1, Functor_sel2>::selection_piecewise(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { s1 = s1_in; s2 = s2_in; }
 /** `if(generation >= inflection_point+generation_shift) s = s2(population, generation-generation_shift, freq)`\n
@@ -197,12 +201,14 @@ __host__ __forceinline__ float F_mu_h_sine_wave::operator()(const int population
 	F_population_specific_constant first_second(outbred,mixed,1);
 	F_piecewise_constant third(inbred,outbred,300);
 	Sim_Model::F_mu_h_population_specific<F_population_specific_constant,F_piecewise_constant> inbreeding_model(first_second,third,2); \endcode
+	The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
  * */
 /**`pop = 0` \n `generation_shift = 0` \n
 Function `p` assigned default constructor of `Functor_p`\n
 Function `p_pop` assigned default constructor of `Functor_p_pop`*/
 template <typename Functor_p, typename Functor_p_pop>
 inline F_mu_h_population_specific<Functor_p,Functor_p_pop>::F_mu_h_population_specific() : pop(0), generation_shift(0) { p = Functor_p(); p_pop = Functor_p_pop(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_p, typename Functor_p_pop>
 inline F_mu_h_population_specific<Functor_p,Functor_p_pop>::F_mu_h_population_specific(Functor_p p_in, Functor_p_pop p_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  p = p_in; p_pop = p_pop_in; }
 /** `if(pop == population) p = p_pop(population, generation-generation_shift)`\n
@@ -228,12 +234,14 @@ __host__ __forceinline__ float F_mu_h_population_specific<Functor_p,Functor_p_po
 	F_population_specific_constant first_second(outbred,mixed,1);
 	F_piecewise_constant third(inbred,outbred,300);
 	Sim_Model::F_mu_h_population_specific<F_population_specific_constant,F_piecewise_constant> inbreeding_model(first_second,third,2); \endcode
+	The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
  * */
 /**`inflection_point = 0` \n `generation_shift = 0` \n
 Function `p1` assigned default constructor of `Functor_p1`\n
 Function `p2` assigned default constructor of `Functor_p2`*/
 template <typename Functor_p1, typename Functor_p2>
 inline F_mu_h_piecewise<Functor_p1, Functor_p2>::F_mu_h_piecewise() : inflection_point(0), generation_shift(0) { p1 = Functor_p1(); p2 = Functor_p2(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_p1, typename Functor_p2>
 inline F_mu_h_piecewise<Functor_p1, Functor_p2>::F_mu_h_piecewise(Functor_p1 p1_in, Functor_p2 p2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { p1 = p1_in; p2 = p2_in; }
 /** `if(generation >= inflection_point+generation_shift) p = p2(population, generation-generation_shift)`\n
@@ -266,26 +274,31 @@ __host__ __forceinline__ float F_mu_h_piecewise<Functor_p1, Functor_p2>::operato
 
 /* ----- demography models ----- */
 /* ----- constant demography model ----- */
-inline demography_constant::demography_constant() : d(0) {}
-inline demography_constant::demography_constant(int d) : d(d){ }
-__host__ __device__  __forceinline__ int demography_constant::operator()(const int population, const int generation) const{ return d; }
+inline demography_constant::demography_constant() : N(0) {}
+inline demography_constant::demography_constant(int N) : N(N){ }
+__host__ __device__  __forceinline__ int demography_constant::operator()(const int population, const int generation) const{ return N; }
 /* ----- end constant demography model ----- */
 
 /* ----- seasonal demography model ----- */
 inline demography_sine_wave::demography_sine_wave() : A(0), pi(0), rho(0), D(0), generation_shift(0) {}
 inline demography_sine_wave::demography_sine_wave(float A, float pi, int D, float rho /*= 0*/, int generation_shift /*= 0*/) : A(A), pi(pi), rho(rho), D(D), generation_shift(generation_shift) {}
+/** `N = A*sin(pi*(generation-generation_shift) + rho) + D` */
 __host__ __device__  __forceinline__ int demography_sine_wave::operator()(const int population, const int generation) const{ return (int)A*sin(pi*(generation-generation_shift) + rho) + D;}
 /* ----- end seasonal parameter model ----- */
 
 /* ----- exponential growth model ----- */
 inline demography_exponential_growth::demography_exponential_growth() : rate(0), initial_population_size(0), generation_shift(0) {}
+/** \param generation_shift (optional input) default `0` */
 inline demography_exponential_growth::demography_exponential_growth(float rate, int initial_population_size, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), generation_shift(generation_shift) {}
+/** `N = round(initial_population_size*`\f$e^{\textrm{rate*(generation-generation_shift)}} \f$`)` */
 __host__ __device__  __forceinline__ int demography_exponential_growth::operator()(const int population, const int generation) const{ return (int)round(initial_population_size*exp(rate*(generation-generation_shift))); }
 /* ----- end exponential growth model ----- */
 
 /* ----- logistic growth model ----- */
 inline demography_logistic_growth::demography_logistic_growth() : rate(0), initial_population_size(0), carrying_capacity(0), generation_shift(0) {}
 inline demography_logistic_growth::demography_logistic_growth(float rate, int initial_population_size, int carrying_capacity, int generation_shift /*= 0*/) : rate(rate), initial_population_size(initial_population_size), carrying_capacity(carrying_capacity), generation_shift(generation_shift) {}
+/** `exp_term = `\f$e^{\textrm{rate*(generation-generation_shift)}} \f$ \n
+ * `N = round((carrying_capacity*initial_population_size*exp_term)`\f$\div\f$`(carrying_capacity + initial_population_size*(exp_term-1)))` */
 __host__ __device__  __forceinline__ int demography_logistic_growth::operator()(const int population, const int generation) const{
 	float term = exp(rate*(generation-generation_shift));
 	return (int)round(carrying_capacity*initial_population_size*term/(carrying_capacity + initial_population_size*(term-1)));
@@ -293,10 +306,16 @@ __host__ __device__  __forceinline__ int demography_logistic_growth::operator()(
 /* ----- end logistic growth model ----- */
 
 /* ----- population specific demography model ----- */
+/**`pop = 0` \n `generation_shift = 0` \n
+Function `d` assigned default constructor of `Functor_d`\n
+Function `d_pop` assigned default constructor of `Functor_d_pop`*/
 template <typename Functor_d, typename Functor_d_pop>
 inline demography_population_specific<Functor_d,Functor_d_pop>::demography_population_specific() : pop(0), generation_shift(0) { d = Functor_d(); d_pop = Functor_d_pop(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_d, typename Functor_d_pop>
 inline demography_population_specific<Functor_d,Functor_d_pop>::demography_population_specific(Functor_d d_in, Functor_d_pop d_pop_in, int pop, int generation_shift /*= 0*/) : pop(pop), generation_shift(generation_shift){  d = d_in; d_pop = d_pop_in; }
+/** `if(pop == population) N = d_pop(population, generation-generation_shift)`\n
+	`else N = d(population, generation-generation_shift)` */
 template <typename Functor_d, typename Functor_d_pop>
 __host__ __device__  __forceinline__ int demography_population_specific<Functor_d,Functor_d_pop>::operator()(const int population, const int generation) const{
 	if(pop == population) return d_pop(population, generation-generation_shift);
@@ -305,10 +324,16 @@ __host__ __device__  __forceinline__ int demography_population_specific<Functor_
 /* ----- end population specific demography model ----- */
 
 /* ----- piecewise demography model ----- */
+/**`inflection_point = 0` \n `generation_shift = 0` \n
+Function `d1` assigned default constructor of `Functor_d1`\n
+Function `d2` assigned default constructor of `Functor_d2`*/
 template <typename Functor_d1, typename Functor_d2>
 inline demography_piecewise<Functor_d1, Functor_d2>::demography_piecewise() : inflection_point(0), generation_shift(0) { d1 = Functor_d1(); d2 = Functor_d2(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_d1, typename Functor_d2>
 inline demography_piecewise<Functor_d1, Functor_d2>::demography_piecewise(Functor_d1 d1_in, Functor_d2 d2_in, int inflection_point, int generation_shift /* = 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { d1 = d1_in; d2 = d2_in; }
+/** `if(generation >= inflection_point+generation_shift) N = d2(population, generation-generation_shift)`\n
+	`else N = d1(population, generation-generation_shift)` */
 template <typename Functor_d1, typename Functor_d2>
 __host__ __device__  __forceinline__ int demography_piecewise<Functor_d1, Functor_d2>::operator()(const int population, const int generation) const{
 	if(generation >= inflection_point+generation_shift){ return d2(population, generation-generation_shift) ; }
@@ -323,7 +348,9 @@ __host__ __device__  __forceinline__ int demography_piecewise<Functor_d1, Functo
 *  In the conservative model of migration, migration rate from population i to population j is expressed as the fraction of population j originally from i:\n
 *  > e.g. in a 2 population model, a migration rate of \f$ m_{ij} = 0.1 \f$ ==> 10% of population j is originally from population i \n
 *  > and the frequency, \f$x_{mig,j}\f$, in the next generation of an allele is \f$x_{mig,j} = 0.1*x_i + 0.9*x_j\f$
-*  Thus, in general, the following must be true: \f$\sum_{i=1}^n m_{ij} = \sum_{j=1}^n m_{ij} = 1\f$ and \f$\sum_{i=1}^n\sum_{j=1}^n m_{ij} = n \f$ (program will throw error elsewise) \n \n
+*  Thus, in general, the following must be true: \f$\sum_{i=1}^n m_{ij} = 1\f$ (program will throw error elsewise).
+*  However the sum of migration rates FROM a population need not sum to anything in particular.
+*  This is also the set of functions that are used to specify a single population splitting into (two or more) populations. \n \n
 *
 *  ###Writing your own Migration functions###
 *  These can be functions or functors (or soon, with C++11 support, lambdas). However, the migration function must be of the form:\n
@@ -338,9 +365,11 @@ __host__ __device__  __forceinline__ int demography_piecewise<Functor_d1, Functo
 
 /* ----- migration models ----- */
 /* ----- constant equal migration model ----- */
-inline migration_constant_equal::migration_constant_equal() : m(0), num_pop(0){ }
-inline migration_constant_equal::migration_constant_equal(int n) : m(0), num_pop(n){ }
-inline migration_constant_equal::migration_constant_equal(float m, int n) : m(m), num_pop(n){ }
+inline migration_constant_equal::migration_constant_equal() : m(0), num_pop(1){ }
+inline migration_constant_equal::migration_constant_equal(float m, int num_pop) : m(m), num_pop(min(num_pop,1)){ }
+/**`if(pop_FROM == pop_TO) mig_rate = 1-(num_pop-1)*m` \n
+ * `else mig_rate = m`
+ *  */
 __host__ __device__ __forceinline__ float migration_constant_equal::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 		if(pop_FROM == pop_TO){ return 1-(num_pop-1)*m; }
 		return (num_pop > 1) * m;
@@ -348,10 +377,15 @@ __host__ __device__ __forceinline__ float migration_constant_equal::operator()(c
 /* ----- end constant equal migration model ----- */
 
 /* ----- constant directional migration model ----- */
+/**`m = 0` \n `pop1 = 0` \n `pop2 = 0` \n
+Function `rest` assigned default constructor of `Functor_m1`\n*/
 template <typename Functor_m1>
 inline migration_constant_directional<Functor_m1>::migration_constant_directional() : m(0), pop1(0), pop2(0) { rest = Functor_m1(); }
 template <typename Functor_m1>
 inline migration_constant_directional<Functor_m1>::migration_constant_directional(float m, int pop1, int pop2, Functor_m1 rest_in) : m(m), pop1(pop1), pop2(pop2) { rest = rest_in; }
+/**`if(pop_FROM == pop1 && pop_TO == pop2) mig_rate = m` \n
+ * `else mig_rate = rest(pop_FROM,pop_TO,generation)`
+ *  */
 template <typename Functor_m1>
 __host__ __device__ __forceinline__ float migration_constant_directional<Functor_m1>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 	if(pop_FROM == pop1 && pop_TO == pop2) return m;
@@ -360,14 +394,20 @@ __host__ __device__ __forceinline__ float migration_constant_directional<Functor
 /* ----- end constant directional migration model ----- */
 
 /* ----- piecewise migration model ----- */
+/**`inflection_point = 0` \n `generation_shift = 0` \n
+Function `m1` assigned default constructor of `Functor_m1`\n
+Function `m2` assigned default constructor of `Functor_m2`*/
 template <typename Functor_m1, typename Functor_m2>
 inline migration_piecewise<Functor_m1,Functor_m2>::migration_piecewise() : inflection_point(0), generation_shift(0) { m1 = Functor_m1(); m2 = Functor_m2(); }
+/** \param generation_shift (optional input) default `0` */
 template <typename Functor_m1, typename Functor_m2>
 inline migration_piecewise<Functor_m1,Functor_m2>::migration_piecewise(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift /*= 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { m1 = m1_in; m2 = m2_in; }
+/** `if(generation >= inflection_point+generation_shift) mig_rate = m2(pop_FROM, pop_TO, generation-generation_shift)`\n
+	`else mig_rate = m1(pop_FROM, pop_TO, generation-generation_shift)` */
 template <typename Functor_m1, typename Functor_m2>
 __host__ __device__ __forceinline__ int migration_piecewise<Functor_m1,Functor_m2>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
-	if(generation >= inflection_point+generation_shift){ return m2(pop_FROM,pop_TO,generation); }
-	return m1(pop_FROM,pop_TO,generation);
+	if(generation >= inflection_point+generation_shift){ return m2(pop_FROM,pop_TO,generation-generation_shift); }
+	return m1(pop_FROM,pop_TO,generation-generation_shift);
 }
 /* ----- end piecewise migration model ----- */
 /* ----- end of migration models ----- */
@@ -402,30 +442,60 @@ __host__ __forceinline__ bool bool_off::operator()(const int generation) const{ 
 __host__ __forceinline__ bool bool_on::operator()(const int generation) const{ return true; }
 /* ----- end on ----- */
 
-/* ----- on_off_array ----- */
-//on_off_array::bool_array(): length(0), generation_shift(0) { array = NULL; }
-//on_off_array::bool_array(const bool * const in_array, int length, int generation_shift/* = 0*/): length(length), generation_shift(generation_shift) { array = in_array; }
-/*__host__ __forceinline__ bool bool_array::operator()(const int generation) const {
-	int gen = generation - generation_shift;
-	if((gen < 0) | (gen > length)){ fprintf(stderr,"do_array functor generation error,\t generation %d\t shifted generation %d\t array length %d\n",generation,gen,length); exit(1); }
+/* ----- bool_pulse_array ----- */
+/* will switch to variadic templates/initializer lists when switching to C++11
+bool_pulse_array::bool_pulse_array(): num_generations(0), generation_start(0) { array = NULL; }
+bool_pulse_array::bool_pulse_array(const bool default_return, const int generation_start, const int num_generations, int generation_pulse...): num_generations(num_generations), generation_start(generation_start) {
+	array = new bool[num_generations];
+	memset(&array, default_return, num_generations*sizeof(bool));
+	array[generation_pulse-generation_start] = !default_return;
+}
+__host__ __forceinline__ bool bool_pulse_array::operator()(const int generation) const {
+	int gen = generation - generation_start;
+	if((gen < 0) | (gen > num_generations)){ fprintf(stderr,"do_array functor generation error,\t generation %d\t shifted generation %d\t array length %d\n",generation,gen,num_generations); exit(1); }
 	return array[gen];
-}*/
+}
+bool_pulse_array::~bool_pulse_array(){ delete [] array; array = NULL; }*/
 /* ----- end on_off_array ----- */
 
 /* ----- pulse ----- */
-template <typename Functor_stable, typename Functor_action>
-inline bool_pulse<Functor_stable,Functor_action>::bool_pulse() : pulse(0), generation_shift(0) { f1 = Functor_stable(); f2 = Functor_action(); }
-template <typename Functor_stable, typename Functor_action>
-inline bool_pulse<Functor_stable,Functor_action>::bool_pulse(Functor_stable f1_in, Functor_action f2_in, int pulse, int generation_shift/*= 0*/) : pulse(pulse), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
-template <typename Functor_stable, typename Functor_action>
-__host__ __forceinline__ bool bool_pulse<Functor_stable,Functor_action>::operator()(const int generation) const{ if(generation-generation_shift == pulse){ return f2(generation); } return f1(generation); }
+/**`pulse = 0` \n `generation_shift = 0` \n
+Function `f_default` assigned default constructor of `Functor_default`\n
+Function `f_action` assigned default constructor of `Functor_action`*/
+template <typename Functor_default, typename Functor_action>
+inline bool_pulse<Functor_default,Functor_action>::bool_pulse() : pulse(0), generation_shift(0) { f_default = Functor_default(); f_action = Functor_action(); }
+/**Function `f_default` assigned default constructor of `Functor_default`\n
+Function `f_action` assigned default constructor of `Functor_action`\n
+\param generation_shift (optional input) default `0` */
+template <typename Functor_default, typename Functor_action>
+inline bool_pulse<Functor_default,Functor_action>::bool_pulse(int pulse, int generation_shift/*= 0*/) : pulse(pulse), generation_shift(generation_shift) { f_default = Functor_default(); f_action = Functor_action(); }
+/**\param generation_shift (optional input) default `0` */
+template <typename Functor_default, typename Functor_action>
+inline bool_pulse<Functor_default,Functor_action>::bool_pulse(Functor_default f_default_in, Functor_action f_action_in, int pulse, int generation_shift/*= 0*/) : pulse(pulse), generation_shift(generation_shift) { f_default = f_default_in; f_action = f_action_in; }
+/**`if(generation == pulse + generation_shift) b = f_action(generation)` \n
+ * `else b = f_default(generation)`
+ *  */
+template <typename Functor_default, typename Functor_action>
+__host__ __forceinline__ bool bool_pulse<Functor_default,Functor_action>::operator()(const int generation) const{ if(generation == pulse + generation_shift){ return f_action(generation); } return f_default(generation); }
 /* ----- end pulse ----- */
 
 /* ----- switch_function ----- */
+/**`inflection_point = 0` \n `generation_shift = 0` \n
+Function `f1` assigned default constructor of `Functor_first`\n
+Function `f2` assigned default constructor of `Functor_second`*/
 template <typename Functor_first, typename Functor_second>
 inline bool_piecewise<Functor_first,Functor_second>::bool_piecewise() : inflection_point(0), generation_shift(0) { f1 = Functor_first(); f2 = Functor_second(); }
+/**Function `f1` assigned default constructor of `Functor_first`\n
+Function `f2` assigned default constructor of `Functor_second`
+\param generation_shift (optional input) default `0` */
+template <typename Functor_first, typename Functor_second>
+inline bool_piecewise<Functor_first,Functor_second>::bool_piecewise(int inflection_point, int generation_shift /*= 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { f1 = Functor_first(); f2 = Functor_second(); }
+/**\param generation_shift (optional input) default `0` */
 template <typename Functor_first, typename Functor_second>
 inline bool_piecewise<Functor_first,Functor_second>::bool_piecewise(Functor_first f1_in, Functor_second f2_in, int inflection_point, int generation_shift /*= 0*/) : inflection_point(inflection_point), generation_shift(generation_shift) { f1 = f1_in; f2 = f2_in; }
+/**`if(generation >= inflection_point+generation_shift)  b = f2(generation)` \n
+ * `else b = f1(generation)`
+ *  */
 template <typename Functor_first, typename Functor_second>
 __host__ __forceinline__ bool bool_piecewise<Functor_first,Functor_second>::operator()(const int generation) const{ if(generation >= inflection_point+generation_shift){ return f2(generation); } return f1(generation); }
 /* ----- end switch_function ----- */
