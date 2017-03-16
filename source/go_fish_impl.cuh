@@ -516,10 +516,10 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
  * click on the simulation function group which describes the function you wish to write, and read its detailed description. They can be standard functions, functors,
  * or (coming with C+11 support) lambdas.
  *
- * Pro Tip: For extra speed, it is desirable that the simulation functions input into run_sim are known at compile-time (i.e. avoid function pointers and non-inline functions unless necessary).
- * The parameters of functors (as used by Sim_Model) may be set at runtime, but the the function itself (the operator in the case of a functor) should be known at compile-time.
+ * <B>Pro Tip:</B> For extra speed, it is desirable that the simulation functions input into run_sim are known at compile-time (i.e. avoid function pointers and non-inline functions unless necessary).
+ * The parameters input into the constructors of functors (as used by Sim_Model) may be set at runtime, but the the function itself (the structure/operator in the case of a functor) should be known at compile-time.
  * The functions are input into `run_sim` via templates, so that, at compile-time, known functions can be compiled directly into run_sim's code (fast) as opposed to called from the function stack (slow).
- * This is especially important for Selection, Migration, and to a lesser extent Demography functions which are run on the GPU many times over for every mutation, every generation.
+ * This is especially important for Selection, Migration, and, to a lesser extent, Demographic functions, which are run on the GPU many times over for every mutation, every generation (on the GPU every mutation, every compact generation for Demography).
  *
  * \param all_results `all_results.sim_input_constants` help control the simulation run whose results are stored in `all_results`
  * \param mu_rate Function specifying the mutation rate per site for a given `population`, `generation`

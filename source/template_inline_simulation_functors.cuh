@@ -91,7 +91,7 @@ __device__ __forceinline__ float selection_sine_wave::operator()(const int popul
 
 /* ----- population specific selection model ----- */
 /** \struct selection_population_specific
- * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop` \n
+ * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop`. \n
  * Population specific selection functors can be nested within each other and with piecewise selection functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different selection coefficients where mutations in the 1st are neutral, in the 2nd are deleterious, and in the 3rd are beneficial up to generation 300 when selection relaxes and they become neutral
  * \code typedef Sim_Model::selection_constant constant;
@@ -124,7 +124,7 @@ __device__ __forceinline__ float selection_population_specific<Functor_sel,Funct
 
 /* ----- piecewise selection model ----- */
 /** \struct selection_piecewise
- *  Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point` \n
+ *  Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point`. \n
  * Piecewise selection functors can be nested within each other and with population specific selection functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different selection coefficients where mutations in the 1st are neutral, in the 2nd are deleterious, and in the 3rd are beneficial up to generation 300 when selection relaxes and they become neutral
  * \code typedef Sim_Model::selection_constant constant;
@@ -189,7 +189,7 @@ __host__ __forceinline__ float F_mu_h_sine_wave::operator()(const int population
 
 /* ----- population specific parameter model ----- */
 /** \struct F_mu_h_population_specific
- * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop` \n
+ * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop`. \n
  * Population specific parameter functors can be nested within each other and with piecewise parameter functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different Inbreeding coefficients where populations in the 1st are outbred, in the 2nd are partially inbred, and in the 3rd are completely inbred until population becomes completely outcrossing at generation 300
  * \code typedef Sim_Model::F_mu_h_constant F_constant;
@@ -222,7 +222,7 @@ __host__ __forceinline__ float F_mu_h_population_specific<Functor_p,Functor_p_po
 
 /* ----- piecewise parameter model ----- */
 /** \struct F_mu_h_piecewise
- * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point` \n
+ * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point`. \n
  * Piecewise parameter functors can be nested within each other and with population specific parameter functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different Inbreeding coefficients where populations in the 1st are outbred, in the 2nd are partially inbred, and in the 3rd are completely inbred until population becomes completely outcrossing at generation 300
  * \code typedef Sim_Model::F_mu_h_constant F_constant;
@@ -306,6 +306,33 @@ __host__ __device__  __forceinline__ int demography_logistic_growth::operator()(
 /* ----- end logistic growth model ----- */
 
 /* ----- population specific demography model ----- */
+/** \struct demography_population_specific
+ * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop`. \n
+ * Population specific demographic functors can be nested within each other and with piecewise demographic functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Using both demographic and migration functors, population 0 splits in two, forming population 1 in the first generation. Population 1's size increases exponentially afterwards with no further migration between the groups
+ * \code
+   typedef Sim_Model::demography_constant dem_constant;
+   typedef Sim_Model::demography_exponential_growth dem_exponential;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_constant> dem_pop_constant_constant;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_exponential> dem_pop_constant_exponential;
+
+   dem_constant d_pop0(100000), d_pop1(0);
+   dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
+   Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
+
+   typedef Sim_Model::migration_constant_equal mig_const_equal;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal> mig_const_equal_const_dir;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal_const_dir> mig_const_equal_const_dir_const_dir;
+   typedef Sim_Model::migration_piecewise<mig_const_equal,mig_const_equal_const_dir_const_dir> split_pop0_gen1;
+   mig_const_equal m0; //no migration
+   mig_const_equal_const_dir m_pop0_pop1(1.f,0,1,m0); //pop1 made up entirely of individuals from pop0, no other population contributing to pop0
+   mig_const_equal_const_dir_const_dir m_pop1_pop1(0.f,1,1,m_pop0_pop1); //pop1 made up entirely of individuals from pop0 (since pop1 previously did not exist, no migration from previous pop1 generation!)
+   split_pop0_gen1 m_generation_1(m0,m_pop1_pop1,1); //no migration in generation 0, splits pop1 off from pop0 in generation 1
+   Sim_Model::migration_piecewise<split_pop0_gen1,mig_const_equal> migration_model(m_generation_1,m0,2); //no further migration between groups \endcode
+   The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
+ **/
 /**`pop = 0` \n `generation_shift = 0` \n
 Function `d` assigned default constructor of `Functor_d`\n
 Function `d_pop` assigned default constructor of `Functor_d_pop`*/
@@ -324,6 +351,33 @@ __host__ __device__  __forceinline__ int demography_population_specific<Functor_
 /* ----- end population specific demography model ----- */
 
 /* ----- piecewise demography model ----- */
+/** \struct demography_piecewise
+ * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point`. \n
+ * Piecewise demographic functors can be nested within each other and with population specific demographic functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Using both demographic and migration functors, population 0 splits in two, forming population 1 in the first generation. Population 1's size increases exponentially afterwards with no further migration between the groups
+ * \code
+   typedef Sim_Model::demography_constant dem_constant;
+   typedef Sim_Model::demography_exponential_growth dem_exponential;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_constant> dem_pop_constant_constant;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_exponential> dem_pop_constant_exponential;
+
+   dem_constant d_pop0(100000), d_pop1(0);
+   dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
+   Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
+
+   typedef Sim_Model::migration_constant_equal mig_const_equal;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal> mig_const_equal_const_dir;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal_const_dir> mig_const_equal_const_dir_const_dir;
+   typedef Sim_Model::migration_piecewise<mig_const_equal,mig_const_equal_const_dir_const_dir> split_pop0_gen1;
+   mig_const_equal m0; //no migration
+   mig_const_equal_const_dir m_pop0_pop1(1.f,0,1,m0); //pop1 made up entirely of individuals from pop0, no other population contributing to pop0
+   mig_const_equal_const_dir_const_dir m_pop1_pop1(0.f,1,1,m_pop0_pop1); //pop1 made up entirely of individuals from pop0 (since pop1 previously did not exist, no migration from previous pop1 generation!)
+   split_pop0_gen1 m_generation_1(m0,m_pop1_pop1,1); //no migration in generation 0, splits pop1 off from pop0 in generation 1
+   Sim_Model::migration_piecewise<split_pop0_gen1,mig_const_equal> migration_model(m_generation_1,m0,2); //no further migration between groups \endcode
+   The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
+ **/
 /**`inflection_point = 0` \n `generation_shift = 0` \n
 Function `d1` assigned default constructor of `Functor_d1`\n
 Function `d2` assigned default constructor of `Functor_d2`*/
@@ -377,6 +431,33 @@ __host__ __device__ __forceinline__ float migration_constant_equal::operator()(c
 /* ----- end constant equal migration model ----- */
 
 /* ----- constant directional migration model ----- */
+/** \struct migration_constant_directional
+ * Takes in one template type: the migration function to be returned for all other migration directions than from pop1 to pop2. \n
+ * Constant directional migration functors can be nested within each other and with piecewise migration functors for multiple migration directions and multiple time functions, e.g.:\n\n
+ * Using both demographic and migration functors, population 0 splits in two, forming population 1 in the first generation. Population 1's size increases exponentially afterwards with no further migration between the groups
+ * \code
+   typedef Sim_Model::demography_constant dem_constant;
+   typedef Sim_Model::demography_exponential_growth dem_exponential;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_constant> dem_pop_constant_constant;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_exponential> dem_pop_constant_exponential;
+
+   dem_constant d_pop0(100000), d_pop1(0);
+   dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
+   Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
+
+   typedef Sim_Model::migration_constant_equal mig_const_equal;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal> mig_const_equal_const_dir;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal_const_dir> mig_const_equal_const_dir_const_dir;
+   typedef Sim_Model::migration_piecewise<mig_const_equal,mig_const_equal_const_dir_const_dir> split_pop0_gen1;
+   mig_const_equal m0; //no migration
+   mig_const_equal_const_dir m_pop0_pop1(1.f,0,1,m0); //pop1 made up entirely of individuals from pop0, no other population contributing to pop0
+   mig_const_equal_const_dir_const_dir m_pop1_pop1(0.f,1,1,m_pop0_pop1); //pop1 made up entirely of individuals from pop0 (since pop1 previously did not exist, no migration from previous pop1 generation!)
+   split_pop0_gen1 m_generation_1(m0,m_pop1_pop1,1); //no migration in generation 0, splits pop1 off from pop0 in generation 1
+   Sim_Model::migration_piecewise<split_pop0_gen1,mig_const_equal> migration_model(m_generation_1,m0,2); //no further migration between groups \endcode
+   The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
+ **/
 /**`m = 0` \n `pop1 = 0` \n `pop2 = 0` \n
 Function `rest` assigned default constructor of `Functor_m1`\n*/
 template <typename Functor_m1>
@@ -394,6 +475,33 @@ __host__ __device__ __forceinline__ float migration_constant_directional<Functor
 /* ----- end constant directional migration model ----- */
 
 /* ----- piecewise migration model ----- */
+/** \struct migration_piecewise
+ * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point`. \n
+ * Piecewise migration functors can be nested within each other and with constant directional migration functors for multiple migration directions and multiple time functions, e.g.:\n\n
+ * Using both demographic and migration functors, population 0 splits in two, forming population 1 in the first generation. Population 1's size increases exponentially afterwards with no further migration between the groups
+ * \code
+   typedef Sim_Model::demography_constant dem_constant;
+   typedef Sim_Model::demography_exponential_growth dem_exponential;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_constant> dem_pop_constant_constant;
+   typedef Sim_Model::demography_population_specific<dem_constant,dem_exponential> dem_pop_constant_exponential;
+
+   dem_constant d_pop0(100000), d_pop1(0);
+   dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
+   Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
+
+   typedef Sim_Model::migration_constant_equal mig_const_equal;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal> mig_const_equal_const_dir;
+   typedef Sim_Model::migration_constant_directional<mig_const_equal_const_dir> mig_const_equal_const_dir_const_dir;
+   typedef Sim_Model::migration_piecewise<mig_const_equal,mig_const_equal_const_dir_const_dir> split_pop0_gen1;
+   mig_const_equal m0; //no migration
+   mig_const_equal_const_dir m_pop0_pop1(1.f,0,1,m0); //pop1 made up entirely of individuals from pop0, no other population contributing to pop0
+   mig_const_equal_const_dir_const_dir m_pop1_pop1(0.f,1,1,m_pop0_pop1); //pop1 made up entirely of individuals from pop0 (since pop1 previously did not exist, no migration from previous pop1 generation!)
+   split_pop0_gen1 m_generation_1(m0,m_pop1_pop1,1); //no migration in generation 0, splits pop1 off from pop0 in generation 1
+   Sim_Model::migration_piecewise<split_pop0_gen1,mig_const_equal> migration_model(m_generation_1,m0,2); //no further migration between groups \endcode
+   The modularity of these functor templates allow parameter models to be extended to any number of populations and piecewise parameter functions (including user defined functions).
+ **/
 /**`inflection_point = 0` \n `generation_shift = 0` \n
 Function `m1` assigned default constructor of `Functor_m1`\n
 Function `m2` assigned default constructor of `Functor_m2`*/
@@ -434,15 +542,15 @@ __host__ __device__ __forceinline__ int migration_piecewise<Functor_m1,Functor_m
 */
 
 /* ----- preserving & sampling functions ----- */
-/* ----- off ----- */
+/* ----- bool off ----- */
 __host__ __forceinline__ bool bool_off::operator()(const int generation) const{ return false; }
-/* ----- end off ----- */
+/* ----- end bool off ----- */
 
-/* ----- on ----- */
+/* ----- bool on ----- */
 __host__ __forceinline__ bool bool_on::operator()(const int generation) const{ return true; }
-/* ----- end on ----- */
+/* ----- end bool on ----- */
 
-/* ----- bool_pulse_array ----- */
+/* ----- bool pulse_array ----- */
 /* will switch to variadic templates/initializer lists when switching to C++11
 bool_pulse_array::bool_pulse_array(): num_generations(0), generation_start(0) { array = NULL; }
 bool_pulse_array::bool_pulse_array(const bool default_return, const int generation_start, const int num_generations, int generation_pulse...): num_generations(num_generations), generation_start(generation_start) {
@@ -458,7 +566,25 @@ __host__ __forceinline__ bool bool_pulse_array::operator()(const int generation)
 bool_pulse_array::~bool_pulse_array(){ delete [] array; array = NULL; }*/
 /* ----- end on_off_array ----- */
 
-/* ----- pulse ----- */
+/* ----- bool pulse ----- */
+/** \struct bool_pulse
+* Takes in two template types: the `default` function and the `action` function to be return at generation `pulse`. \n
+* Pulse bool functors can be nested within each other and with piecewise bool functors for a myriad of different sampling and preserving strategies, e.g.:\n\n
+* Sampling strategy that takes time samples of generation 0 & generations [100,110] inclusive (& final generation is always sampled).
+*
+* \code
+* typedef Sim_Model::bool_off sampling_off;
+* typedef Sim_Model::bool_on sampling_on;
+* typedef Sim_Model::bool_pulse<sampling_off,sampling_on> pulse_on;
+* typedef Sim_Model::bool_piecewise<pulse_on,sampling_on> switch_on;
+* typedef Sim_Model::bool_piecewise<switch_on,sampling_off> switch_off;
+*
+* pulse_on sample_generation_0; //default will pulse on at generation 0
+* switch_on sample_gen_0_100_XX(sample_generation_0,sampling_on(),100); //samples starting generation, will start sampling at generation after 100
+* switch_off sample_gen_0_100_110(sample_gen_0_100_XX,sampling_off(),111); //sampling strategy, will take time samples of generation 0 & generations [100,110] inclusive (& final generation is always sampled)
+* \endcode
+* Note mutations present in these generations will be preserved until the final generation of the simulation.
+ **/
 /**`pulse = 0` \n `generation_shift = 0` \n
 Function `f_default` assigned default constructor of `Functor_default`\n
 Function `f_action` assigned default constructor of `Functor_action`*/
@@ -477,9 +603,27 @@ inline bool_pulse<Functor_default,Functor_action>::bool_pulse(Functor_default f_
  *  */
 template <typename Functor_default, typename Functor_action>
 __host__ __forceinline__ bool bool_pulse<Functor_default,Functor_action>::operator()(const int generation) const{ if(generation == pulse + generation_shift){ return f_action(generation); } return f_default(generation); }
-/* ----- end pulse ----- */
+/* ----- end bool pulse ----- */
 
-/* ----- switch_function ----- */
+/* ----- bool piecewise ----- */
+/** \struct bool_piecewise
+ * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point`. \n
+ * Piecewise bool functors can be nested within each other and with pulse bool functors for a myriad of different sampling and preserving strategies, e.g.:\n\n
+ * Sampling strategy that takes time samples of generation 0 & generations [100,110] inclusive (& final generation is always sampled).
+ *
+ * \code
+    typedef Sim_Model::bool_off sampling_off;
+	typedef Sim_Model::bool_on sampling_on;
+	typedef Sim_Model::bool_pulse<sampling_off,sampling_on> pulse_on;
+	typedef Sim_Model::bool_piecewise<pulse_on,sampling_on> switch_on;
+	typedef Sim_Model::bool_piecewise<switch_on,sampling_off> switch_off;
+
+	pulse_on sample_generation_0; //default will pulse on at generation 0
+	switch_on sample_gen_0_100_XX(sample_generation_0,sampling_on(),100); //samples starting generation, will start sampling at generation after 100
+	switch_off sample_gen_0_100_110(sample_gen_0_100_XX,sampling_off(),111); //sampling strategy, will take time samples of generation 0 & generations [100,110] inclusive (& final generation is always sampled)
+ * \endcode
+ * Note mutations present in these generations will be preserved until the final generation of the simulation.
+ **/
 /**`inflection_point = 0` \n `generation_shift = 0` \n
 Function `f1` assigned default constructor of `Functor_first`\n
 Function `f2` assigned default constructor of `Functor_second`*/
@@ -498,7 +642,7 @@ inline bool_piecewise<Functor_first,Functor_second>::bool_piecewise(Functor_firs
  *  */
 template <typename Functor_first, typename Functor_second>
 __host__ __forceinline__ bool bool_piecewise<Functor_first,Functor_second>::operator()(const int generation) const{ if(generation >= inflection_point+generation_shift){ return f2(generation); } return f1(generation); }
-/* ----- end switch_function ----- */
+/* ----- end bool piecewise ----- */
 /* ----- end of preserving & sampling functions ----- */
 
 }/* ----- end namespace Sim_Model ----- */
