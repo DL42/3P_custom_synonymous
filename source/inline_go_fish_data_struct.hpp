@@ -176,7 +176,7 @@ inline void allele_trajectories::reset(){
 		for(int i = 0; i < num_samples; i++){ delete time_samples[i]; }
 		delete [] time_samples;
 	}
-	if(mutations_ID){ delete [] mutations_ID; }
+	if(mutations_ID){ free(mutations_ID); }
 	time_samples = NULL; num_samples = 0; mutations_ID = NULL; all_mutations = 0;
 	sim_run_constants = sim_constants();
 	sim_input_constants = sim_constants();

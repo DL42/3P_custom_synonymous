@@ -481,7 +481,7 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), mutations.h_num_populations, cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //removes padding
 	cudaCheckErrors(cudaHostUnregister(out_mutations_freq),sampled_generation,-1);
 	if(sampled_generation == final_generation){
-		out_mutations_ID = new GO_Fish::mutID[out_num_mutations];
+		out_mutations_ID = (GO_Fish::mutID *)malloc(out_num_mutations*sizeof(GO_Fish::mutID)); //use malloc to avoid calling mutID constructor (new calls constructor and is slower by a couple of percent)
 		cudaCheckErrors(cudaHostRegister(out_mutations_ID,out_num_mutations*sizeof(int4),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
 		cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //mutations array is 1D
 		cudaCheckErrors(cudaHostUnregister(out_mutations_ID),sampled_generation,-1);
