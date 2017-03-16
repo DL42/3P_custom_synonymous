@@ -92,7 +92,7 @@ __device__ __forceinline__ float selection_sine_wave::operator()(const int popul
 /* ----- population specific selection model ----- */
 /** \struct selection_population_specific
  * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop` \n
- * Population specific functors can be nested within each other and with piecewise selection functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Population specific selection functors can be nested within each other and with piecewise selection functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different selection coefficients where mutations in the 1st are neutral, in the 2nd are deleterious, and in the 3rd are beneficial up to generation 300 when selection relaxes and they become neutral
  * \code typedef Sim_Model::selection_constant constant;
 	typedef Sim_Model::selection_piecewise<constant,constant> piecewise_constant;
@@ -125,7 +125,7 @@ __device__ __forceinline__ float selection_population_specific<Functor_sel,Funct
 /* ----- piecewise selection model ----- */
 /** \struct selection_piecewise
  *  Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point` \n
- * Piecewise selection functors can be nested within each other and with population specific functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Piecewise selection functors can be nested within each other and with population specific selection functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different selection coefficients where mutations in the 1st are neutral, in the 2nd are deleterious, and in the 3rd are beneficial up to generation 300 when selection relaxes and they become neutral
  * \code typedef Sim_Model::selection_constant constant;
 	typedef Sim_Model::selection_piecewise<constant,constant> piecewise_constant;
@@ -189,8 +189,8 @@ __host__ __forceinline__ float F_mu_h_sine_wave::operator()(const int population
 
 /* ----- population specific parameter model ----- */
 /** \struct F_mu_h_population_specific
- * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point` \n
- * Piecewise selection functors can be nested within each other and with population specific functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop` \n
+ * Population specific parameter functors can be nested within each other and with piecewise parameter functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different Inbreeding coefficients where populations in the 1st are outbred, in the 2nd are partially inbred, and in the 3rd are completely inbred until population becomes completely outcrossing at generation 300
  * \code typedef Sim_Model::F_mu_h_constant F_constant;
 	typedef Sim_Model::F_mu_h_piecewise<F_constant,F_constant> F_piecewise_constant;
@@ -222,8 +222,8 @@ __host__ __forceinline__ float F_mu_h_population_specific<Functor_p,Functor_p_po
 
 /* ----- piecewise parameter model ----- */
 /** \struct F_mu_h_piecewise
- * Takes in two template types: the function to be returned for the rest of the populations and the function for the specific population, `pop` \n
- * Population specific functors can be nested within each other and with piecewise selection functors for multiple populations and multiple time functions, e.g.:\n\n
+ * Takes in two template types: the function to be returned before the `inflection_point` and the function for after the `inflection_point` \n
+ * Piecewise parameter functors can be nested within each other and with population specific parameter functors for multiple populations and multiple time functions, e.g.:\n\n
  * 3 populations with different Inbreeding coefficients where populations in the 1st are outbred, in the 2nd are partially inbred, and in the 3rd are completely inbred until population becomes completely outcrossing at generation 300
  * \code typedef Sim_Model::F_mu_h_constant F_constant;
 	typedef Sim_Model::F_mu_h_piecewise<F_constant,F_constant> F_piecewise_constant;

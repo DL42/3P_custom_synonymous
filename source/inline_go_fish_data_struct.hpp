@@ -198,33 +198,33 @@ inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ stream << id.toString(); return stream; }
 
 /** returns `ostream stream` containing the last simulation run information stored by `allele_trajectories A` \n\n
- * First function inserts the run constants (not input constants) held by `A` into the output stream with a tab-delimited header: "variable" "run constant value".
- * After header, each run constant variable is streamed on its own line with the variable name and value separated by a tab - order: `seed1, seed2, num_generations,
- * num_sites, num_populations, init_mse, prev_sim_sample, compact_interval, device`.
- * If `A` is empty (no time samples are stored), then "no simulation stored" will be inserted into the stream and the stream returned. If `A` is not empty, then
- * the information from each time sample will be inserted into the stream in the following order: simulation generation the time sample was taken, number of mutations reported in the time sample,
- * effective population size (chromosomes) in the time sample of each population, and whether a population was extinct in the time sample. Each feature of a time sample will be
- * on a new line. Within a feature, time samples will be the major column and populations the minor column with columns tab-delimited. If no mutations are stored in the time samples,
- * "no mutations stored" will be inserted into the stream and the stream returned. If the time samples have mutations, then the allele trajectory of each mutation will be fed into the stream
- * with each line is a different mutation (ordered by `origin_generation` then `origin_population` then `origin_threadID`) where each major column is a time sample and each minor column
- * is a population (again, all columns are tab-delimited). An example is given the output file XXXXX. \n\n
+ * First function inserts the run constants (not input constants) held by `A` into the output stream with the variable name tab-delimited from its value.
+ * This is followed by the feature information (e.g. generation, number of mutations, population size, population extinction) from each time sample (if any).
+ * Each feature of a time sample is a row in the stream while each time sample is a major column and each population is a minor column. Finally, the allele trajectory of each
+ * mutation (if any) is added to the stream. The allele trajectories are mutation row-ordered (by `origin_generation` then `origin_population` then `origin_threadID`),
+ * where each major column is a time sample and each minor column is a population. All columns are tab-delimited. An example is given the output file XXXXX. \n\n
  * Stream can be fed into terminal output, file output, or into an `istream` for extraction with the `>>` operator.
  *  */
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A){
-	stream << "variable" << "\t" << "run constant value" << std::endl;
-	stream << "seed1:" << "\t" << A.sim_run_constants.seed1 << std::endl;
-	stream << "seed2:" << "\t" << A.sim_run_constants.seed2 << std::endl;
-	stream << "num_generations:" << "\t" << A.sim_run_constants.num_generations << std::endl;
-	stream << "num_sites:" << "\t" << A.sim_run_constants.num_sites << std::endl;
-	stream << "num_populations:" << "\t" << A.sim_run_constants.num_populations << std::endl;
-	stream << "init_mse:" << "\t" << A.sim_run_constants.init_mse << std::endl;
-	stream << "prev_sim_sample:" << "\t" << A.sim_run_constants.prev_sim_sample << std::endl;
-	stream << "compact_interval:" << "\t" << A.sim_run_constants.compact_interval << std::endl;
-	stream << "device:" << "\t" << A.sim_run_constants.device << std::endl << std::endl;
+	stream << "seed1" << "\t" << A.sim_run_constants.seed1 << std::endl;
+	stream << "seed2" << "\t" << A.sim_run_constants.seed2 << std::endl;
+	stream << "num_generations" << "\t" << A.sim_run_constants.num_generations << std::endl;
+	stream << "num_sites" << "\t" << A.sim_run_constants.num_sites << std::endl;
+	stream << "num_populations" << "\t" << A.sim_run_constants.num_populations << std::endl;
+	stream << "init_mse" << "\t" << A.sim_run_constants.init_mse << std::endl;
+	stream << "prev_sim_sample" << "\t" << A.sim_run_constants.prev_sim_sample << std::endl;
+	stream << "compact_interval" << "\t" << A.sim_run_constants.compact_interval << std::endl;
+	stream << "device" << "\t" << A.sim_run_constants.device << std::endl << std::endl;
 
 	if(A.num_samples == 0){ stream << "no simulation stored" << std::endl; return stream; }
 
 	int num_populations = A.sim_run_constants.num_populations;
+
+	stream << "time sample:";
+	for(int j = 0; j < A.num_samples; j++){
+		stream << "\t" << j;
+		for(int k = 0; k < num_populations-1; k++){ stream << "\t"; }
+	} stream << std::endl;
 
 	stream << "generation:";
 	for(int j = 0; j < A.num_samples; j++){
