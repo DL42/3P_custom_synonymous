@@ -9,7 +9,7 @@
 #define TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_
 
 /**Functions for modeling selection, inbreeding, mutation, dominance, demography, migration across populations and over time as well as functions to preserve mutations in a generation and to sample time points in the simulation. \n
-* \n Use of these functions is optional as users can supply their own with the same given format, for details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page, click on the simulation function group you wish to write, and read its detailed description. */
+* \n Use of these functions is optional as users can supply their own with the same given format, for details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page, click on the simulation function group which describes the function you wish to write, and read its detailed description. */
 namespace Sim_Model{
 
 /** \addtogroup selection

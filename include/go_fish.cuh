@@ -4,7 +4,7 @@
 * go_fish.cuh contains all structures and functions necessary for running, storing, and outputting a single locus Wright_fisher simulation (contains namespaces GO_Fish and Sim_Model).
 * When including go_fish.cuh into a source file, go_fish_data_struct.h is automatically included - no need to include it separately.
 * Unlike go_fish_data_struct.h and spectrum.h, go_fish.cuh can only be included in CUDA C/C++ source files (*.cu).
-* CUDA source files are identical to C/C++ source files (*.c/*.cpp) except that the the CUDA suffix (*.cu) indicates for NVCC (the CUDA compiler)
+* CUDA source files are identical to C, C++ source files (*.c, *.cpp) except that the the CUDA suffix (*.cu) indicates for NVCC (the CUDA compiler)
 * that the file contains CUDA-specific `__global__` and `__device__` functions/variables meant for the GPU. `__global__` and `__device__` functions/variables
 * cannot be compiled in normal C/C++ source files. \n\n
 
@@ -235,7 +235,7 @@ struct migration_constant_equal
 	int num_pop; /**<\brief number of population participating in equal migration */ /**<\t*/
 	inline migration_constant_equal(); /**<\brief default constructor */ /**<`m = 0` \n `num_pop = 1`*/
 	inline migration_constant_equal(float m, int num_pop); /**<\brief constructor */ /**<`num_pop = minimum(num_pop,1)`*/
-	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const; /**<\brief Demographic operator, returns migration rate, \p mig_rate, which is the fraction of chromosomes in `pop_TO` from `pop_FROM` for a given `generation` */
+	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const; /**<\brief Migration operator, returns migration rate, \p mig_rate, which is the proportion of chromosomes in `pop_TO` from `pop_FROM` for a given `generation` */
 };
 
 ///functor: migration flows at rate \p m from \p pop1 to \p pop2 and function \p rest for all other migration rates

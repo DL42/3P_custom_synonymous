@@ -502,11 +502,38 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 //!\endcond
 namespace GO_Fish{
 
+/** calls GO_Fish::run_sim(..., const allele_trajectories & prev_sim) with `prev_sim` set to a blank allele_trajectory. Saves on some unnecessary typing when starting from mutation-selection-equilibrium or a blank simulation. \n\n \verbatim \endverbatim \n
+ * \copydetails GO_Fish::run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim)
+ */
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample){
 	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, allele_trajectories());
 }
 
+/** A simulation run is controlled by the template functions and GO_Fish::allele_trajectories::sim_input_constants
+ * (which are then accessible from GO_Fish::allele_trajectories::last_run_constants() even if the input constants are later changed). The user can write their own
+ * simulation functions to input into `run_sim` or use those provided in namespace Sim_Model. For details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page,
+ * click on the simulation function group which describes the function you wish to write, and read its detailed description. They can be standard functions, functors,
+ * or (coming with C+11 support) lambdas.
+ *
+ * Pro Tip: For extra speed, it is desirable that the simulation functions input into run_sim are known at compile-time (i.e. avoid function pointers and non-inline functions unless necessary).
+ * The parameters of functors (as used by Sim_Model) may be set at runtime, but the the function itself (the operator in the case of a functor) should be known at compile-time.
+ * The functions are input into `run_sim` via templates, so that, at compile-time, known functions can be compiled directly into run_sim's code (fast) as opposed to called from the function stack (slow).
+ * This is especially important for Selection, Migration, and to a lesser extent Demography functions which are run on the GPU many times over for every mutation, every generation.
+ *
+ * \param all_results `all_results.sim_input_constants` help control the simulation run whose results are stored in `all_results`
+ * \param mu_rate Function specifying the mutation rate per site for a given `population`, `generation`
+ * \param demography Function specifying then population size (individuals) for a given `population`, `generation`
+ * \param mig_prop Function specifying the migration rate, which is the proportion of chromosomes in population `pop_TO` from population `pop_FROM` for a given `generation`
+ * \param sel_coeff Function specifying the selection coefficient for a given `population`, `generation`, `frequency`
+ * \param FI Function specifying the inbreeding coefficient for a given `population`, `generation`
+ * \param dominance Function specifying the dominance coefficient for a given `population`, `generation`
+ * \param preserve_mutations Function specifying if the mutations extant in a `generation` should be preserved for the rest of the simulation run
+ * \param take_sample Function specifying if a time sample should be taken in a `generation` - note this will automatically preserve those mutations for the rest of the simulation run
+ * \param prev_sim if `prev_sim_sample` in `all_results.sim_input_constants` is greater than 0 (and less than the number of time samples in `prev_sim`), then `run_sim` will use the corresponding
+ * time sample in prev_sim to initialize the new simulation provided that the number of populations and number of sites are equivalent to those in `all_results.sim_input_constants`
+ * or an error will be thrown.
+*/
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim){
 

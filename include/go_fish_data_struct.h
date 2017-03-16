@@ -3,7 +3,7 @@
 *
 * go_fish_data_struct.h contains the structures and associated functions for storing and outputting a GO_Fish simulation run.
 * When go_fish.cuh is already included into a source file, go_fish_data_struct.h is automatically included - no need to include it separately.
-* However, go_fish_data_struct.h can be included by itself - the advantage being that it can be included in C/C++ (*.c/*.cpp) source files
+* However, go_fish_data_struct.h can be included by itself - the advantage being that it can be included in C, C++ (*.c, *.cpp) source files
 * as well as CUDA source files (*.cu). This allows data from a simulation run to be passed from a CUDA C/C++ project to an already established
 * C/C++ project compiled with a standard C/C++ compiler (e.g. clang, g++, msvc, etc ...) using structures GO_Fish::allele_trajectories and GO_Fish::mutID. \n\n
 */
@@ -124,6 +124,7 @@ struct allele_trajectories{
 	/**\brief destructor */ /**calls reset()*/
 	inline ~allele_trajectories();
 
+	//!\cond
 	friend void swap(allele_trajectories & a, allele_trajectories & b);
 
 	friend std::ostream & operator<<(std::ostream & stream, allele_trajectories & A);
@@ -131,7 +132,6 @@ struct allele_trajectories{
 	template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 	friend void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
 
-	//!\cond
 	friend class Spectrum_details::transfer_allele_trajectories;
 	//!\endcond
 private:
