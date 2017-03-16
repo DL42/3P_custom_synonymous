@@ -158,10 +158,10 @@ private:
 	int all_mutations; //number of mutations in mutation ID array - maximal set of mutations stored in allele_trajectories
 };
 
-/**\brief returns a stream containing mutID.toString() */ /**\t*/
+/**\brief insertion operator: sends `mutID id` into the `ostream stream` */
 inline std::ostream & operator<<(std::ostream & stream, const mutID & id);
 
-//! returns a stream containing allele_trajectories
+//! insertion operator: sends `allele_trajectories A` into the `ostream stream`
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A);
 
 /**\brief swaps data held by allele_trajectories a and b */ /**\t*/

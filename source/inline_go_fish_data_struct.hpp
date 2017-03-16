@@ -30,8 +30,6 @@ inline std::string mutID::toString() { return "("+tostring(origin_generation)+",
 
 inline std::string mutID::toString() const { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
-inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ stream << id.toString(); return stream; }
-
 inline allele_trajectories::sim_constants::sim_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_interval(35), device(-1) {}
 
 inline allele_trajectories::time_sample::time_sample(): num_mutations(0), sampled_generation(0) { mutations_freq = NULL; extinct = NULL; Nchrom_e = NULL; /*set pointers to NULL*/}
@@ -196,22 +194,24 @@ inline void allele_trajectories::initialize_sim_result_vector(int new_length){
 	sim_run_constants = sim_input_constants;
 }
 
-inline void swap(allele_trajectories & a, allele_trajectories & b){
-	//can use for move constructor/assignment when moving to CUDA 7+ and C++11: http://stackoverflow.com/questions/3279543/what-is-the-copy-and-swap-idiom
-	allele_trajectories::sim_constants temp = a.sim_input_constants;
-	a.sim_input_constants = b.sim_input_constants;
-	b.sim_input_constants = temp;
-	temp = a.sim_run_constants;
-	a.sim_run_constants = b.sim_run_constants;
-	b.sim_run_constants = temp;
-	std::swap(a.all_mutations,b.all_mutations);
-	std::swap(a.num_samples,b.num_samples);
-	std::swap(a.mutations_ID,b.mutations_ID);
-	std::swap(a.time_samples,b.time_samples);
-}
+/** returns `ostream stream` containing string `id.toString()` \n\n \copydetails GO_Fish::mutID::toString() \n\n Stream can be fed into terminal output, file output, or into an `istream` for extraction with the `>>` operator. */
+inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ stream << id.toString(); return stream; }
 
+/** returns `ostream stream` containing the last simulation run information stored by `allele_trajectories A` \n\n
+ * First function inserts the run constants (not input constants) held by `A` into the output stream with a tab-delimited header: "variable" "run constant value".
+ * After header, each run constant variable is streamed on its own line with the variable name and value separated by a tab - order: `seed1, seed2, num_generations,
+ * num_sites, num_populations, init_mse, prev_sim_sample, compact_interval, device`.
+ * If `A` is empty (no time samples are stored), then "no simulation stored" will be inserted into the stream and the stream returned. If `A` is not empty, then
+ * the information from each time sample will be inserted into the stream in the following order: simulation generation the time sample was taken, number of mutations reported in the time sample,
+ * effective population size (chromosomes) in the time sample of each population, and whether a population was extinct in the time sample. Each feature of a time sample will be
+ * on a new line. Within a feature, time samples will be the major column and populations the minor column with columns tab-delimited. If no mutations are stored in the time samples,
+ * "no mutations stored" will be inserted into the stream and the stream returned. If the time samples have mutations, then the allele trajectory of each mutation will be fed into the stream
+ * with each line is a different mutation (ordered by `origin_generation` then `origin_population` then `origin_threadID`) where each major column is a time sample and each minor column
+ * is a population (again, all columns are tab-delimited). An example is given the output file XXXXX. \n\n
+ * Stream can be fed into terminal output, file output, or into an `istream` for extraction with the `>>` operator.
+ *  */
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A){
-	stream << "variable" << "\t" << "run constants" << std::endl;
+	stream << "variable" << "\t" << "run constant value" << std::endl;
 	stream << "seed1:" << "\t" << A.sim_run_constants.seed1 << std::endl;
 	stream << "seed2:" << "\t" << A.sim_run_constants.seed2 << std::endl;
 	stream << "num_generations:" << "\t" << A.sim_run_constants.num_generations << std::endl;
@@ -264,6 +264,20 @@ inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A)
 	}
 
 	return stream;
+}
+
+inline void swap(allele_trajectories & a, allele_trajectories & b){
+	//can use for move constructor/assignment when moving to CUDA 7+ and C++11: http://stackoverflow.com/questions/3279543/what-is-the-copy-and-swap-idiom
+	allele_trajectories::sim_constants temp = a.sim_input_constants;
+	a.sim_input_constants = b.sim_input_constants;
+	b.sim_input_constants = temp;
+	temp = a.sim_run_constants;
+	a.sim_run_constants = b.sim_run_constants;
+	b.sim_run_constants = temp;
+	std::swap(a.all_mutations,b.all_mutations);
+	std::swap(a.num_samples,b.num_samples);
+	std::swap(a.mutations_ID,b.mutations_ID);
+	std::swap(a.time_samples,b.time_samples);
 }
 
 } /* ----- end namespace GO_Fish ----- */

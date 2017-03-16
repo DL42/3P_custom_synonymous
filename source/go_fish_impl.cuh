@@ -502,7 +502,7 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 //!\endcond
 namespace GO_Fish{
 
-/** calls GO_Fish::run_sim(..., const allele_trajectories & prev_sim) with `prev_sim` set to a blank allele_trajectory. Saves on some unnecessary typing when starting from mutation-selection-equilibrium or a blank simulation. \n\n \verbatim \endverbatim \n
+/** calls `run_sim(..., const allele_trajectories & prev_sim)` with `prev_sim` set to a blank allele_trajectory. Saves on some unnecessary typing when starting from mutation-selection-equilibrium or a blank simulation. \n\n \verbatim \endverbatim \n
  * \copydetails GO_Fish::run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim)
  */
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
@@ -510,8 +510,8 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	run_sim(all_results, mu_rate, demography, mig_prop, sel_coeff, FI, dominance, preserve_mutations, take_sample, allele_trajectories());
 }
 
-/** A simulation run is controlled by the template functions and GO_Fish::allele_trajectories::sim_input_constants
- * (which are then accessible from GO_Fish::allele_trajectories::last_run_constants() even if the input constants are later changed). The user can write their own
+/** A simulation run is controlled by the template functions and allele_trajectories.sim_input_constants
+ * (which are then accessible from allele_trajectories.last_run_constants() even if the input constants are later changed). The user can write their own
  * simulation functions to input into `run_sim` or use those provided in namespace Sim_Model. For details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page,
  * click on the simulation function group which describes the function you wish to write, and read its detailed description. They can be standard functions, functors,
  * or (coming with C+11 support) lambdas.
