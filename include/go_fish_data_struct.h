@@ -4,7 +4,7 @@
 * go_fish_data_struct.h contains the structures and associated functions for storing and outputting a GO_Fish simulation run.
 * When go_fish.cuh is already included into a source file, go_fish_data_struct.h is automatically included - no need to include it separately.
 * However, go_fish_data_struct.h can be included by itself - the advantage being that it can be included in C, C++ (*.c, *.cpp) source files
-* as well as CUDA source files (*.cu). This allows data from a simulation run to be passed from a CUDA C/C++ project to an already established
+* as well as CUDA source files (*.cu). This allows data from a simulation run to be passed from a CUDA project to an already established
 * C/C++ project compiled with a standard C/C++ compiler (e.g. clang, g++, msvc, etc ...) using structures GO_Fish::allele_trajectories and GO_Fish::mutID. \n\n
 */
 /* go_fish_data_struct.h
