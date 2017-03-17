@@ -4,9 +4,7 @@
  *      Author: David Lawrie
  */
 
-#include <fstream>
 #include "go_fish.cuh"
-#include "spectrum.h"
 
 void run_speed_test()
 {
