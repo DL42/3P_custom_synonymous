@@ -49,7 +49,7 @@ inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
 	all_mutations = in.all_mutations;
 
 	if(all_mutations > 0){
-		mutations_ID = new mutID[all_mutations];
+		mutations_ID = (mutID *)malloc(all_mutations*sizeof(mutID)); //malloc is faster than new as it doesn't call the default constructor
 		memcpy(mutations_ID, in.mutations_ID, all_mutations*sizeof(mutID)); //using memcpy to ensure struct members remain in right memory order bit for bit for when transfering to GPU
 	}
 	else{ mutations_ID = NULL; }
@@ -68,8 +68,8 @@ inline allele_trajectories::allele_trajectories(const allele_trajectories & in){
 				time_samples[i]->Nchrom_e[j] = in.time_samples[i]->Nchrom_e[j];
 				time_samples[i]->extinct[j] = in.time_samples[i]->extinct[j];
 			}
-			time_samples[i]->mutations_freq = new float[num_mutations];
-			memcpy(time_samples[i]->mutations_freq,in.time_samples[i]->mutations_freq,num_mutations*sizeof(float));
+			time_samples[i]->mutations_freq = new float[num_populations*num_mutations];
+			memcpy(time_samples[i]->mutations_freq,in.time_samples[i]->mutations_freq,num_populations*num_mutations*sizeof(float));
 		}
 	}
 	else{ time_samples = NULL; }
