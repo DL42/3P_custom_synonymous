@@ -234,7 +234,7 @@ struct migration_constant_equal
 	float m; /**<\brief migration rate from pop `i` to pop `j =/= i` */ /**<\t*/
 	int num_pop; /**<\brief number of population participating in equal migration */ /**<\t*/
 	inline migration_constant_equal(); /**<\brief default constructor */ /**<`m = 0` \n `num_pop = 1`*/
-	inline migration_constant_equal(float m, int num_pop); /**<\brief constructor */ /**<`num_pop = minimum(num_pop,1)`*/
+	inline migration_constant_equal(float m, int num_pop); /**<\brief constructor */ /**<minimum number of populations is 1 - i.e. `num_pop = maximum(num_pop,1)`*/
 	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const; /**<\brief Migration operator, returns migration rate, \p mig_rate, which is the proportion of chromosomes in `pop_TO` from `pop_FROM` for a given `generation` */
 };
 

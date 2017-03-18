@@ -420,7 +420,7 @@ __host__ __device__  __forceinline__ int demography_piecewise<Functor_d1, Functo
 /* ----- migration models ----- */
 /* ----- constant equal migration model ----- */
 inline migration_constant_equal::migration_constant_equal() : m(0), num_pop(1){ }
-inline migration_constant_equal::migration_constant_equal(float m, int num_pop) : m(m), num_pop(min(num_pop,1)){ }
+inline migration_constant_equal::migration_constant_equal(float m, int num_pop) : m(m), num_pop(max(num_pop,1)){ }
 /**`if(pop_FROM == pop_TO) mig_rate = 1-(num_pop-1)*m` \n
  * `else mig_rate = m`
  *  */
