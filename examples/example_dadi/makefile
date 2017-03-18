@@ -8,7 +8,7 @@
 #
 # NVCC := Compiler path, in this case NVCC is in $PATH
 # CFLAGS := Compiler Flags: optimize most, fast math, add API include folder to include search path, equivalent to --relocatable-device-code=true --compile
-# CODE := GPU types for which to build explicitly (I have a 780M and 980) https://developer.nvidia.com/cuda-gpus
+# CODE := GPU types for which to build explicitly (I have a NVIDIA GTX 780M and 980) https://developer.nvidia.com/cuda-gpus
 #
 # object_names := Objects required for executable
 # objects := Prepends build path to object names
@@ -16,7 +16,9 @@
 # all := Command 'make' or 'make all' builds executable file $(EXEC_FILE) in location $(build_path)/
 #
 # ##### Object Dependencies Lists #####
-# If one of the files on the right hand side of the : changes, the corresponding object must be recompiled
+# If one of the files on the right hand side of the : changes, the corresponding object must be recompiled.
+# This is a developer's makefile - it assumes there will be changes to the GOFish API files, if not
+# all the non-*.cu (non source file) dependencies are unnecessary.
 # ##### End Object Dependencies Lists #####
 #
 # $(objects) := Make target all objects
@@ -31,14 +33,14 @@
 # 	Remove all objects and EXEC_FILE from build_path
 #############################
 
-build_path = ../../../build/example_dadi
+build_path = ../../../build/example_dadi_linux
 api_path_source = ../../source
 api_path_include = ../../include
 EXEC_FILE = GOFish
 
 NVCC = nvcc
 CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
-CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_32,code=sm_32 --generate-code arch=compute_35,code=sm_35 --generate-code arch=compute_50,code=sm_50 --generate-code arch=compute_52,code=sm_52 --generate-code arch=compute_52,code=compute_52
+CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 
 
 object_names = run.o spectrum.o shared.o go_fish_impl.o
 objects = $(addprefix $(build_path)/,$(object_names))
