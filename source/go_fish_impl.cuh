@@ -671,7 +671,8 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 
 		for(int pop1 = 0; pop1 < mutations.h_num_populations; pop1++){
 			for(int pop2 = 0; pop2 < mutations.h_num_populations; pop2++){
-				cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2+mutations.h_num_populations],0), generation, pop1*mutations.h_num_populations+pop2); //wait to do the next round of mig_sel_drift until
+				cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2],0), generation, pop1*mutations.h_num_populations+pop2); //wait to do the next round of mig_sel_drift until mig_sel_drift is done
+				cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop1],pop_events[pop2+mutations.h_num_populations],0), generation, pop1*mutations.h_num_populations+pop2); //wait to do the next round of mig_sel_drift until add_mut is done
 			}
 			if(generation == next_compact_generation || generation == final_generation || preserve){
 				cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop1],0), generation, pop1); //wait to compact/sample until after mig_sel_drift and add_new_mut are done
