@@ -1,15 +1,10 @@
-# Description of Mac/Linux/Unix Makefile for example_compilation. 
+# Description of Mac/Linux/Unix Makefile for example_compilation.
+# makefile_nvcc is useful when combining GPU-accelerated code into an existing C++ project and using NVCC to compile all files and link objects into executable.
+# makefile_gpp is useful when combining GPU-accelerated code into an existing C++ project and user wants to keep non-CUDA code compiled by a different compiler (e.g. g++). 
 #
 #############################
 # build_path := Where to build program and put executable (note: folder must already exist)
-# api_path_source := Location of API source folder
-# api_path_include := Location of API include folder
 # EXEC_FILE := Name of executable 
-#
-# NVCC := Compiler path, in this case NVCC is in $PATH
-# CFLAGS_CUDA := Compiler Flags for CUDA (*.cu) Files: optimize most, fast math, add API include folder to include search path, equivalent to --relocatable-device-code=true --compile
-# CFLAGS_CPP := Compiler Flags for CPP (main.cpp) Files: optimize most, fast math, add API include folder to include search path, compile
-# CODE := GPU types for which to build explicitly (I have a NVIDIA GTX 780M and 980) https://developer.nvidia.com/cuda-gpus
 #
 # cpp_object_names := CPP objects required for executable
 # cpp_objects := Prepends build path to object names
@@ -17,40 +12,18 @@
 # cuda_object_names := CUDA objects required for executable
 # cuda_objects := Prepends build path to object names
 #
-# all := Command 'make' or 'make all' builds executable file $(EXEC_FILE) in location $(build_path)/
+# nvcc := Command 'make' or 'make nvcc' calls the makefile makefile_nvcc
 #
-# ##### Object Dependencies Lists #####
-# If one of the files on the right hand side of the : changes, the corresponding object must be recompiled.
-# This is a users makefile - it assumes there will be no changes to the GOFish API files, so does not include
-# all the non-*.cu (non source file) dependencies except those that the user created (i.e. run.h). If changes 
-# to the API .h or .cuh files are expected see Object Dependencies Lists in example_dadi or run 'make clean' 
-# before each 'make all'.
-# ##### End Object Dependencies Lists #####
+# gpp := Command 'make gpp' calls the makefile makefile_gpp
 #
-# $(cpp_objects) := Make target all objects
-# 	Compile CPP source code into objects, $< := dependencies from Object Dependencies Lists, $@ := object in $(objects)
-#
-# $(cuda_objects) := Make target all objects
-# 	Compile CUDA source code into objects, $< := dependencies from Object Dependencies Lists, $@ := object in $(objects)
-#
-# $(build_path)/$(EXEC_FILE) := Make target executable EXEC_FILE which depends on all objects
-# 	Link CUDA/CPP objects into executable EXEC_FILE, $@ := $(build_path)/$(EXEC_FILE)
-#
-# .PHONY := Defines 'all' and 'clean' as not true targets (i.e. don't remake executable if can't find files called 'all' or 'clean')
+# .PHONY := Defines 'nvvc', 'gpp', and 'clean' as not true targets (i.e. don't remake executable if can't find files called 'all' or 'clean')
 #
 # clean := Action to perform for command 'make clean'
 # 	Remove all objects and EXEC_FILE from build_path
 #############################
 
 build_path = ../../../build/example_compilation
-api_path_source = ../../source
-api_path_include = ../../include
 EXEC_FILE = GOFish
-
-NVCC = nvcc
-CFLAGS_CUDA = -O3 --use_fast_math -I $(api_path_include)/ -dc
-CFLAGS_CPP = -O3 --use_fast_math -I $(api_path_include)/ -c
-CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 
 
 cpp_object_names = main.o
 cpp_objects = $(addprefix $(build_path)/,$(cpp_object_names))
@@ -58,26 +31,12 @@ cpp_objects = $(addprefix $(build_path)/,$(cpp_object_names))
 cuda_object_names = run.o shared.o go_fish_impl.o
 cuda_objects = $(addprefix $(build_path)/,$(cuda_object_names))
 
-all: $(build_path)/$(EXEC_FILE)
+nvcc: 
+	make -f makefile_nvcc
+gpp:
+	make -f makefile_gpp
 
-##### OBJECT DEPENDENCIES #####
-$(build_path)/main.o: main.cpp run.h
-$(build_path)/run.o: run.cu run.h
-$(build_path)/shared.o: $(api_path_source)/shared.cu
-$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu
-##### END OBJECT DEPENDENCIES #####
-
-$(cpp_objects):
-	$(NVCC) $(CFLAGS_CPP) $< -o $@
-
-$(cuda_objects):
-	$(NVCC) $(CODE) $(CFLAGS_CUDA) $< -o $@
-
-$(build_path)/$(EXEC_FILE): $(cpp_objects) $(cuda_objects)
-
-	$(NVCC) $(CODE) $(cpp_objects) $(cuda_objects)  -o $@
-
-.PHONY: all clean
+.PHONY: nvcc gpp clean
 
 clean:
-	rm -f $(cuda_objects) $(cpp_objects) $(build_path)/$(EXEC_FILE)
+	rm -f $(cuda_objects) $(cpp_objects) $(build_path)/gpuCode.o $(build_path)/$(EXEC_FILE)

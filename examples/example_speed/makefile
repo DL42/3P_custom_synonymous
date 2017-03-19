@@ -6,7 +6,7 @@
 # api_path_include := Location of API include folder
 # EXEC_FILE := Name of executable 
 #
-# NVCC := Compiler path, in this case NVCC is in $PATH
+# NVCC := Compiler path, in this case nvcc is in $PATH
 # CFLAGS := Compiler Flags: optimize most, fast math, add API include folder to include search path, equivalent to --relocatable-device-code=true --compile
 # CODE := GPU types for which to build explicitly (I have a NVIDIA GTX 780M and 980) https://developer.nvidia.com/cuda-gpus
 #
