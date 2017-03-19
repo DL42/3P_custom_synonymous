@@ -49,10 +49,10 @@ objects = $(addprefix $(build_path)/,$(object_names))
 all:$(build_path)/$(EXEC_FILE)
 
 ##### OBJECT DEPENDENCIES #####
-$(build_path)/run.o: run.cu 
-$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu 
-$(build_path)/shared.o: $(api_path_source)/shared.cu 
-$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu 
+$(build_path)/run.o: run.cu
+$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu
+$(build_path)/shared.o: $(api_path_source)/shared.cu
+$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu
 ##### END OBJECT DEPENDENCIES #####
 
 $(objects):
