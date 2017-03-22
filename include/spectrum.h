@@ -36,10 +36,10 @@ struct SFS{
 	~SFS();
 };
 
-///frequency histogram of mutations at a single time point in a single population
+///create a frequency histogram of mutations at a single time point \p sample_index in a single population \p population_index store in \p mySFS
 void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device = -1);
 
-///create a single-population SFS from a single time sample from an allele trajectory
+///create a single-population SFS of size \p sample_size from a single time point \p sample_index in a single population \p population_index from allele trajectory \p all_results, store in \p mySFS
 void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device = -1);
 
 } /*----- end namespace SPECTRUM ----- */
