@@ -318,7 +318,7 @@ __host__ __device__  __forceinline__ int demography_logistic_growth::operator()(
 
    dem_constant d_pop0(100000), d_pop1(0);
    dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
-   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000, 1); //shifts exponential back one generation so it starts at 10,000
    dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
    Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
 
@@ -363,7 +363,7 @@ __host__ __device__  __forceinline__ int demography_population_specific<Functor_
 
    dem_constant d_pop0(100000), d_pop1(0);
    dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
-   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000, 1); //shifts exponential back one generation so it starts at 10,000
    dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
    Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
 
@@ -443,7 +443,7 @@ __host__ __device__ __forceinline__ float migration_constant_equal::operator()(c
 
    dem_constant d_pop0(100000), d_pop1(0);
    dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
-   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000, 1); //shifts exponential back one generation so it starts at 10,000
    dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
    Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
 
@@ -487,7 +487,7 @@ __host__ __device__ __forceinline__ float migration_constant_directional<Functor
 
    dem_constant d_pop0(100000), d_pop1(0);
    dem_pop_constant_constant d_generation_0(d_pop0,d_pop1,1); //at the start of the simulation, the first population pop0 starts out at 100,000 individuals, pop1 doesn't exist yet
-   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000);
+   dem_constant d_pop0_1(90000); dem_exponential d_pop1_1(0.01, 10000, 1); //shifts exponential back one generation so it starts at 10,000
    dem_pop_constant_exponential d_remaining_generations(d_pop0_1,d_pop1_1,1); //in the first generation, 10,000 individuals from pop0 move to start pop1, which grows exponentially afterwards at a rate of 1%
    Sim_Model::demography_piecewise<dem_pop_constant_constant,dem_pop_constant_exponential> demography_model(d_generation_0,d_remaining_generations,1);
 
@@ -513,7 +513,7 @@ inline migration_piecewise<Functor_m1,Functor_m2>::migration_piecewise(Functor_m
 /** `if(generation >= inflection_point+generation_shift) mig_rate = m2(pop_FROM, pop_TO, generation-generation_shift)`\n
 	`else mig_rate = m1(pop_FROM, pop_TO, generation-generation_shift)` */
 template <typename Functor_m1, typename Functor_m2>
-__host__ __device__ __forceinline__ int migration_piecewise<Functor_m1,Functor_m2>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
+__host__ __device__ __forceinline__ float migration_piecewise<Functor_m1,Functor_m2>::operator()(const int pop_FROM, const int pop_TO, const int generation) const{
 	if(generation >= inflection_point+generation_shift){ return m2(pop_FROM,pop_TO,generation-generation_shift); }
 	return m1(pop_FROM,pop_TO,generation-generation_shift);
 }

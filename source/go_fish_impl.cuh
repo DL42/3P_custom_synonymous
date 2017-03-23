@@ -230,9 +230,9 @@ __host__ void set_Index_Length(sim_struct & mutations, const int num_mutations, 
 	if(limit == 0){ limit = final_generation - generation; }
 	for(int gen = generation+1; gen <= (generation+limit) && gen <= final_generation; gen++){
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
-			int Nchrom_e = 2*demography(pop,generation)/(1+FI(pop,generation));
-			if(Nchrom_e == 0 || mutations.h_extinct[pop]){ continue; }
-			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
+			int Nchrom_e = 2*demography(pop,gen)/(1+FI(pop,gen));
+			if(Nchrom_e <= 0 || mutations.h_extinct[pop]){ continue; }
+			mutations.h_array_Length += mu_rate(pop,gen)*Nchrom_e*num_sites + 7.f*sqrtf(mu_rate(pop,gen)*Nchrom_e*num_sites); //maximum distance of floating point normal rng is <7 stdevs from mean
 		}
 	}
 
@@ -440,12 +440,14 @@ __host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor
 		if(fi < 0) { fprintf(stderr,"inbreeding error, inbreeding coefficient < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		if(fi > 1) { fprintf(stderr,"inbreeding error, inbreeding coefficient > 1\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		for(int pop2 = 0; pop2 < num_pop; pop2++){
-			float m = mig_prop(pop,pop2,generation);
-			migration += (double)m;
-			if(m < 0){ fprintf(stderr,"migration error, migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
-			if(m > 0 && (N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"migration error, migration from non-existant population\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
+			float m_from = mig_prop(pop,pop2,generation);
+			if(m_from < 0){ fprintf(stderr,"migration error, migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
+			if(m_from > 0 && ((N <= 0 || mutations.h_extinct[pop]) && !(demography(pop2,generation) <= 0 || mutations.h_extinct[pop2]))){ fprintf(stderr,"migration error, migration from non-existant population\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); } //if population doesn't exist, doesn't matter if anyone migrates to it
+
+			float m_to = mig_prop(pop2,pop,generation);
+			migration += (double)m_to;
 		}
-		if((float)migration != 1.f){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_from %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
+		if((float)migration != 1.f && !(N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_TO %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
 	}
 }
 
@@ -455,9 +457,9 @@ __host__ void calc_new_mutations_Index(sim_struct & mutations, const Functor_mut
 	mutations.h_new_mutation_Indices[0] = mutations.h_mutations_Index;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
 		int Nchrom_e = 2*demography(pop,generation)/(1+FI(pop,generation));
-		if(Nchrom_e == 0 || mutations.h_extinct[pop]){ continue; }
 		float mu = mu_rate(pop, generation);
 		float lambda = mu*Nchrom_e*mutations.h_num_sites;
+		if(Nchrom_e == 0 || lambda == 0 || mutations.h_extinct[pop]){ mutations.h_new_mutation_Indices[pop+1] = mutations.h_new_mutation_Indices[pop]; continue; }
 		int temp = max(RNG::ApproxRandPois1(lambda, lambda, mu, Nchrom_e*mutations.h_num_sites, seed, 1, generation, pop),0);
 		num_new_mutations += temp;
 		mutations.h_new_mutation_Indices[pop+1] = num_new_mutations + mutations.h_mutations_Index;

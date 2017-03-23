@@ -261,7 +261,7 @@ struct migration_piecewise
 	Functor_m2 m2;  /**<\brief second migration function */ /**<\t*/
 	inline migration_piecewise(); /**<\brief default constructor */
 	inline migration_piecewise(Functor_m1 m1_in, Functor_m2 m2_in, int inflection_point, int generation_shift = 0); /**<\brief constructor */
-	__host__ __device__ __forceinline__ int operator()(const int pop_FROM, const int pop_TO, const int generation) const; //!<\copybrief Sim_Model::migration_constant_equal::operator()(const int pop_FROM, const int pop_TO, const int generation) const
+	__host__ __device__ __forceinline__ float operator()(const int pop_FROM, const int pop_TO, const int generation) const; //!<\copybrief Sim_Model::migration_constant_equal::operator()(const int pop_FROM, const int pop_TO, const int generation) const
 };
 /* ----- end of migration models ----- *//** @} */
 
