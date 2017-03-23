@@ -15,8 +15,7 @@ void run_speed_test()
 	Sim_Model::F_mu_h_constant inbreeding(1.f); 								//constant inbreeding (fully inbred)
 	Sim_Model::demography_constant demography(pow(10.f,5)*(1+inbreeding(0,0)));	//200,000 haploid individuals in population, set to maintain consistent effective number of chromosomes invariant w.r.t. inbreeding
 	Sim_Model::migration_constant_equal migration; 								//constant, 0, migration rate
-	float gamma = 0; 															//effective selection (neutral)
-	Sim_Model::selection_constant selection(gamma/(2*demography(0,0))); 		//constant selection coefficient (invariant wrt inbreeding and population size)
+	Sim_Model::selection_constant selection(0); 								//constant, neutral, selection coefficient
 	Sim_Model::F_mu_h_constant dominance(0.f); 									//constant allele dominance (effectively ignored since F = 1)
     a.sim_input_constants.num_generations = pow(10.f,3);						//1,000 generations in simulation
     a.sim_input_constants.seed1 = 0xbeeff00d; 									//random number seeds
