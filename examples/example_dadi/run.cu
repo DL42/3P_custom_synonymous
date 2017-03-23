@@ -6,63 +6,82 @@
 
 #include "go_fish.cuh"
 #include "spectrum.h"
-
-double gx(double x, double gamma, double mu_site, double L){
-	if(gamma != 0) return 2*mu_site*L*(1-exp(-1*gamma*(1-x)))/((1-exp(-1*gamma))*x*(1-x));
-	return 2*mu_site*L/x;
-}
-
-
-double* G(double gamma,double mu_site, double L, double N_chrome){
-	double total_SNPs = 0;
-	double* g = new double[(int)N_chrome];
-
-	for(int j = 1; j <= (N_chrome - 1); j++){
-		double freq = j/(N_chrome);
-		g[j] = gx(freq, gamma, mu_site, L);
-		total_SNPs += g[j];
-	}
-
-	g[0] = L-total_SNPs;
-
-	return g;
-}
+#include <vector>
 
 void run_validation_test(){
+	typedef Sim_Model::demography_constant dem_const;
+	typedef Sim_Model::demography_population_specific<dem_const,dem_const> dem_pop_const;
+	typedef Sim_Model::demography_piecewise<dem_pop_const,dem_pop_const> init_expansion;
+	typedef Sim_Model::demography_exponential_growth exp_growth;
+	typedef Sim_Model::demography_population_specific<dem_const,exp_growth> dem_pop_const_exp;
+
+	typedef Sim_Model::migration_constant_equal mig_const;
+	typedef Sim_Model::migration_constant_directional<mig_const> mig_dir;
+	typedef Sim_Model::migration_constant_directional<mig_dir> mig_split;
+	typedef Sim_Model::migration_piecewise<mig_const,mig_split> split_pop0;
+
 	GO_Fish::allele_trajectories b;
-	float h = 0.5; //dominance
-	float F = 0.0; //inbreeding
-	int N_ind = pow(10.f,5);//300;// //bug at N_ind = 300, F =0.0/1.0, gamma = 0//number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
-    float gamma = 0*(1+F); //effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and selection are invariant with respect to inbreeding
-	float mu = pow(10.f,-9); //per-site mutation rate
-	int total_number_of_generations = pow(10.f,3);//0;//1000;//1;//36;//
-	b.sim_input_constants.num_generations = total_number_of_generations;
-	b.sim_input_constants.num_sites = 20*2*pow(10.f,7); //number of sites
-	float m = 0.00; //migration rate
-	b.sim_input_constants.num_populations = 1; //number of populations
-	int num_iter = 50;
-    b.sim_input_constants.compact_interval = 20;
-   // double* expectation = G(gamma,mu, b.sim_input_constants.num_sites, 2.0*N_ind/(1.0+F));
-    //double expected_total_SNPs = b.sim_input_constants.num_sites-expectation[0];
-    Spectrum::SFS * my_spectra = new Spectrum::SFS[num_iter];
+	b.sim_input_constants.num_populations = 2; 				//number of populations
+	b.sim_input_constants.num_generations = pow(10.f,3)+1;	//1,000 generations
 
-    cudaEvent_t start, stop;
+	Sim_Model::F_mu_h_constant codominant(0.5f); 			//dominance (co-dominant)
+	Sim_Model::F_mu_h_constant outbred(0.f); 				//inbreeding (outbred)
+	Sim_Model::F_mu_h_constant mutation(pow(10.f,-9)); 		//per-site mutation rate 10^-9
+
+	int N_ind = pow(10.f,4)*(1+outbred(0,0));				//initial number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
+	dem_const pop0(N_ind);
+	dem_const pop1(0);
+	dem_pop_const gen0(pop0,pop1,1);
+	dem_const pop0_final(2*N_ind);
+	dem_pop_const gen1(pop0_final,pop1,1);
+	init_expansion gen_0_1(gen0,gen1,1);
+	exp_growth pop1_gen100((log(100.f)/(900.f)),0.05*N_ind,100);
+	//exp_growth pop1_gen100((log(1.f)/900.f),5*N_ind,100);
+	dem_pop_const_exp gen100(pop0_final,pop1_gen100,1);
+	Sim_Model::demography_piecewise<init_expansion,dem_pop_const_exp> demography_model(gen_0_1,gen100,100);
+	//for(int i = 0; i < 1000; i++){ std::cout<< demography_model(0,i) << "\t" << demography_model(1,i) << std::endl; }
+
+	mig_const no_mig_pop0;
+	mig_dir no_pop1_gen0(0.f,1,1,no_mig_pop0);
+	mig_split create_pop1(1.f,0,1,no_pop1_gen0);
+	split_pop0 migration_split(no_mig_pop0,create_pop1,100);
+	float mig = 1.f/(2.f*N_ind);
+	mig_const mig_prop(mig,b.sim_input_constants.num_populations);	//migration rate
+	Sim_Model::migration_piecewise<split_pop0,mig_const> mig_model(migration_split,mig_prop,100+1);
+	//for(int i = 0; i < 1000; i++){ std::cout<< mig_model(0,0,i) << "\t" << mig_model(0,1,i) << "\t" << mig_model(1,0,i) << "\t" << mig_model(1,1,i) << std::endl; }
+
+	float gamma = -4*(1+outbred(0,0)); 								//effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and selection are invariant with respect to inbreeding
+	Sim_Model::selection_constant weak_del(gamma,demography_model,outbred);
+
+	b.sim_input_constants.compact_interval = 30;			//compact interval
+	b.sim_input_constants.num_sites = 100*2*pow(10.f,7); 	//number of sites
+	int sample_size = 1000;									//number of samples in SFS
+
+	int num_iter = 50;										//number of iterations
+    Spectrum::SFS my_spectra;
+
+    cudaEvent_t start, stop;								//CUDA timing functions
     float elapsedTime;
-    int sample_size = 200;
-	for(int i = 0; i < num_iter; i++){
-		if(i == round(num_iter/2.f)){
-			cudaEventCreate(&start);
-			cudaEventCreate(&stop);
-			cudaEventRecord(start, 0);
-		}
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
 
-		b.sim_input_constants.seed1 = 0xbeeff00d + 2*i; //random number seeds
-		b.sim_input_constants.seed2 = 0xdecafbad - 2*i;
-		GO_Fish::run_sim((b), Sim_Model::F_mu_h_constant(mu), Sim_Model::demography_constant(N_ind), Sim_Model::migration_constant_equal(m,b.sim_input_constants.num_populations), Sim_Model::selection_constant(gamma,Sim_Model::demography_constant(N_ind),Sim_Model::F_mu_h_constant(F)), Sim_Model::F_mu_h_constant(F), Sim_Model::F_mu_h_constant(h), Sim_Model::bool_off(), Sim_Model::bool_off());
-		Spectrum::site_frequency_spectrum(my_spectra[i],(b),0,0,sample_size);
-		//if(i==0){ std::cout<< "dispersion/chi-gram of number of mutations:"<<std::endl; }
-		//std::cout<<b.maximal_num_mutations()<<std::endl;
-		//std::cout<< (int)expected_total_SNPs << "\t" << b.maximal_num_mutations() << "\t" << ((b.maximal_num_mutations() - expected_total_SNPs)/expected_total_SNPs) << std::endl;
+	float avg_num_mutations = 0;
+	float avg_num_mutations_sim = 0;
+	std::vector<std::vector<float> > results(num_iter); 	//storage for SFS results
+	for(int j = 0; j < num_iter; j++){ results[j].reserve(sample_size); }
+
+	for(int j = 0; j < num_iter; j++){
+		if(j == num_iter/2){ cudaEventRecord(start, 0); } 	//use 2nd half of the simulations to time simulation runs + SFS creation
+
+		b.sim_input_constants.seed1 = 0xbeeff00d + 2*j; 	//random number seeds
+		b.sim_input_constants.seed2 = 0xdecafbad - 2*j;
+		GO_Fish::run_sim(b, mutation, demography_model, mig_model, weak_del, outbred, codominant, Sim_Model::bool_off(), Sim_Model::bool_off());
+		Spectrum::site_frequency_spectrum(my_spectra,b,0,1,sample_size);
+
+		avg_num_mutations += ((float)my_spectra.num_mutations)/num_iter;
+		avg_num_mutations_sim += b.maximal_num_mutations()/num_iter;
+		for(int i = 0; i < sample_size; i++){ results[j][i] = my_spectra.frequency_spectrum[i]; /*if(i == 1){ std::cout<< results[j][i]/(b.num_sites() - results[j][0]) << std::endl; } */}
+		//std::cout<<std::endl;
 	}
 
 	elapsedTime = 0;
@@ -72,25 +91,18 @@ void run_validation_test(){
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
-	std::cout<<"\ntime elapsed: "<< 2*elapsedTime/num_iter<<std::endl;
-	//----- end speed test -----
-	//
-	//if(my_spectra[0].frequency_spectrum[0] < 0){ std::cout<<std::endl<<0<<"\t"<<my_spectra[0].frequency_spectrum[0]<<std::endl; }
 	std::cout<<std::endl<<"SFS :"<<std::endl<< "allele count\tavg# mutations\tstandard dev\tcoeff of variation (aka relative standard deviation)"<< std::endl;
-	float avg_num_mutations = 0;
 	for(int i = 1; i < sample_size; i++){
 		double avg = 0;
 		double std = 0;
 		float num_mutations;
-		for(int j = 0; j < num_iter; j++){ num_mutations = my_spectra[j].num_mutations; avg += my_spectra[j].frequency_spectrum[i]/(num_iter*num_mutations); if(i==1){ avg_num_mutations += ((float)num_mutations)/num_iter; }}
-		for(int j = 0; j < num_iter; j++){ num_mutations = my_spectra[j].num_mutations; std += 1.0/(num_iter-1)*pow(my_spectra[j].frequency_spectrum[i]/num_mutations-avg,2); }
+		for(int j = 0; j < num_iter; j++){ num_mutations = b.num_sites() - results[j][0]; avg += results[j][i]/(num_iter*num_mutations); }
+		for(int j = 0; j < num_iter; j++){ num_mutations = b.num_sites() - results[j][0]; std += 1.0/(num_iter-1)*pow(results[j][i]/num_mutations-avg,2); }
 		std = sqrt(std);
 		std::cout<<i<<"\t"<<avg<<"\t"<<std<<"\t"<<(std/avg)<<std::endl;
-		//std::cout<<avg<<std::endl;
 	}
-	std::cout<<avg_num_mutations<<std::endl;
-	//delete [] expectation;
-	delete [] my_spectra;
+	std::cout<<avg_num_mutations<<"\t"<<avg_num_mutations_sim<<std::endl;
+	std::cout<<"\ntime elapsed (ms): "<< 2*elapsedTime/num_iter<<std::endl;
 }
 
 ////////////////////////////////////////////////////////////
