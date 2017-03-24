@@ -120,7 +120,7 @@ void run_validation_test_simple(){
 
 	int N_ind = pow(10.f,4)*(1+outbred(0,0));				//initial number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
 	dem_const pop0(N_ind);
-	dem_const pop0_final(2*N_ind);
+	dem_const pop0_final(5*N_ind);
 	init_expansion demography_model(pop0,pop0_final,1);
 
 

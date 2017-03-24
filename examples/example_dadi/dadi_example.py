@@ -89,8 +89,9 @@ def runModel_simple(nuF, TF):
 time1 = time.time()
 
 #model = runModel(2, 0.05, 5, 1, 0.01, 0.09)
+model = runModel(2, 0.05, 5, 1, 0.005, 0.045)
 #model = runModel(2, 5, 5, 1, 0.01, 0.09)
-model = runModel_simple(2,0.1)
+#model = runModel_simple(5,0.05)
 time2 = time.time()
 print "total runtime = " + str(time2-time1)
 model = model/model.S()
