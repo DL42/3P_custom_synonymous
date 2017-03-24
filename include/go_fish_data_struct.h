@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string>
 #include <sstream>
+#include <cstring>
 
 //!\cond
 namespace Spectrum_details{ class transfer_allele_trajectories; } //for passing data to SPECTRUM functions
