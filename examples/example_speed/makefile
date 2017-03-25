@@ -34,7 +34,7 @@
 # 	Remove all objects and EXEC_FILE from build_path
 #############################
 
-build_path = ../../../build/example_speed_linux
+build_path = ../../../build/example_speed
 api_path_source = ../../source
 api_path_include = ../../include
 EXEC_FILE = GOFish
