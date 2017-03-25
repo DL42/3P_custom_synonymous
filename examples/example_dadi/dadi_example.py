@@ -38,19 +38,9 @@ def prior_onegrow_mig((nu1F, nu2B, nu2F, m, Tp, T), (n1,n2), pts):
     sfs = dadi.Spectrum.from_phi(phi, (n1,n2), (xx,yy))
     return sfs
 
-def one_change((nuF, TF), ns, pts):
-
-    xx = dadi.Numerics.default_grid(pts)
-    gamma_model = -2;
-    phi = dadi.PhiManip.phi_1D(xx, gamma = gamma_model)
-    phi = dadi.Integration.one_pop(phi, xx, TF, nuF, gamma = gamma_model)
-
-    sfs = dadi.Spectrum.from_phi(phi, ns, (xx,))
-    return sfs
-
 def runModel(nu1F, nu2B, nu2F, m, Tp, T):
 
-    ns = (0,1000)
+    ns = (0,1001)
     print 'sample sizes:', ns
 
     # These are the grid point settings will use for extrapolation.
@@ -66,34 +56,14 @@ def runModel(nu1F, nu2B, nu2F, m, Tp, T):
     model = func_ex(params, ns, pts_l)
     model = model.marginalize((0,))
     return model
-
-def runModel_simple(nuF, TF): 
-
-    ns = (1000,)
-    print 'sample sizes:', ns
-
-    # These are the grid point settings will use for extrapolation.
-    pts_l = [110,120,130]
-
-    func = one_change
-    params = array([nuF, TF])
-
-    # Make the extrapolating version of the demographic model function.
-    func_ex = dadi.Numerics.make_extrap_func(func)
-
-    # Calculate the model AFS.
-    model = func_ex(params, ns, pts_l)
-    return model
 	
 
 time1 = time.time()
 
-#model = runModel(2, 0.05, 5, 1, 0.01, 0.09)
 model = runModel(2, 0.05, 5, 1, 0.005, 0.045)
-#model = runModel(2, 5, 5, 1, 0.01, 0.09)
-#model = runModel_simple(5,0.05)
+
 time2 = time.time()
-print "total runtime = " + str(time2-time1)
+print "total runtime (s): " + str(time2-time1)
 model = model/model.S()
 
 for i in range(0,len(model)):
