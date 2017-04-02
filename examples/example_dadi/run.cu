@@ -8,6 +8,18 @@
 #include "spectrum.h"
 #include <vector>
 
+/*
+ * population 0 starts of in mutation-selection equilibrium at size N_ind
+ * population 0 grows to size 2*N_ind at generation 1
+ * at generation 0.01*N_ind, population 1 splits off from population 0
+ * population 1's initial size is 0.05*N_ind
+ * population 1 grows exponentially to size 5*N_ind for 0.09*N_ind generations
+ *
+ * migration between populations is at rate 1/(2*N_ind) starting at generation 0.01*N_ind+1
+ *
+ * selection is weakly deleterious (gamma = -4), mutations are co-dominant (h = 0.5), populations are outbred (F = 0)
+ */
+
 void run_validation_test(){
 	typedef Sim_Model::demography_constant dem_const;
 	typedef Sim_Model::demography_population_specific<dem_const,dem_const> dem_pop_const;
@@ -32,23 +44,21 @@ void run_validation_test(){
 	int N_ind = scale_factor*pow(10.f,4)*(1+outbred(0,0));				//initial number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
 	dem_const pop0(N_ind);
 	dem_const pop1(0);
-	dem_pop_const gen0(pop0,pop1,1);
+	dem_pop_const gen0(pop0,pop1,1);									//intial population size of N_ind for pop 0 and 0 for pop 1
 	dem_const pop0_final(2*N_ind);
 	dem_pop_const gen1(pop0_final,pop1,1);
-	init_expansion gen_0_1(gen0,gen1,1);
+	init_expansion gen_0_1(gen0,gen1,1);								//population 0 grows to size 2*N_ind
 	exp_growth pop1_gen100((log(100.f)/(scale_factor*900.f)),0.05*N_ind,scale_factor*100);
-	dem_pop_const_exp gen100(pop0_final,pop1_gen100,1);
+	dem_pop_const_exp gen100(pop0_final,pop1_gen100,1);					//population 1 grows exponentially from size 0.05*N_ind to 5*N_ind
 	Sim_Model::demography_piecewise<init_expansion,dem_pop_const_exp> demography_model(gen_0_1,gen100,scale_factor*100);
-	//for(int i = 0; i < 1000; i++){ std::cout<< demography_model(0,i) << "\t" << demography_model(1,i) << std::endl; }
 
 	mig_const no_mig_pop0;
 	mig_dir no_pop1_gen0(0.f,1,1,no_mig_pop0);
-	mig_split create_pop1(1.f,0,1,no_pop1_gen0);
+	mig_split create_pop1(1.f,0,1,no_pop1_gen0);						//individuals from population 0 migrate to form population 1
 	split_pop0 migration_split(no_mig_pop0,create_pop1,scale_factor*100);
 	float mig = 1.f/(2.f*N_ind);
-	mig_const mig_prop(mig,b.sim_input_constants.num_populations);		//migration rate
+	mig_const mig_prop(mig,b.sim_input_constants.num_populations);		//constant and equal migration between populations
 	Sim_Model::migration_piecewise<split_pop0,mig_const> mig_model(migration_split,mig_prop,scale_factor*100+1);
-	//for(int i = 0; i < 1000; i++){ std::cout<< mig_model(0,0,i) << "\t" << mig_model(0,1,i) << "\t" << mig_model(1,0,i) << "\t" << mig_model(1,1,i) << std::endl; }
 
 	float gamma = -4*(1+outbred(0,0)); 									//effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and selection are invariant with respect to inbreeding
 	Sim_Model::selection_constant weak_del(gamma,demography_model,outbred);
@@ -90,6 +100,7 @@ void run_validation_test(){
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
 
+	//output SFS simulation results
 	std::cout<<"SFS :"<<std::endl<< "allele count\tavg# mutations\tstandard dev\tcoeff of variation (aka relative standard deviation)"<< std::endl;
 	for(int i = 1; i < sample_size; i++){
 		double avg = 0;
