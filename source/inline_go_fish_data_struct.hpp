@@ -202,7 +202,7 @@ inline std::ostream & operator<<(std::ostream & stream, const mutID & id){ strea
  * This is followed by the feature information (e.g. generation, number of mutations, population size, population extinction) from each time sample (if any).
  * Each feature of a time sample is a row in the stream while each time sample is a major column and each population is a minor column. Finally, the allele trajectory of each
  * mutation (if any) is added to the stream. The allele trajectories are mutation row-ordered (by `origin_generation` then `origin_population` then `origin_threadID`),
- * where each major column is a time sample and each minor column is a population. All columns are tab-delimited. An example is given the output file XXXXX. \n\n
+ * where each major column is a time sample and each minor column is a population. All columns are tab-delimited. An example is provided in example_compilation/bfile.dat. \n\n
  * Stream can be fed into terminal output, file output, or into an `istream` for extraction with the `>>` operator.
  *  */
 inline std::ostream & operator<<(std::ostream & stream, allele_trajectories & A){

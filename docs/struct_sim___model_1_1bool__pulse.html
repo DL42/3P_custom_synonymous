@@ -137,7 +137,8 @@ Pulse bool functors can be nested within each other and with piecewise bool func
 <br />
 Sampling strategy that takes time samples of generation 0 &amp; generations [100,110] inclusive (&amp; final generation is always sampled).</p>
 <div class="fragment"><div class="line"><span class="keyword">typedef</span> <a class="code" href="struct_sim___model_1_1bool__off.html">Sim_Model::bool_off</a> sampling_off;</div><div class="line"><span class="keyword">typedef</span> <a class="code" href="struct_sim___model_1_1bool__on.html">Sim_Model::bool_on</a> sampling_on;</div><div class="line"><span class="keyword">typedef</span> <a class="code" href="struct_sim___model_1_1bool__pulse.html">Sim_Model::bool_pulse&lt;sampling_off,sampling_on&gt;</a> pulse_on;</div><div class="line"><span class="keyword">typedef</span> <a class="code" href="struct_sim___model_1_1bool__piecewise.html">Sim_Model::bool_piecewise&lt;pulse_on,sampling_on&gt;</a> switch_on;</div><div class="line"><span class="keyword">typedef</span> <a class="code" href="struct_sim___model_1_1bool__piecewise.html">Sim_Model::bool_piecewise&lt;switch_on,sampling_off&gt;</a> switch_off;</div><div class="line"></div><div class="line">pulse_on sample_generation_0; <span class="comment">//default will pulse on at generation 0</span></div><div class="line">switch_on sample_gen_0_100_XX(sample_generation_0,sampling_on(),100); <span class="comment">//samples starting generation, will start sampling at generation after 100</span></div><div class="line">switch_off sample_gen_0_100_110(sample_gen_0_100_XX,sampling_off(),111); <span class="comment">//sampling strategy, will take time samples of generation 0 &amp; generations [100,110] inclusive (&amp; final generation is always sampled)</span></div></div><!-- fragment --><p> Note mutations present in these generations will be preserved until the final generation of the simulation. </p>
-
+<dl><dt><b>Examples: </b></dt><dd><a class="el" href="_example3-_compilation-example.html#_a14">Example3-Compilation</a>.</dd>
+</dl>
 <p>Definition at line <a class="el" href="go__fish_8cuh_source.html#l00298">298</a> of file <a class="el" href="go__fish_8cuh_source.html">go_fish.cuh</a>.</p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="a114afa420bdb7bde716f9a4eb9ec0eca"></a>
@@ -319,7 +320,7 @@ template&lt;typename Functor_default , typename Functor_action &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Functor_default , typename Functor_action &gt; </div>
+template&lt;typename Functor_default, typename Functor_action&gt; </div>
       <table class="memname">
         <tr>
           <td class="memname">int <a class="el" href="struct_sim___model_1_1bool__pulse.html">Sim_Model::bool_pulse</a>&lt; Functor_default, Functor_action &gt;::pulse</td>
@@ -339,7 +340,7 @@ template&lt;typename Functor_default , typename Functor_action &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Functor_default , typename Functor_action &gt; </div>
+template&lt;typename Functor_default, typename Functor_action&gt; </div>
       <table class="memname">
         <tr>
           <td class="memname">int <a class="el" href="struct_sim___model_1_1bool__pulse.html">Sim_Model::bool_pulse</a>&lt; Functor_default, Functor_action &gt;::generation_shift</td>
@@ -360,7 +361,7 @@ template&lt;typename Functor_default , typename Functor_action &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Functor_default , typename Functor_action &gt; </div>
+template&lt;typename Functor_default, typename Functor_action&gt; </div>
       <table class="memname">
         <tr>
           <td class="memname">Functor_default <a class="el" href="struct_sim___model_1_1bool__pulse.html">Sim_Model::bool_pulse</a>&lt; Functor_default, Functor_action &gt;::f_default</td>
@@ -380,7 +381,7 @@ template&lt;typename Functor_default , typename Functor_action &gt; </div>
 <div class="memitem">
 <div class="memproto">
 <div class="memtemplate">
-template&lt;typename Functor_default , typename Functor_action &gt; </div>
+template&lt;typename Functor_default, typename Functor_action&gt; </div>
       <table class="memname">
         <tr>
           <td class="memname">Functor_action <a class="el" href="struct_sim___model_1_1bool__pulse.html">Sim_Model::bool_pulse</a>&lt; Functor_default, Functor_action &gt;::f_action</td>

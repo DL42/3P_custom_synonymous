@@ -58,7 +58,7 @@ struct selection_sine_wave
 	float pi; /**<\brief Frequency of sine wave */ /**<\t*/
 	float rho; /**<\brief Phase of sine wave */ /**<\t*/
 	float D; /**<\brief Offset of sine wave */ /**<\t*/
-	int generation_shift; /**<\brief number of generations to shift function backwards */ /**< useful if you are starting the simulation from a previous simulation state and this function is expecting to start at 0 or any scenario where you want to shift the generation of the function relative to the simulation generation */
+	int generation_shift; /**<\brief number of generations to shift function backwards */ /**<\details useful if you are starting the simulation from a previous simulation state and this function is expecting to start at 0 or any scenario where you want to shift the generation of the function relative to the simulation generation */
 
 	inline selection_sine_wave(); /**<\brief default constructor */ /**<all parameters set to `0`*/
 	inline selection_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0); /**<\brief constructor */
@@ -153,9 +153,9 @@ struct F_mu_h_piecewise
 ///functor: single, constant population size (\p N individuals) across populations and over time
 struct demography_constant
 {
-	int N; /**<\brief population size (individuals) constant */ /**\t*/
+	int N; /**<\brief population size (individuals) constant */ /**<\t*/
 	inline demography_constant(); /**<\brief default constructor */ /**<`N = 0`*/
-	inline demography_constant(int p); /**<\brief constructor */ /**\t*/
+	inline demography_constant(int p); /**<\brief constructor */ /**<\t*/
 	__host__ __device__  __forceinline__ int operator()(const int population, const int generation) const; /**<\brief Demographic operator, returns population size (individuals), \p N, for a given `population, generation` */ /**<\t*/
 };
 
@@ -176,8 +176,8 @@ struct demography_sine_wave
 ///functor: models exponential growth of population size (individuals) over time
 struct demography_exponential_growth
 {
-	float rate; /**<\brief exponential growth rate */ /**\t*/
-	int initial_population_size; /**<\brief initial population size */ /**\t*/
+	float rate; /**<\brief exponential growth rate */ /**<\t*/
+	int initial_population_size; /**<\brief initial population size */ /**<\t*/
 	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
 	inline demography_exponential_growth(); //!<\copydoc Sim_Model::selection_sine_wave::selection_sine_wave()
@@ -188,9 +188,9 @@ struct demography_exponential_growth
 ///functor: models logistic growth of population size (individuals) over time
 struct demography_logistic_growth
 {
-	float rate; /**<\brief logistic growth rate */ /**\t*/
-	int initial_population_size; /**<\brief initial population size */ /**\t*/
-	int carrying_capacity; /**<\brief carrying capacity */ /**\t*/
+	float rate; /**<\brief logistic growth rate */ /**<\t*/
+	int initial_population_size; /**<\brief initial population size */ /**<\t*/
+	int carrying_capacity; /**<\brief carrying capacity */ /**<\t*/
 	int generation_shift; //!<\copydoc Sim_Model::selection_sine_wave::generation_shift
 
 	inline demography_logistic_growth(); //!<\copydoc Sim_Model::selection_sine_wave::selection_sine_wave()

@@ -10,8 +10,8 @@
 //scenario: two populations start in mutation-selection-migration equilibrium with weakly deleterious mutations, simulate what happens after mutations in population 1 become beneficial (1,000 generations)
 //migration set in main.cpp
 void run_migration_equilibrium_simulation(GO_Fish::allele_trajectories & a, float migration_rate){
-	using namespace Sim_Model;										//using namespace Sim_Model (avoids Sim_Model::, but compiler can get confused if multiple functions from different namespaces have same name and Sim_Model:: shows ownership)
-	using namespace GO_Fish;										//using namespace GO_Fish (avoids GO_Fish::, but compiler can get confused if multiple functions from different namespaces have same name and GO_Fish:: shows ownership)
+	using namespace Sim_Model;								//using namespace Sim_Model (avoids Sim_Model::, but compiler can get confused if multiple functions from different namespaces have same name and Sim_Model:: shows ownership)
+	using namespace GO_Fish;								//using namespace GO_Fish (avoids GO_Fish::, but compiler can get confused if multiple functions from different namespaces have same name and GO_Fish:: shows ownership)
 
 	a.sim_input_constants.num_sites = 20*pow(10.f,7); 		//number of sites
 	a.sim_input_constants.num_populations = 2;				//number of populations

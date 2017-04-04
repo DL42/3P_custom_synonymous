@@ -1,0 +1,27 @@
+/*! \page page1 General Usage 
+ * \brief Tips and Troubleshooting
+ *
+ *  Lorem Ipsum 
+ */
+ 
+ /*! \example Example1-Speed 
+ * Tests the speed of a neutral, constant population simulation on a GPU
+ *  
+ * \include examples/example_speed/run.cu 
+ */
+ 
+/*! \example Example2-DaDi
+ * Compares SFS generation with GO Fish against DaDi 
+ *  
+ *  \include examples/example_dadi/run.cu 
+ */
+ 
+ /*! \example Example3-Compilation
+ * Compilation of different API features, including compilation 
+ * 
+ * \include examples/example_compilation/run.cu
+ * \include examples/example_compilation/main.cpp
+ * \include examples/example_compilation/makefile
+ * \include examples/example_compilation/makefile_nvcc
+ * \include examples/example_compilation/makefile_gpp
+ */

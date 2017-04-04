@@ -4,5 +4,6 @@ var searchData=
   ['go_5ffish',['GO_Fish',['../namespace_g_o___fish.html',1,'']]],
   ['go_5ffish_2ecuh',['go_fish.cuh',['../go__fish_8cuh.html',1,'']]],
   ['go_5ffish_5fdata_5fstruct_2eh',['go_fish_data_struct.h',['../go__fish__data__struct_8h.html',1,'']]],
-  ['go_20fish_20v0_2e1',['GO Fish v0.1',['../index.html',1,'']]]
+  ['go_20fish_20v0_2e1',['GO Fish v0.1',['../index.html',1,'']]],
+  ['general_20usage',['General Usage',['../page1.html',1,'']]]
 ];

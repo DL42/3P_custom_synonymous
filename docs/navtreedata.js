@@ -2,6 +2,7 @@ var NAVTREE =
 [
   [ "Parallel PopGen Package", "index.html", [
     [ "GO Fish v0.1", "index.html", null ],
+    [ "General Usage", "page1.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Namespaces", null, [
       [ "Namespace List", "namespaces.html", "namespaces" ],
@@ -21,14 +22,15 @@ var NAVTREE =
     ] ],
     [ "Files", null, [
       [ "File List", "files.html", "files" ]
-    ] ]
+    ] ],
+    [ "Examples", "examples.html", "examples" ]
   ] ]
 ];
 
 var NAVTREEINDEX =
 [
-"annotated.html",
-"struct_spectrum_1_1_s_f_s.html#a68932f26bb024af3c72dd561dac35128"
+"_example1-_speed-example.html",
+"struct_spectrum_1_1_s_f_s.html#a2e594f5222ea22a2bf645dbdea38321d"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';
