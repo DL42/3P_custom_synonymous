@@ -1,27 +1,75 @@
-/*! \page page1 General Usage 
- * \brief Tips and Troubleshooting
+/*! \mainpage Getting Started 
+ * 
+ * Important links:\n
+ * \li \subpage README.md \n
+ * \li <a href="https://github.com/DL42/ParallelPopGen/issues">Bug Reporting, Feature Request, To Do, and Discussion</a> \n
+ * \li <a href="https://github.com/DL42/ParallelPopGen/releases"> Download Stable Releases</a> \n
+ * \li <a href="https://github.com/DL42/ParallelPopGen">GitHub repository for latest changes</a> \n
+ * \tableofcontents
  *
- *  Lorem Ipsum 
+ * 
+ * \section API API Overview
+ * This is an API for performing population genetics simulations and analyses in parallel on the GPU.
+ Below is a brief description of the information found in each tab: 
+ * \li <a href="namespaces.html">Namespaces</a> provides all functions and classes related to an API (e.g. GO_Fish, Sim_Model, and Spectrum) 
+ * \li <a href="modules.html">Modules</a> page organizes the Sim_Model namespace into groups of functions (e.g. \ref selection) - each module describes the parameters of the function group and how to write custom functions
+ * \li <a href="files.html">Files</a> shows the file hierarchy, the functions and classes in each file, and the detailed description of the include file provides information on how to include the files for a project 
+ * \li <a href="annotated.html">Classes</a> shows all classes and structs organized by namespace 
+ * \li <a href="examples.html">Examples</a> provides code examples and custom makefiles found in the examples/ folder 
+ * 
+ * GO_Fish is the: \copybrief GO_Fish While Sim_Model contains: \copybrief Sim_Model And Spectrum is the: \copybrief Spectrum
+ Sim_Model is optional as the user is free to write their own population genetics and simulation control functions following the rules laid out in each function group's <a href="modules.html">Module</a>.
+   
+ * \subsection Parameters Population Genetics Parameters
+ * \subsection Tips
+ * \subsection Troubleshooting
  */
  
  /*! \example Example1-Speed 
- * Tests the speed of a neutral, constant population simulation on a GPU
- *  
- * \include examples/example_speed/run.cu 
+ * A simple, benchmarking scenario. \n\n
+ * Below code tests the speed of a neutral, constant population simulation on a GPU: 
+ * \includelineno examples/example_speed/run.cu 
+  * Below is the makefile:
+ * \includelineno examples/example_speed/makefile
  */
  
 /*! \example Example2-DaDi
- * Compares SFS generation with GO Fish against DaDi 
- *  
- *  \include examples/example_dadi/run.cu 
+ * Compares SFS generation using executable GOFish (GO_Fish and Spectrum) against δaδi. \n\n
+ * See \ref Parameters in \ref index for how to translate parameters from δaδi to GO_Fish in general. 
+ * \image html examples/example_dadi/demography.jpg "Demography of population 0 (AF) and population 1 (EU)"
+ * A complex demographic scenario was chosen as a test case to compare the GO_Fish simulation against an already established SFS method, δaδi. 
+ The demographic model is from the YRI-CEU (AF-EU) δaδi example. Using δaδi parameterization to describe the model, the ancestral population, 
+ in mutation-selection equilibrium, undergoes an immediate expansion from \em N<sub>ref</sub> to 2\em N<sub>ref</sub> individuals. After time \em T1 (= 0.005) the population splits 
+ into two with a constant, equivalent migration, \em m<sub>EU-AF</sub> (= 1) between the now split populations. The second (EU) population undergoes a severe bottleneck 
+ of 0.05\em N<sub>ref</sub> when splitting from the first (AF) population, followed by exponential growth over time \em T2 (= 0.045) to size 5\em N<sub>ref</sub>. 
+ The mutations are weakly deleterious and co-dominant (2\em N<sub>ref</sub>s = -2, \em h =0.5), where 1001 samples were taken of the 
+ EU population. The spectrum was then normalized by the number of segregating sites. The corresponding GO Fish parameters for the evolutionary scenario, 
+ given a mutation rate of 1x10<sup>-9</sup> per site, 2x10<sup>9</sup> sites, and an initial population size, \em N<sub>ref</sub>, of 10,000, are: \em T1 = 0.005*2\em N<sub>ref</sub> = 100 generations, 
+ \em T2 = 900 generations, \em m<sub>EU-AF</sub> = 1/(2\em N<sub>ref</sub>) = 0.00005, 2\em N<sub>ref</sub>s = -4, \em h =0.5, and \em F = 0. As in δaδi, the population size/time can be scaled together and 
+ the simulation will generate the same normalized spectra.
+ * Below is the GO_Fish simulation and Spectrum SFS code:
+ * \includelineno examples/example_dadi/run.cu 
+ * Below is the corresponding δaδi code:
+ * \include examples/example_dadi/dadi_example.py
+ * Below is the makefile to create executable GOFish:
+ * \includelineno examples/example_dadi/makefile
  */
  
  /*! \example Example3-Compilation
- * Compilation of different API features, including compilation 
- * 
- * \include examples/example_compilation/run.cu
- * \include examples/example_compilation/main.cpp
- * \include examples/example_compilation/makefile
- * \include examples/example_compilation/makefile_nvcc
- * \include examples/example_compilation/makefile_gpp
+ * Compilation of different API features, including compilation. \n\n
+ * Function `run_migration_equilibrium_simulation`, implemented in examples/example_compilation/run.cu, runs a simulation given a mutation rate and outputs result into allele trajectory `a`.
+ The information from `a` is then copied to `b` and `a` is subsequently deleted. The information from `b` is then output to a file then to the terminal. \n\n
+ * The main purpose of this is to show that simulation parameters can be passed from a standard C++ program to a CUDA program (*.cu), where the GPU-accelerated simulation is run, and then the 
+ simulation results in the form of an allele trajectory can be passed back to the C++ program and manipulated. So accelerated simulations can be inserted into any current C/C++ project.
+ * \includelineno examples/example_compilation/main.cpp
+ * The simulation starts off blank, running a burn-in simulation until equilibrium is reached, then running the scenario of interest.
+ * \includelineno examples/example_compilation/run.h
+ * \includelineno examples/example_compilation/run.cu
+ * <B>Pro Tip:</B> A nice thing about CUDA is the flexibility it gives in compiling mixed C/C++ and CUDA programs. Below is an example where the entire program can alternatively be compiled
+ by NVCC (the NVIDIA CUDA compiler) - e.g. makefile_nvcc - or by g++ & NVCC where NVCC compiles just the GPU-accelerated portions and then hands the linking over g++ - e.g. makefile_gpp. 
+ This is useful if you are adding the simulation to your own project compiled with a certain compiler that you do not want to change for the code you have written. The CUDA code essentially 
+ becomes an accelerated library that you can use in your current project. 
+ * \includelineno examples/example_compilation/makefile
+ * \includelineno examples/example_compilation/makefile_nvcc
+ * \includelineno examples/example_compilation/makefile_gpp
  */

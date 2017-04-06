@@ -17,7 +17,7 @@
 
 #include "../include/go_fish_data_struct.h"
 
-///Namespace for site frequency spectrum data structure and functions (work in progress)
+///Namespace for site frequency spectrum data structure and functions. (in prototype-phase)
 namespace Spectrum{
 
 ///site frequency spectrum data structure (at the moment, functions only generate SFS for a single population at a single time point)

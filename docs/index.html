@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=9"/>
 <meta name="generator" content="Doxygen 1.8.12"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Parallel PopGen Package: GO Fish v0.1</title>
+<title>Parallel PopGen Package: Getting Started</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -86,18 +86,44 @@ $(document).ready(function(){initNavTree('index.html','');});
 
 <div class="header">
   <div class="headertitle">
-<div class="title">GO Fish v0.1 </div>  </div>
+<div class="title">Getting Started </div>  </div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p>Through CUDA, GO Fish should run on Mac OSX, Linux, and Windows operating systems.</p>
-<p>GO Fish requires an NVIDIA GPU with a minimum of compute capability 3.0. <a href="https://developer.nvidia.com/cuda-gpus">List of NVIDIA GPUs.</a></p>
-<p><a href="https://developer.nvidia.com/cuda-toolkit-65">Install CUDA Toolkit 6.5.</a> I have not yet tested GO Fish on Toolkit 7.0 or higher. For those with Maxwell 2 GPUs (GeForce GTX9xx GPUs) first install the previous toolkit to get the drivers, then <a href="https://developer.nvidia.com/cuda-downloads-geforce-gtx9xx">download CUDA Toolkit 6.5 here to get the updated toolkit.</a></p>
-<p>Once installed, then for Unix systems (Mac + Linux), add nvcc (the CUDA compiler) to your Terminal's Path by adding the following to your .bash_profile or .bashrc:</p>
-<p>export PATH=$PATH:/usr/local/cuda/bin export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib</p>
-<p>Or alter the path in the makefile from nvcc to the location of nvcc on your hard drive. (e.g. for Macs the path would be /Developer/NVIDIA/CUDA-6.5/bin/nvcc - or /usr/local/cuda/bin/nvcc should work for the most recent CUDA install for general Unix systems)</p>
-<p>Currently the code is set to run the speed test described <a href="http://dx.doi.org/10.1101/042622">in the GO Fish paper.</a> More scenario functions for demography, mutation, inbreeding, etc ... are available for testing. At the moment, only a simple parallel histogram function is available to create a site frequency spectrum of a single population.</p>
-<p>To compile the code into an executable (GOFish), navigate your terminal to the GOFish folder, type make. To delete the executable and object files, type make clean.</p>
-<p>The make file creates an executable which, for the OS it is compiled on, will run on any NVIDIA GPU compute architecture from 3.0 to 5.2 and will JIT compile for any architecture above 5.2. To decrease compile time and executable size, you can delete all of the —-generate-code arch=compute_xx,code=sm_xx flags which do not correspond to your GPU's architecture. </p>
+<div class="toc"><h3>Table of Contents</h3>
+<ul><li class="level1"><a href="#API">API Overview</a><ul><li class="level2"><a href="#Parameters">Population Genetics Parameters</a></li>
+<li class="level2"><a href="#Tips">Tips</a></li>
+<li class="level2"><a href="#Troubleshooting">Troubleshooting</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="textblock"><p>Important links:<br />
+ </p><ul>
+<li><a class="el" href="md__r_e_a_d_m_e.html">Parallel PopGen Package v0.3 README</a> <br />
+ </li>
+<li><a href="https://github.com/DL42/ParallelPopGen/issues">Bug Reporting, Feature Request, To Do, and Discussion</a> <br />
+ </li>
+<li><a href="https://github.com/DL42/ParallelPopGen/releases">Download Stable Releases</a> <br />
+ </li>
+<li><a href="https://github.com/DL42/ParallelPopGen">GitHub repository for latest changes</a> <br />
+</li>
+</ul>
+<h1><a class="anchor" id="API"></a>
+API Overview</h1>
+<p>This is an API for performing population genetics simulations and analyses in parallel on the GPU. Below is a brief description of the information found in each tab: </p><ul>
+<li><a href="namespaces.html">Namespaces</a> provides all functions and classes related to an API (e.g. <a class="el" href="namespace_g_o___fish.html" title="Namespace for single locus, forward Wright-Fisher simulation and output data structures. ">GO_Fish</a>, <a class="el" href="namespace_sim___model.html" title="Functions for controlling GO_Fish simulations. ">Sim_Model</a>, and <a class="el" href="namespace_spectrum.html" title="Namespace for site frequency spectrum data structure and functions. (in prototype-phase) ...">Spectrum</a>) </li>
+<li><a href="modules.html">Modules</a> page organizes the <a class="el" href="namespace_sim___model.html" title="Functions for controlling GO_Fish simulations. ">Sim_Model</a> namespace into groups of functions (e.g. <a class="el" href="group__selection.html">Simulation Models: Selection Group</a>) - each module describes the parameters of the function group and how to write custom functions </li>
+<li><a href="files.html">Files</a> shows the file hierarchy, the functions and classes in each file, and the detailed description of the include file provides information on how to include the files for a project </li>
+<li><a href="annotated.html">Classes</a> shows all classes and structs organized by namespace </li>
+<li><a href="examples.html">Examples</a> provides code examples and custom makefiles found in the examples/ folder</li>
+</ul>
+<p><a class="el" href="namespace_g_o___fish.html" title="Namespace for single locus, forward Wright-Fisher simulation and output data structures. ">GO_Fish</a> is the: Namespace for single locus, forward Wright-Fisher simulation and output data structures. While <a class="el" href="namespace_sim___model.html" title="Functions for controlling GO_Fish simulations. ">Sim_Model</a> contains: Functions for controlling <a class="el" href="namespace_g_o___fish.html" title="Namespace for single locus, forward Wright-Fisher simulation and output data structures. ">GO_Fish</a> simulations. And <a class="el" href="namespace_spectrum.html" title="Namespace for site frequency spectrum data structure and functions. (in prototype-phase) ...">Spectrum</a> is the: Namespace for site frequency spectrum data structure and functions. (in prototype-phase) <a class="el" href="namespace_sim___model.html" title="Functions for controlling GO_Fish simulations. ">Sim_Model</a> is optional as the user is free to write their own population genetics and simulation control functions following the rules laid out in each function group's <a href="modules.html">Module</a>.</p>
+<h2><a class="anchor" id="Parameters"></a>
+Population Genetics Parameters</h2>
+<h2><a class="anchor" id="Tips"></a>
+Tips</h2>
+<h2><a class="anchor" id="Troubleshooting"></a>
+Troubleshooting</h2>
 </div></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

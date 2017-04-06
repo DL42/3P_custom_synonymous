@@ -1,8 +1,14 @@
 var NAVTREE =
 [
   [ "Parallel PopGen Package", "index.html", [
-    [ "GO Fish v0.1", "index.html", null ],
-    [ "General Usage", "page1.html", null ],
+    [ "Getting Started", "index.html", [
+      [ "API Overview", "index.html#API", [
+        [ "Population Genetics Parameters", "index.html#Parameters", null ],
+        [ "Tips", "index.html#Tips", null ],
+        [ "Troubleshooting", "index.html#Troubleshooting", null ]
+      ] ]
+    ] ],
+    [ "Parallel PopGen Package v0.3 README", "md__r_e_a_d_m_e.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Namespaces", null, [
       [ "Namespace List", "namespaces.html", "namespaces" ],
@@ -30,7 +36,7 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_example1-_speed-example.html",
-"struct_spectrum_1_1_s_f_s.html#a2e594f5222ea22a2bf645dbdea38321d"
+"struct_sim___model_1_1selection__sine__wave.html#a8ccec42135d9590a1d97fd6dee5587c2"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

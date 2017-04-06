@@ -1,5 +1,9 @@
 var NAVTREEINDEX1 =
 {
+"struct_sim___model_1_1selection__sine__wave.html#a8ccec42135d9590a1d97fd6dee5587c2":[2,0,2,8],
+"struct_sim___model_1_1selection__sine__wave.html#aafc64625d052ab9b89bb1c226b940621":[2,0,2,6],
+"struct_sim___model_1_1selection__sine__wave.html#ad129f94ee81366e9bb4289a15b26eaeb":[2,0,2,4],
+"struct_spectrum_1_1_s_f_s.html":[4,0,2,0],
 "struct_spectrum_1_1_s_f_s.html#a2e594f5222ea22a2bf645dbdea38321d":[4,0,2,0,1],
 "struct_spectrum_1_1_s_f_s.html#a37133c1a723a9f37e0e844826e53c207":[4,0,2,0,6],
 "struct_spectrum_1_1_s_f_s.html#a42cdcac745273a68ceca3332c5efcace":[4,0,2,0,5],

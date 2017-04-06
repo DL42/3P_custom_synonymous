@@ -75,7 +75,4 @@ $(build_path)/$(EXEC_FILE): $(cpp_objects) $(cuda_objects)
 
 	$(NVCC) $(CODE) $(cpp_objects) $(cuda_objects)  -o $@
 
-.PHONY: all clean
-
-clean:
-	rm -f $(cuda_objects) $(cpp_objects) $(build_path)/$(EXEC_FILE)
+.PHONY: all
