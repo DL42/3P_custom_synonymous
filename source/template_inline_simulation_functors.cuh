@@ -8,8 +8,10 @@
 #ifndef TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_
 #define TEMPLATE_INLINE_SIMULATION_FUNCTORS_CUH_
 
-/**Functions for modeling selection, inbreeding, mutation, dominance, demography, migration across populations and over time as well as functions to preserve mutations in a generation and to sample time points in the simulation. \n
-* \n Use of these functions is optional as users can supply their own with the same given format, for details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page, click on the simulation function group which describes the function you wish to write, and read its detailed description. */
+/** Functions for modeling selection, inbreeding, mutation, dominance, demography, migration across populations and over time as well as functions to preserve mutations in a generation and to sample time points in the simulation. \n
+* \n Use of these functions is optional as users can supply their own with the same given format, for details on how to write your own simulation functions, go to the <a href="modules.html">Modules</a> page, click on the simulation function group which describes the function you wish to write, and read its detailed description.
+* \n\n To use Sim_Mut functions and objects, include header file: go_fish.cuh
+*/
 namespace Sim_Model{
 
 /** \addtogroup selection
@@ -24,7 +26,8 @@ namespace Sim_Model{
 *  where \p h is the dominance coefficient and AA, Aa, aa represent the various alleles.
 *  Thus Effective Selection, \p gamma, is defined by `N_chromosome_e*s` which for outbreeding diploids is `2*N*s` and haploid is `N*s`
 *  where N is the number of individuals (as returned by demography functions).
-*  Diploids with inbreeding will have an effective strength of selection of `2*N*s/(1+F)`.
+*  Diploids with inbreeding, `F`, will have an effective strength of selection, \p gamma, of `2*N*s/(1+F)`. See \ref demography for more about effective population size in the simulation.
+*  Side note: if `gamma` is set to some float, `S*(1+F)`, and the population size is similarly scaled (i.e. `N*(1+F)`), then the effective selection in the simulation will be invariant with respect to inbreeding.
 *
 *  Minimum selection is `s >= -1` (lethal). Currently the program will not throw an error if the selection is less than -1, but will simply take the `max(s,-1)`.
 *
@@ -259,7 +262,9 @@ __host__ __forceinline__ float F_mu_h_piecewise<Functor_p1, Functor_p2>::operato
 *
 *  If a population with a previously positive number of individuals hits 0 individuals over the course of a simulation, it will be declared extinct.
 *  If the population size of an extinct population becomes non-zero after the extinction, an error will be thrown.
-*  Populations that start the simulation at 0 individuals are not considered extinct.
+*  Populations that start the simulation at 0 individuals are not considered extinct. As population size is stored as an integer currently, the max population size is ~2x10<sup>9</sup> individuals. \n\n
+*  The effective number of chromosomes, `N_chromosome_e` - which is the effective population size in the simulation - is defined as `2*N/(1+F)`. Thus to equate two populations with differing inbreeding coefficients,
+*  multiply the number of individuals, `N`, in each by the inbreeding coefficient in each, `1+F`. Side note: if population size is set to `N*(1+F)` in the simulation, the effective population size will be invariant with respect to inbreeding.
 *
 *  ###Writing your own Demography functions###
 *  These can be functions or functors (or soon, with C++11 support, lambdas). However, the demographic function must be of the form:\n
@@ -399,10 +404,10 @@ __host__ __device__  __forceinline__ int demography_piecewise<Functor_d1, Functo
 /** \addtogroup migration
 *  \brief Functions that model migration rates over time (conservative model of migration)
 *
-*  In the conservative model of migration, migration rate from population i to population j is expressed as the fraction of population j originally from i:\n
-*  > e.g. in a 2 population model, a migration rate of \f$ m_{ij} = 0.1 \f$ ==> 10% of population j is originally from population i \n
+*  In the conservative model of migration, migration rate from population i to population j is expressed as the fraction of population `j` originally from `i`:\n
+*  > e.g. in a 2 population model, a migration rate of \p m<sub>ij</sub> `= 0.1` ==> 10% of population `j` is originally from population `i` \n
 *  > and the frequency, \f$x_{mig,j}\f$, in the next generation of an allele is \f$x_{mig,j} = 0.1*x_i + 0.9*x_j\f$
-*  Thus, in general, the following must be true: \f$\sum_{i=1}^n m_{ij} = 1\f$ (program will throw error elsewise).
+*  Thus, in general, the following must be true: \f$\sum_{i=1}^n\f$ \p m<sub>ij</sub> `= 1` (program will throw error elsewise).
 *  However the sum of migration rates FROM a population need not sum to anything in particular.
 *  This is also the set of functions that are used to specify a single population splitting into (two or more) populations. \n \n
 *

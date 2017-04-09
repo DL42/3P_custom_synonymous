@@ -109,12 +109,12 @@ Classes</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <p>Functions that model migration rates over time (conservative model of migration) </p>
-<p>In the conservative model of migration, migration rate from population i to population j is expressed as the fraction of population j originally from i:<br />
+<p>In the conservative model of migration, migration rate from population i to population j is expressed as the fraction of population <code>j</code> originally from <code>i</code>:<br />
 </p><blockquote class="doxtable">
-<p>e.g. in a 2 population model, a migration rate of \( m_{ij} = 0.1 \) ==&gt; 10% of population j is originally from population i <br />
+<p>e.g. in a 2 population model, a migration rate of <code>m<sub>ij</sub></code> <code>= 0.1</code> ==&gt; 10% of population <code>j</code> is originally from population <code>i</code> <br />
 and the frequency, \(x_{mig,j}\), in the next generation of an allele is \(x_{mig,j} = 0.1*x_i + 0.9*x_j\) </p>
 </blockquote>
-<p>Thus, in general, the following must be true: \(\sum_{i=1}^n m_{ij} = 1\) (program will throw error elsewise). However the sum of migration rates FROM a population need not sum to anything in particular. This is also the set of functions that are used to specify a single population splitting into (two or more) populations. <br />
+<p>Thus, in general, the following must be true: \(\sum_{i=1}^n\) <code>m<sub>ij</sub></code> <code>= 1</code> (program will throw error elsewise). However the sum of migration rates FROM a population need not sum to anything in particular. This is also the set of functions that are used to specify a single population splitting into (two or more) populations. <br />
  <br />
  </p><h3>Writing your own Migration functions</h3>
 <p>These can be functions or functors (or soon, with C++11 support, lambdas). However, the migration function must be of the form:<br />

@@ -433,21 +433,21 @@ __host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor
 	int num_pop = mutations.h_num_populations;
 	for(int pop = 0; pop < num_pop; pop++){
 		double migration = 0;
-		if(mu_rate(pop,generation) < 0){ fprintf(stderr,"mutation error, mu_rate < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		if(mu_rate(pop,generation) < 0){ fprintf(stderr,"check_sim_parameters: mutation error: mu_rate < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		int N = demography(pop,generation);
-		if(N > 0 && mutations.h_extinct[pop]){ fprintf(stderr,"demography error, extinct population with population size > 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		if(N > 0 && mutations.h_extinct[pop]){ fprintf(stderr,"check_sim_parameters: demography error: extinct population with population size > 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		float fi = FI(pop,generation);
-		if(fi < 0) { fprintf(stderr,"inbreeding error, inbreeding coefficient < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
-		if(fi > 1) { fprintf(stderr,"inbreeding error, inbreeding coefficient > 1\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		if(fi < 0) { fprintf(stderr,"check_sim_parameters: inbreeding error: inbreeding coefficient < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
+		if(fi > 1) { fprintf(stderr,"check_sim_parameters: inbreeding error: inbreeding coefficient > 1\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		for(int pop2 = 0; pop2 < num_pop; pop2++){
 			float m_from = mig_prop(pop,pop2,generation);
-			if(m_from < 0){ fprintf(stderr,"migration error, migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
+			if(m_from < 0){ fprintf(stderr,"check_sim_parameters: migration error: migration rate < 0\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); }
 			if(m_from > 0 && ((N <= 0 || mutations.h_extinct[pop]) && !(demography(pop2,generation) <= 0 || mutations.h_extinct[pop2]))){ fprintf(stderr,"migration error, migration from non-existant population\tgeneration %d\t population_from %d\t population_to %d\n",generation,pop,pop2); exit(1); } //if population doesn't exist, doesn't matter if anyone migrates to it
 
 			float m_to = mig_prop(pop2,pop,generation);
 			migration += (double)m_to;
 		}
-		if((float)migration != 1.f && !(N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"migration error, migration rate does not sum to 1\tgeneration %d\t population_TO %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
+		if((float)migration != 1.f && !(N <= 0 || mutations.h_extinct[pop])){ fprintf(stderr,"check_sim_parameters: migration error: migration rate does not sum to 1\tgeneration %d\t population_TO %d\t total_migration_proportion %f\n",generation,pop,migration); exit(1); }
 	}
 }
 
@@ -502,6 +502,9 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 
 } /* ----- end namespace go_fish_details ----- */
 //!\endcond
+/** To use GO_Fish functions and objects, include header file: go_fish.cuh
+ *  \n Optionally, to use only the GO_Fish data structures, include header file: go_fish_data_struct.h
+ */
 namespace GO_Fish{
 
 /** calls `run_sim(..., const allele_trajectories & prev_sim)` with `prev_sim` set to a blank allele_trajectory. Saves on some unnecessary typing when starting from mutation-selection-equilibrium or a blank simulation.

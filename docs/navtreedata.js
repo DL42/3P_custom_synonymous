@@ -3,9 +3,18 @@ var NAVTREE =
   [ "Parallel PopGen Package", "index.html", [
     [ "Getting Started", "index.html", [
       [ "API Overview", "index.html#API", [
-        [ "Population Genetics Parameters", "index.html#Parameters", null ],
         [ "Tips", "index.html#Tips", null ],
-        [ "Troubleshooting", "index.html#Troubleshooting", null ]
+        [ "Troubleshooting", "index.html#Troubleshooting", null ],
+        [ "δaδi-to-GOFish Parameter Conversion", "index.html#δaδi", [
+          [ "Inbreeding", "index.html#Inbreeding", null ],
+          [ "Dominance", "index.html#Dominance", null ],
+          [ "Selection", "index.html#Selection", null ],
+          [ "Demography", "index.html#Demography", null ],
+          [ "Migration", "index.html#Migration", null ],
+          [ "Number of Generations", "index.html#generations", null ],
+          [ "Mutation rate", "index.html#mut_sites", null ],
+          [ "Number of Sites", "index.html#numSites", null ]
+        ] ]
       ] ]
     ] ],
     [ "Parallel PopGen Package v0.3 README", "md__r_e_a_d_m_e.html", null ],
@@ -36,7 +45,7 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_example1-_speed-example.html",
-"struct_sim___model_1_1selection__sine__wave.html#a8ccec42135d9590a1d97fd6dee5587c2"
+"struct_sim___model_1_1selection__population__specific.html#aee2df85f26d7fdce977b5f06e42fba6a"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

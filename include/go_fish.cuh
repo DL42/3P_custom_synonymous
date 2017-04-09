@@ -1,7 +1,7 @@
 /*!\file
-* \brief GO Fish Simulation API
+* \brief GO Fish Simulation API (contains namespaces GO_Fish and Sim_Model)
 *
-* go_fish.cuh contains all structures and functions necessary for running, storing, and outputting a single locus Wright_fisher simulation (contains namespaces GO_Fish and Sim_Model).
+* go_fish.cuh contains all structures and functions necessary for running, storing, and outputting a single locus Wright_fisher simulation.
 * When including go_fish.cuh into a source file, go_fish_data_struct.h is automatically included - no need to include it separately.
 * Unlike go_fish_data_struct.h and spectrum.h, go_fish.cuh can only be included in CUDA source files (*.cu).
 * CUDA source files are identical to C, C++ source files (*.c, *.cpp) except that the the CUDA suffix (*.cu) indicates for NVCC (the CUDA compiler)
@@ -22,7 +22,7 @@
 #include "../outside_libraries/helper_math.h"
 #include "../include/go_fish_data_struct.h"
 
-///Functions for controlling GO_Fish simulations
+///Namespace of functions for controlling GO_Fish simulations
 namespace Sim_Model{
 
 /** \defgroup selection Simulation Models: Selection Group*//**@{*/
@@ -322,7 +322,7 @@ struct bool_piecewise{
 
 } /* ----- end namespace Sim_Model ----- */
 
-//!Namespace for single locus, forward Wright-Fisher simulation and output data structures
+//!Namespace for single locus, forward, Monte-Carlo Wright-Fisher simulation and output data structures
 namespace GO_Fish{
 
 /* ----- go_fish_impl  ----- */

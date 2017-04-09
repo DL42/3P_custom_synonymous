@@ -141,6 +141,9 @@ __global__ void binom(float * d_histogram, const float * const d_mutations_freq,
 } /*----- end namespace Spectrum_details ----- */
 //!\endcond
 
+/** To use Spectrum functions and objects, include header file: spectrum.h
+ *
+ */
 namespace Spectrum{
 
 SFS::SFS(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}

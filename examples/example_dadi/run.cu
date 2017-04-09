@@ -41,7 +41,7 @@ void run_validation_test(){
 	Sim_Model::F_mu_h_constant outbred(0.f); 							//inbreeding (outbred)
 	Sim_Model::F_mu_h_constant mutation(pow(10.f,-9)/scale_factor); 	//per-site mutation rate 10^-9
 
-	int N_ind = scale_factor*pow(10.f,4)*(1+outbred(0,0));				//initial number of individuals in population, set to maintain consistent effective number of chromosomes across all inbreeding coefficients
+	int N_ind = scale_factor*pow(10.f,4);								//initial number of individuals in population
 	dem_const pop0(N_ind);
 	dem_const pop1(0);
 	dem_pop_const gen0(pop0,pop1,1);									//intial population size of N_ind for pop 0 and 0 for pop 1
@@ -60,7 +60,7 @@ void run_validation_test(){
 	mig_const mig_prop(mig,b.sim_input_constants.num_populations);		//constant and equal migration between populations
 	Sim_Model::migration_piecewise<split_pop0,mig_const> mig_model(migration_split,mig_prop,scale_factor*100+1);
 
-	float gamma = -4*(1+outbred(0,0)); 									//effective selection //set to maintain consistent level of selection across all inbreeding coefficients for the same effective number of chromosomes, drift and selection are invariant with respect to inbreeding
+	float gamma = -4; 													//effective selection
 	Sim_Model::selection_constant weak_del(gamma,demography_model,outbred);
 
 	b.sim_input_constants.compact_interval = 30;						//compact interval

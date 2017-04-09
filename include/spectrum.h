@@ -1,5 +1,5 @@
 /*!\file
-* \brief proto-API for building site frequency spectra
+* \brief proto-API for building site frequency spectra (contains the titular namespace Spectrum)
 *
 * spectrum.h is a prototype API for accelerating site frequency spectrum analysis on the GPU.
 * Though functions Spectrum::population_frequency_histogram and Spectrum::site_frequency_spectrum are accelerated on the GPU,

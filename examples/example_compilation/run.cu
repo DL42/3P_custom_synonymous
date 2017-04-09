@@ -7,7 +7,7 @@
 #include "go_fish.cuh"
 #include "run.h"
 
-//scenario: two populations start in mutation-selection-migration equilibrium with weakly deleterious mutations, simulate what happens after mutations in population 1 become beneficial (1,000 generations)
+//scenario: two populations start in mutation-selection-migration equilibrium with weakly deleterious mutations, then simulate what happens after mutations in population 1 become beneficial (1,000 generations)
 //migration set in main.cpp
 void run_migration_equilibrium_simulation(GO_Fish::allele_trajectories & a, float migration_rate){
 	using namespace Sim_Model;								//using namespace Sim_Model (avoids Sim_Model::, but compiler can get confused if multiple functions from different namespaces have same name and Sim_Model:: shows ownership)
