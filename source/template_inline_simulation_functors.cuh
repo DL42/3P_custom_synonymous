@@ -27,7 +27,7 @@ namespace Sim_Model{
 *  Thus Effective Selection, \p gamma, is defined by `N_chromosome_e*s` which for outbreeding diploids is `2*N*s` and haploid is `N*s`
 *  where N is the number of individuals (as returned by demography functions).
 *  Diploids with inbreeding, `F`, will have an effective strength of selection, \p gamma, of `2*N*s/(1+F)`. See \ref demography for more about effective population size in the simulation.
-*  Side note: if `gamma` is set to some float, `S*(1+F)`, and the population size is similarly scaled (i.e. `N*(1+F)`), then the effective selection in the simulation will be invariant with respect to inbreeding.
+*  Side note: if `gamma` is set to some float, `S*(1+F)`, `h=0.5` (co-dominant), and the population size is similarly scaled (i.e. `N*(1+F)`), then the effective selection in the simulation will be invariant with respect to inbreeding.
 *
 *  Minimum selection is `s >= -1` (lethal). Currently the program will not throw an error if the selection is less than -1, but will simply take the `max(s,-1)`.
 *
