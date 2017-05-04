@@ -173,7 +173,7 @@ inline void swap(allele_trajectories & a, allele_trajectories & b);
 } /* ----- end namespace GO_Fish ----- */
 
 /* ----- import inline function definitions ----- */
-#include "../source/inline_go_fish_data_struct.hpp"
+#include "../3P/_internal/inline_go_fish_data_struct.hpp"
 /* ----- end ----- */
 
 #endif /* GO_FISH_DATA_H_ */
