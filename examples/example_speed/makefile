@@ -34,9 +34,9 @@
 # 	Remove all objects and EXEC_FILE from build_path
 #############################
 
-build_path = ../../../build/example_speed
-api_path_source = ../../source
-api_path_include = ../../include
+build_path = ../example_speed
+api_path_source = ../../3P/_internal
+api_path_include = ../../3P
 EXEC_FILE = GOFish
 
 NVCC = nvcc
