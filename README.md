@@ -4,7 +4,21 @@ The Parallel PopGen Package (3P) is a library of CUDA C/C++ APIs consisting of t
 
 Parallel PopGen Package requires an NVIDIA GPU with a minimum of compute capability 3.0. [List of NVIDIA GPUs.](https://developer.nvidia.com/cuda-gpus)  
 
-To use the API package, [install CUDA Toolkit 6.5. or greater.](https://developer.nvidia.com/cuda-toolkit) For those with [Install CUDA Toolkit 6.5.](https://developer.nvidia.com/cuda-toolkit-65) and Maxwell 2 GPUs (GeForce GTX9xx GPUs) first install the previous toolkit to get the drivers, then [download CUDA Toolkit 6.5 here to get the updated toolkit.](https://developer.nvidia.com/cuda-downloads-geforce-gtx9xx)
+To use the API package, [install CUDA Toolkit 6.5. or greater.](https://developer.nvidia.com/cuda-toolkit) For those with [CUDA Toolkit 6.5.](https://developer.nvidia.com/cuda-toolkit-65) and Maxwell 2 GPUs (e.g. GeForce GTX9xx GPUs) first install the previous toolkit to get the drivers, then [download CUDA Toolkit 6.5 here to get the updated toolkit.](https://developer.nvidia.com/cuda-downloads-geforce-gtx9xx) For MacOS, Linux. Pascal GPUs (e.g. GeForce GTX10xx GPUs) require CUDA 8 or above. 
+
+Occasionally for newest operating system versions with the newest compilers, Nvidia can take awhile to issue an update to sync the CUDA compiler, nvcc, with clang, gcc, msvc tools. An example error for MacOS Sierra with the newest Xcode command line tools (CLT): 
+
+>	nvcc fatal   : The version ('80100') of the host compiler ('Apple clang') is not supported*. 
+
+An example of this error for Ubuntu 16.04:
+
+>	/usr/include/string.h: In function ‘void* __mempcpy_inline(void*, const void*, size_t)’:
+>
+>	/usr/include/string.h:652:42: error: ‘memcpy’ was not declared in this scope
+>
+>   return (char *) memcpy (__dest, __src, __n) + __n;"
+
+Solutions: 1. wait for CUDA update (e.g. CUDA 8 fixes above error for Ubuntu 16.04). 2. For the Mac example above downgrading from command line tools [(CLT) 8.3 to 8.2 works](https://github.com/arrayfire/arrayfire/issues/1384) while waiting for the CUDA update.
 
 Once installed, then for Unix systems (Mac + Linux), add nvcc (the CUDA compiler) to your Terminal's Path by adding the following to your .bash_profile or .bashrc:
 
@@ -13,21 +27,24 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib
 
 Or alter the path in the makefile from nvcc to the location of nvcc on your hard drive. (e.g. for Macs the path would be /Developer/NVIDIA/CUDA-6.5/bin/nvcc - or /usr/local/cuda/bin/nvcc should work for the most recent CUDA install for general Unix systems).
 
-Code can be developed and compiled in an Integrated Development Environment - [Nsight](http://www.nvidia.com/object/nsight.html), which comes with the CUDA toolkit, is recommended which on Linux/Mac is an Eclipse IDE and on Windows is a Visual Studio IDE, each modified by Nvidia for CUDA development. Also, in folder examples/ are several example programs using the API with custom makefiles. Standard makefile generator programs should also work.
+Code can be developed and compiled in an Integrated Development Environment - [Nsight](http://www.nvidia.com/object/nsight.html), which comes with the CUDA toolkit, is recommended which on Linux/Mac is an Eclipse IDE and on Windows is a Visual Studio IDE, each modified by Nvidia for CUDA development. Also, in folder examples/ are several example programs using the API with custom makefiles written for Linux/macOS. Standard makefile generator programs should also work.
 
-Change-log:
+All of the API files are in folder 3P/. The files in folders _internal/ and _outside_libraries/ within 3P/ contain implementations of the methods used in the package. All example makefiles and example source programs are in the folder examples/. Documentation for the examples and their respective makefiles can be found here: [http://dl42.github.io/ParallelPopGen/examples.html](http://dl42.github.io/ParallelPopGen/examples.html).   
 
-GO_Fish v0.9:
+Change-log 3P v0.3.2:
 
-- minor changes and major bug fixes to simulation algorithm
-- API creation and documentation
+- updated file and folder structure
+- updated README and API Documentation
+- updated example makefiles which change build location to be within source code folder (no extra folder needs to be created by user)
 
+GO_Fish v0.9.1:
 
-Sim_Model v0.9:
+- updated include statements to reflect new file structure
 
-- API creation and documentation
+Sim_Model v0.9.1:
 
+- updated include statements to reflect new file structure
 
-Spectrum v0.1:
+Spectrum v0.1.1:
 
-- prototype API for SFS generation
+- updated include statements to reflect new file structure
