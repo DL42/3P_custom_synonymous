@@ -64,11 +64,13 @@ __host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
 }
 
 
-__host__ __device__ __forceinline__  uint4 Philox(int2 seed, int k, int step, int population, int round){
-	typedef r123::Philox4x32_R<10> P; //can change the 10 rounds of bijection down to 8 (lowest safe limit) to get possible extra speed!
+__host__ __device__ __forceinline__  uint4 Philox(int2 seed, unsigned int k, unsigned int step, unsigned int population, unsigned int round){
+	typedef r123::Philox4x32_R<10> P; //can change the 10 rounds of bijection down to 7 (lowest safe limit) to get possible extra speed!
 	P rng;
 
-	P::key_type key = {{seed.x, seed.y}}; //random int to set key space + seed
+	unsigned int seedx = seed.x;
+	unsigned int seedy = seed.y;
+	P::key_type key = {{seedx, seedy}}; //random int to set key space + seed
 	P::ctr_type count = {{k, step, population, round}};
 
 	union {
