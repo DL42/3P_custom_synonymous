@@ -42,16 +42,14 @@ NVCC = nvcc -std=c++11
 CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_52,code=compute_52
 
-object_names = run.o spectrum.o shared.o go_fish_impl.o
+object_names = run.o spectrum.o
 objects = $(addprefix $(build_path)/,$(object_names))
 
 all:$(build_path)/$(EXEC_FILE)
 
 ##### OBJECT DEPENDENCIES #####
-$(build_path)/run.o: run.cu $(api_path_source)/shared.cuh $(api_path_source)/go_fish_impl.cuh $(api_path_include)/go_fish_data_struct.h $(api_path_include)/go_fish.cuh $(api_path_include)/spectrum.h
-$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu $(api_path_include)/spectrum.h $(api_path_source)/shared.cuh $(api_path_include)/go_fish_data_struct.h
-$(build_path)/shared.o: $(api_path_source)/shared.cu $(api_path_source)/shared.cuh
-$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu $(api_path_source)/go_fish_impl.cuh $(api_path_source)/shared.cuh
+$(build_path)/run.o: run.cu $(api_path_source)/rng.cuh $(api_path_source)/cuda_error.cuh $(api_path_source)/go_fish_impl.cuh $(api_path_include)/go_fish_data_struct.h $(api_path_include)/go_fish.cuh $(api_path_include)/spectrum.h
+$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu $(api_path_include)/spectrum.h $(api_path_source)/cuda_error.cuh $(api_path_include)/go_fish_data_struct.h
 ##### END OBJECT DEPENDENCIES #####
 
 $(objects):

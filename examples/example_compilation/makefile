@@ -28,7 +28,7 @@ EXEC_FILE = GOFish
 cpp_object_names = main.o
 cpp_objects = $(addprefix $(build_path)/,$(cpp_object_names))
 
-cuda_object_names = run.o shared.o go_fish_impl.o
+cuda_object_names = run.o 
 cuda_objects = $(addprefix $(build_path)/,$(cuda_object_names))
 
 nvcc: 

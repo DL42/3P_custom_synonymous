@@ -39,29 +39,29 @@ api_path_source = ../../3P/_internal
 api_path_include = ../../3P
 EXEC_FILE = GOFish
 
-NVCC = nvcc --std=c++11
-CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
+NVCC = nvcc -O2 --use_fast_math --std=c++11
+CFLAGS = -I $(api_path_include)/ -c
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_50,code=compute_50
 
-object_names = run.o shared.o go_fish_impl.o
+object_names = run.o 
 objects = $(addprefix $(build_path)/,$(object_names))
 
 all:$(build_path)/$(EXEC_FILE)
 
 ##### OBJECT DEPENDENCIES #####
-$(build_path)/run.o: run.cu
-$(build_path)/shared.o: $(api_path_source)/shared.cu
-$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu
+$(build_path)/run.o: run.cu FORCE
 ##### END OBJECT DEPENDENCIES #####
 
 $(objects):
-	$(NVCC) $(CODE) $(CFLAGS) $< -o $@
+	$(NVCC) $(CODE) $(CFLAGS) $< -o $@ 
 
 $(build_path)/$(EXEC_FILE): $(objects)
 
 	$(NVCC) $(CODE) $(objects) -o $@
 
-.PHONY: all clean
+.PHONY: all clean FORCE
 
 clean:
 	rm -f $(objects) $(build_path)/$(EXEC_FILE)
+	
+FORCE:

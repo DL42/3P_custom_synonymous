@@ -46,14 +46,14 @@ api_path_include = ../../3P
 EXEC_FILE = GOFish
 
 NVCC = nvcc -std=c++11
-CFLAGS_CUDA = -O3 --use_fast_math -I $(api_path_include)/ -dc
+CFLAGS_CUDA = -O3 --use_fast_math -I $(api_path_include)/ -c
 CFLAGS_CPP = -O3 -I $(api_path_include)/ -c
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_52,code=compute_52
 
 cpp_object_names = main.o
 cpp_objects = $(addprefix $(build_path)/,$(cpp_object_names))
 
-cuda_object_names = run.o shared.o go_fish_impl.o
+cuda_object_names = run.o 
 cuda_objects = $(addprefix $(build_path)/,$(cuda_object_names))
 
 all: $(build_path)/$(EXEC_FILE)
@@ -61,8 +61,6 @@ all: $(build_path)/$(EXEC_FILE)
 ##### OBJECT DEPENDENCIES #####
 $(build_path)/main.o: main.cpp run.h
 $(build_path)/run.o: run.cu run.h
-$(build_path)/shared.o: $(api_path_source)/shared.cu
-$(build_path)/go_fish_impl.o: $(api_path_source)/go_fish_impl.cu
 ##### END OBJECT DEPENDENCIES #####
 
 $(cpp_objects):

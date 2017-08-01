@@ -1,14 +1,13 @@
 /*
- * shared.cuh
+ * rng.cuh
  *
  *      Author: David Lawrie
- *      for cuda and rand functions used by both go_fish and by sfs
+ *      for RNG functions
  */
 
-#ifndef SHARED_CUH_
-#define SHARED_CUH_
+#ifndef RNG_CUH_
+#define RNG_CUH_
 
-//includes below in sfs & go_fish
 #include <cuda_runtime.h>
 #include "../_outside_libraries/helper_math.h"
 #include <limits.h>
@@ -18,25 +17,6 @@
 #include <stdlib.h>
 #include "../_outside_libraries/Random123/philox.h"
 #include "../_outside_libraries/Random123/features/compilerfeatures.h"
-
-/* ----- cuda error checking & device setting ----- */
-#define __DEBUG__ false
-#define cudaCheckErrors(expr1,expr2,expr3) { cudaError_t e = expr1; int g = expr2; int p = expr3; if (e != cudaSuccess) { fprintf(stderr,"error %d %s\tfile %s\tline %d\tgeneration %d\t population %d\n", e, cudaGetErrorString(e),__FILE__,__LINE__, g,p); exit(1); } }
-#define cudaCheckErrorsAsync(expr1,expr2,expr3) { cudaCheckErrors(expr1,expr2,expr3); if(__DEBUG__){ cudaCheckErrors(cudaDeviceSynchronize(),expr2,expr3); } }
-
-__forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
-	int cudaDeviceCount;
-	cudaCheckErrorsAsync(cudaGetDeviceCount(&cudaDeviceCount),-1,-1);
-	if(cuda_device >= 0 && cuda_device < cudaDeviceCount){ cudaCheckErrors(cudaSetDevice(cuda_device),-1,-1); } //unless user specifies, driver auto-magically selects free GPU to run on
-	int myDevice;
-	cudaCheckErrorsAsync(cudaGetDevice(&myDevice),-1,-1);
-	cudaDeviceProp devProp;
-	cudaCheckErrors(cudaGetDeviceProperties(&devProp, myDevice),-1,-1);
-	cuda_device = myDevice;
-	return devProp;
-}
-
-/* ----- end cuda error checking ----- */
 
 /* ----- random number generation ----- */
 
@@ -268,8 +248,16 @@ __host__ __device__ __forceinline__ int ApproxRandBinom1(float mean, float var, 
 	return round(normcdfinv(uint_float_01(i.x))*sqrtf(var)+mean);
 }
 
-//faster on if don't inline on both GPUs!
-__device__ int ApproxRandBinomHelper(unsigned int i, float mean, float var, float N);
+//faster if don't keep as separate compilation on both 780 and 980 GPUs! using static keyword to allow for fast compilation, works on 980, with whole program compilation works on 780 and even better on 980
+ __device__ __noinline__ static int ApproxRandBinomHelper(unsigned int i, float mean, float var, float N){
+	if(mean <= RNG_MEAN_BOUNDARY_NORM){
+		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return binomcdfinv(uint_float_01(i), mean, mean/N, N); } else{ return poiscdfinv(uint_float_01(i), mean); }
+	}
+	else if(mean >= N-RNG_MEAN_BOUNDARY_NORM){ //flip side of binomial, when 1-p is small
+		if(N < RNG_N_BOUNDARY_POIS_BINOM){ return N - binomcdfinv(uint_float_01(i), N-mean, (N-mean)/N, N); } else{ return N - poiscdfinv(uint_float_01(i), N-mean); }
+	}
+	return round(normcdfinv(uint_float_01(i))*sqrtf(var)+mean);
+}
 
 __device__ __forceinline__ int4 ApproxRandBinom4(float4 mean, float4 var, float4 p, float N, int2 seed, int id, int generation, int population){
 	uint4 i = Philox(seed, id, generation, population, 0);
