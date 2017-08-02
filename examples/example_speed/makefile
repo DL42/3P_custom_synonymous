@@ -7,7 +7,7 @@
 # EXEC_FILE := Name of executable 
 #
 # NVCC := Compiler path, in this case nvcc is in $PATH
-# CFLAGS := Compiler Flags: optimize most, fast math, add API include folder to include search path, equivalent to --relocatable-device-code=true --compile
+# CFLAGS := Compiler Flags: optimize most, fast math, add API include folder to include search path, equivalent to --compile
 # CODE := GPU types for which to build explicitly (I have a NVIDIA GTX 780M and 980) https://developer.nvidia.com/cuda-gpus, creates machine code for code=sm_30 (780) and code=sm_52 (980) and virtual architectures for all other generations which can be compiled JIT - code=compute_30 for generations between (3.0,5.0) and code=compute_50 for generations (5.0 and up) http://docs.nvidia.com/cuda/cuda-compiler-driver-nvcc/index.html#options-for-steering-gpu-code-generation
 #
 # object_names := Objects required for executable

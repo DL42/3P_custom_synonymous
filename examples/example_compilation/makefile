@@ -35,6 +35,8 @@ nvcc:
 	make -f makefile_nvcc
 gpp:
 	make -f makefile_gpp
+dc:
+	make -f makefile_dc
 
 .PHONY: nvcc gpp clean
 
