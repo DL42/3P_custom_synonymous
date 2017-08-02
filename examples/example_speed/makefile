@@ -34,7 +34,7 @@
 # FORCE := empty command designed to force the compiler to always recompile all objects upon make all
 #############################
 
-build_path = ../example_speed
+build_path = ../bin
 api_path_source = ../../3P/_internal
 api_path_include = ../../3P
 EXEC_FILE = GOFish

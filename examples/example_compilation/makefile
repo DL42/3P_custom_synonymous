@@ -22,7 +22,7 @@
 # 	Remove all objects and EXEC_FILE from build_path
 #############################
 
-build_path = ../example_compilation
+build_path = ../bin
 EXEC_FILE = GOFish
 
 cpp_object_names = main.o
