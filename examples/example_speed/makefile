@@ -17,9 +17,7 @@
 #
 # ##### Object Dependencies Lists #####
 # If one of the files on the right hand side of the : changes, the corresponding object must be recompiled.
-# This is a users makefile - it assumes there will be no changes to the GOFish API files, so does not include
-# all the non-*.cu (non source file) dependencies. If changes to the API .h or .cuh files are expected see
-# Object Dependencies Lists in example_dadi or run 'make clean' before each 'make all'.
+# This version always forces a recompile of the objects.
 # ##### End Object Dependencies Lists #####
 #
 # $(objects) := Make target all objects
@@ -28,10 +26,12 @@
 # $(build_path)/$(EXEC_FILE) := Make target executable EXEC_FILE which depends on all objects
 # 	Link objects into executable EXEC_FILE, $@ := $(build_path)/$(EXEC_FILE)
 #
-# .PHONY := Defines 'all' and 'clean' as not true targets (i.e. don't remake executable if can't find files called 'all' or 'clean')
+# .PHONY := Defines 'all' and 'clean' as not true targets (i.e. don't remake executable if can't find files called 'all' or 'clean' or 'FORCE')
 #
 # clean := Action to perform for command 'make clean'
 # 	Remove all objects and EXEC_FILE from build_path
+#
+# FORCE := empty command designed to force the compiler to always recompile all objects upon make all
 #############################
 
 build_path = ../example_speed
