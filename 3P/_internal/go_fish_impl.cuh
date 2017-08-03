@@ -232,16 +232,6 @@ __global__ void migration_selection_drift(float * mutations_freq, float * const 
 	}
 }
 
-__global__ static void add_new_mutations(float * mutations_freq, int4 * mutations_ID, const int prev_mutations_Index, const int new_mutations_Index, const int array_Length, float freq, const int population, const int num_populations, const int generation);
-
-__device__ __forceinline__ bool boundary_0(float freq){
-	return (freq <= 0.f);
-}
-
-__device__ __forceinline__ bool boundary_1(float freq){
-	return (freq >= 1.f);
-}
-
 __global__ static void add_new_mutations(float * mutations_freq, int4 * mutations_ID, const int prev_mutations_Index, const int new_mutations_Index, const int array_Length, float freq, const int population, const int num_populations, const int generation){
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; (id < (new_mutations_Index-prev_mutations_Index)) && ((id + prev_mutations_Index) < array_Length); id+= blockDim.x*gridDim.x){
@@ -250,6 +240,10 @@ __global__ static void add_new_mutations(float * mutations_freq, int4 * mutation
 		mutations_ID[(prev_mutations_Index+id)] = make_int4(generation,population,(id+1),0); //to ensure that ID is non-zero, so that preservation flag can be a -ID
 	}
 }
+
+__device__ __forceinline__ bool boundary_0(float freq){ return (freq <= 0.f); }
+
+__device__ __forceinline__ bool boundary_1(float freq){ return (freq >= 1.f); }
 
 //tests indicate accumulating mutations in non-migrating populations is not much of a problem
 template <typename Functor_demography>
