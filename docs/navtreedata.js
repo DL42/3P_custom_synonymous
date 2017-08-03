@@ -45,7 +45,7 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_example1-_speed-example.html",
-"struct_sim___model_1_1selection__population__specific.html#aee2df85f26d7fdce977b5f06e42fba6a"
+"struct_sim___model_1_1selection__sine__wave.html"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';

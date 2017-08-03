@@ -16,6 +16,8 @@
 #
 # gpp := Command 'make gpp' calls the makefile makefile_gpp
 #
+# dc := Command 'make dc' calls the makefile makefile_dc
+#
 # .PHONY := Defines 'nvvc', 'gpp', and 'clean' as not true targets (i.e. don't remake executable if can't find files called 'all' or 'clean')
 #
 # clean := Action to perform for command 'make clean'

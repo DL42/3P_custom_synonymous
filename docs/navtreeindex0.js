@@ -5,6 +5,7 @@ var NAVTREEINDEX0 =
 "_example3-_compilation-example.html":[6,2],
 "annotated.html":[4,0],
 "classes.html":[4,1],
+"cuda__error_8cuh_source.html":[5,0,0,0,0],
 "dir_48d8814f8c0fca42f0182563cf374f09.html":[5,0,0],
 "dir_8e0e5730b6cadf200a66d50df0f0d7cb.html":[5,0,0,0],
 "examples.html":[6],
@@ -22,7 +23,6 @@ var NAVTREEINDEX0 =
 "go__fish__data__struct_8h.html#a64c0dc811a89af3eec83cf9a4d31885d":[5,0,0,2,5],
 "go__fish__data__struct_8h.html#afce33e40bd359582edc7fbeb9efd6d06":[5,0,0,2,3],
 "go__fish__data__struct_8h_source.html":[5,0,0,2],
-"go__fish__impl_8cu_source.html":[5,0,0,0,0],
 "go__fish__impl_8cuh_source.html":[5,0,0,0,1],
 "group__demography.html":[2,2],
 "group__in__mut__dom.html":[2,1],
@@ -56,9 +56,8 @@ var NAVTREEINDEX0 =
 "namespacemembers_func.html":[3,1,1],
 "namespaces.html":[3,0],
 "pages.html":[],
-"shared_8cu_source.html":[5,0,0,0,3],
-"shared_8cuh_source.html":[5,0,0,0,4],
-"spectrum_8cu_source.html":[5,0,0,0,5],
+"rng_8cuh_source.html":[5,0,0,0,3],
+"spectrum_8cu_source.html":[5,0,0,0,4],
 "spectrum_8h.html":[5,0,0,3],
 "spectrum_8h.html#a1bae71a187083cc3b99728796ac93c7c":[5,0,0,3,2],
 "spectrum_8h.html#a54e7a1833f90d695f9ce4ac5af92ca8d":[5,0,0,3,1],
@@ -249,5 +248,6 @@ var NAVTREEINDEX0 =
 "struct_sim___model_1_1selection__population__specific.html#a63d40d29d2c97a1c631abafc6d9e6e63":[2,0,3,1],
 "struct_sim___model_1_1selection__population__specific.html#a6893a262ea5503c5c448754041514e9f":[2,0,3,4],
 "struct_sim___model_1_1selection__population__specific.html#a7f5ac7e77616d098b4af56ab0b42e500":[2,0,3,0],
-"struct_sim___model_1_1selection__population__specific.html#ac35fd51cbbd3b3112ba42a6f830a3b74":[2,0,3,2]
+"struct_sim___model_1_1selection__population__specific.html#ac35fd51cbbd3b3112ba42a6f830a3b74":[2,0,3,2],
+"struct_sim___model_1_1selection__population__specific.html#aee2df85f26d7fdce977b5f06e42fba6a":[2,0,3,5]
 };
