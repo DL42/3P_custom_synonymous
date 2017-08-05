@@ -39,8 +39,8 @@ api_path_source = ../../3P/_internal
 api_path_include = ../../3P
 EXEC_FILE = GOFish
 
-NVCC = nvcc -O2 --use_fast_math --std=c++11
-CFLAGS = -I $(api_path_include)/ -c
+NVCC = nvcc --std=c++11
+CFLAGS = -O2 --use_fast_math -I $(api_path_include)/ -c
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_52,code=sm_52 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_50,code=compute_50
 
 object_names = run.o 

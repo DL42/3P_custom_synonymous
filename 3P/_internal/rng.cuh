@@ -21,8 +21,8 @@
 /* ----- random number generation ----- */
 
 namespace RNG{
-#define RNG_MEAN_BOUNDARY_NORM 6
-#define RNG_N_BOUNDARY_POIS_BINOM 100 //binomial calculation starts to become numerically unstable for large values of N, not sure where that starts but is between 200 and 200,000
+constexpr int RNG_MEAN_BOUNDARY_NORM = 6;
+constexpr int RNG_N_BOUNDARY_POIS_BINOM = 100;  //binomial calculation starts to become numerically unstable for large values of N, not sure where that starts but is between 200 and 200,000
 
 // uint_float_01: Input is a W-bit integer (unsigned).  It is multiplied
 // by Float(2^-W) and added to Float(2^(-W-1)).  A good compiler should
