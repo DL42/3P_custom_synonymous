@@ -1,12 +1,12 @@
 /*
- * cuda_error.cuh
+ * cuda_helper_fun.cuh
  *
  *      Author: David Lawrie
  *      for cuda error checking functions used by both go_fish and by sfs
  */
 
-#ifndef CUDAERR_CUH_
-#define CUDAERR_CUH_
+#ifndef MYCUDAHELPER_CUH_
+#define MYCUDAHELPER_CUH_
 
 //includes below in sfs & go_fish
 #include <cuda_runtime.h>
@@ -30,4 +30,4 @@ __forceinline__ cudaDeviceProp set_cuda_device(int & cuda_device){
 
 /* ----- end cuda error checking ----- */
 
-#endif /* CUDAERR_CUH_ */
+#endif /* MYCUDAHELPER_CUH_ */

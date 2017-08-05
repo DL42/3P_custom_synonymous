@@ -48,8 +48,8 @@ objects = $(addprefix $(build_path)/,$(object_names))
 all:$(build_path)/$(EXEC_FILE)
 
 ##### OBJECT DEPENDENCIES #####
-$(build_path)/run.o: run.cu $(api_path_source)/rng.cuh $(api_path_source)/cuda_error.cuh $(api_path_source)/go_fish_impl.cuh $(api_path_include)/go_fish_data_struct.h $(api_path_include)/go_fish.cuh $(api_path_include)/spectrum.h
-$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu $(api_path_include)/spectrum.h $(api_path_source)/cuda_error.cuh $(api_path_include)/go_fish_data_struct.h
+$(build_path)/run.o: run.cu $(api_path_source)/rng.cuh $(api_path_source)/cuda_helper_fun.cuh $(api_path_source)/go_fish_impl.cuh $(api_path_include)/go_fish_data_struct.h $(api_path_include)/go_fish.cuh $(api_path_include)/spectrum.h
+$(build_path)/spectrum.o: $(api_path_source)/spectrum.cu $(api_path_include)/spectrum.h $(api_path_source)/cuda_helper_fun.cuh $(api_path_include)/go_fish_data_struct.h
 ##### END OBJECT DEPENDENCIES #####
 
 $(objects):

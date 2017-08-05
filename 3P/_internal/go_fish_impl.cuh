@@ -9,7 +9,7 @@
 #define GO_FISH_IMPL_CUH_
 
 #include "../_outside_libraries/cub/device/device_scan.cuh"
-#include "../_internal/cuda_error.cuh"
+#include "../_internal/cuda_helper_fun.cuh"
 #include "../_internal/rng.cuh"
 #include "../go_fish_data_struct.h"
 
