@@ -108,14 +108,14 @@ $(document).ready(function(){initNavTree('index.html','');});
 </div>
 <div class="textblock"><p>Important links:<br />
  </p><ul>
-<li><a class="el" href="md__r_e_a_d_m_e.html">Parallel PopGen Package v0.3 README</a> for installation and compilation instructions and change-log </li>
+<li><a class="el" href="_r_e_a_d_m_e_8md_source.html">README.md</a> for installation and compilation instructions and change-log </li>
 <li><a href="https://github.com/DL42/ParallelPopGen/issues">Bug Reporting, Feature Request, To Do, and Discussion</a> </li>
 <li><a href="https://github.com/DL42/ParallelPopGen/releases">Download Stable Releases</a> </li>
 <li><a href="https://github.com/DL42/ParallelPopGen">GitHub repository for latest changes</a></li>
 </ul>
 <h1><a class="anchor" id="API"></a>
 API Overview</h1>
-<p>Welcome to the manual for the Parallel PopGen Package (3P)! This is a library of CUDA C/C++ APIs for performing population genetics simulations and analyses on the GPU. Using the 3P APIs, complex, powerful, and fast simulations and analyses can be written in otherwise standard C++ - requiring no knowledge of parallel/GPU programming from the end-user. Below is a brief description of the information found in this manual, organized in the tabs above: </p><ul>
+<p>Welcome to the manual for the Parallel PopGen Package (3P)! This is a library of CUDA C++ APIs for performing population genetics simulations and analyses on the GPU. Using the 3P APIs, complex, powerful, and fast simulations and analyses can be written in otherwise standard C++ - requiring no knowledge of parallel/GPU programming from the end-user. Below is a brief description of the information found in this manual, organized in the tabs above: </p><ul>
 <li><a href="namespaces.html">Namespaces</a> provides all functions and classes related to an API (e.g. <a class="el" href="namespace_g_o___fish.html" title="Namespace for single-locus, forward, Monte-Carlo Wright-Fisher simulation and output data structures...">GO_Fish</a>). </li>
 <li><a href="modules.html">Modules</a> page organizes the <a class="el" href="namespace_sim___model.html" title="Namespace of functions for controlling GO_Fish simulations. ">Sim_Model</a> namespace into groups of functions (e.g. <a class="el" href="group__selection.html">Simulation Models: Selection Group</a>) - each module describes the parameters and output of the function group and how to write custom simulation functions. </li>
 <li><a href="files.html">Files</a> shows the file hierarchy, the functions and classes in each file, and the detailed description of each header file provides information on how to include the files for a project. </li>
@@ -132,7 +132,7 @@ API Overview</h1>
 <li><a class="el" href="go__fish__data__struct_8h.html" title="Subset of go_fish.cuh (the GO_Fish data structures) ">go_fish_data_struct.h</a>: Subset of <a class="el" href="go__fish_8cuh.html" title="GO Fish Simulation API (contains namespaces GO_Fish and Sim_Model) ">go_fish.cuh</a> (the <a class="el" href="namespace_g_o___fish.html" title="Namespace for single-locus, forward, Monte-Carlo Wright-Fisher simulation and output data structures...">GO_Fish</a> data structures) </li>
 <li><a class="el" href="spectrum_8h.html" title="proto-API for building site frequency spectra (contains the titular namespace Spectrum) ...">spectrum.h</a>: proto-API for building site frequency spectra (contains the titular namespace <a class="el" href="namespace_spectrum.html" title="Namespace for site frequency spectrum data structure and functions. (in prototype-phase) ...">Spectrum</a>)</li>
 </ul>
-<p>The implementations of these header files are in the source/ folder. All outside libraries used in the Parallel PopGen Package (beyond standard CUDA and C/C++ libs) are stored in the folder outside_libraries/ and are automatically included. The examples in the examples/ folder show how to compile a project which using a 3P API (also covered in <a class="el" href="md__r_e_a_d_m_e.html">Parallel PopGen Package v0.3 README</a>).</p>
+<p>The implementations of these header files are in the source/ folder. All outside libraries used in the Parallel PopGen Package (beyond standard CUDA and C/C++ libs) are stored in the folder outside_libraries/ and are automatically included. The examples in the examples/ folder show how to compile a project which using a 3P API (also covered in <a class="el" href="_r_e_a_d_m_e_8md_source.html">README.md</a>).</p>
 <h2><a class="anchor" id="Tips"></a>
 Tips</h2>
 <p>For faster <a class="el" href="namespace_g_o___fish.html" title="Namespace for single-locus, forward, Monte-Carlo Wright-Fisher simulation and output data structures...">GO_Fish</a> simulations: </p><ul>

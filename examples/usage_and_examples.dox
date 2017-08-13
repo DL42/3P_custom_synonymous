@@ -9,7 +9,7 @@
  *
  * 
  * \section API API Overview
- * Welcome to the manual for the Parallel PopGen Package (3P)! This is a library of CUDA C/C++ APIs for performing population genetics simulations and analyses on the GPU. Using the 3P APIs, complex, powerful, 
+ * Welcome to the manual for the Parallel PopGen Package (3P)! This is a library of CUDA C++ APIs for performing population genetics simulations and analyses on the GPU. Using the 3P APIs, complex, powerful, 
  and fast simulations and analyses can be written in otherwise standard C++ - requiring no knowledge of parallel/GPU programming from the end-user. Below is a brief description of the information found in this manual, organized in the tabs above: 
  * \li <a href="namespaces.html">Namespaces</a> provides all functions and classes related to an API (e.g. GO_Fish). 
  * \li <a href="modules.html">Modules</a> page organizes the Sim_Model namespace into groups of functions (e.g. \ref selection) - each module describes the parameters and output of the function group and how to write custom simulation functions.

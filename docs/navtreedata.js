@@ -17,7 +17,7 @@ var NAVTREE =
         ] ]
       ] ]
     ] ],
-    [ "Parallel PopGen Package v0.3 README", "md__r_e_a_d_m_e.html", null ],
+    [ "Parallel PopGen Package v0.3 README", "md_src__r_e_a_d_m_e.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Namespaces", null, [
       [ "Namespace List", "namespaces.html", "namespaces" ],
@@ -45,7 +45,7 @@ var NAVTREE =
 var NAVTREEINDEX =
 [
 "_example1-_speed-example.html",
-"struct_sim___model_1_1selection__sine__wave.html"
+"struct_sim___model_1_1selection__population__specific.html#aee2df85f26d7fdce977b5f06e42fba6a"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronisation';
