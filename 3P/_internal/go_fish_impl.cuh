@@ -788,7 +788,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 
 	//----- take time samples of allele trajectory -----
 	int sample_index = 0;
-	if(take_sample(generation) && generation != final_generation){
+	if(take_sample(generation) || generation == final_generation){
 		for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){ cudaCheckErrorsAsync(cudaStreamWaitEvent(control_streams[0],pop_events[pop],0), generation, pop); } //wait to sample until after initialization is done
 		store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 		sample_index++;
@@ -867,16 +867,12 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		//----- end -----
 
 		//----- take time samples of allele trajectories -----
-		if(take_sample(generation) && generation != final_generation){
+		if(take_sample(generation) || generation == final_generation){
 			store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
 			sample_index++;
 		}
 		//----- end -----
 	}
-
-	//----- take final time sample of allele trajectories -----
-	store_time_sample(all_results.time_samples[sample_index]->num_mutations, all_results.all_mutations, all_results.time_samples[sample_index]->sampled_generation, all_results.time_samples[sample_index]->mutations_freq, all_results.mutations_ID, all_results.time_samples[sample_index]->extinct, all_results.time_samples[sample_index]->Nchrom_e, mutations, demography, FI, generation, final_generation, control_streams, control_events);
-	//----- end -----
 	//----- end -----
 
 	if(cudaStreamQuery(control_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(control_streams[0]), generation, -1); } //ensures writes to host are finished before host can manipulate the data
