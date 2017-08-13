@@ -197,9 +197,9 @@ __global__ static void print_Device_array_float(float * array, int num){
 	printf("%5.10e\n",array[num]);
 }*/
 
-/*returns float j/max between [0,1]*/
+/*returns float j/max between [0,1], x/0 = 1, needed this way rather than fminf(fmaxf()) to avoid floating point approximate division errors giving 300/300 < 1.f */
 __device__ __forceinline__ float clamp_f(int j, int max){
-	if(j < max){ return fmaxf(0.f,float(j)/max); }
+	if(j < max){ return fmaxf(0.f,float(j)/float(max)); }
 	return 1.f;
 }
 
@@ -460,7 +460,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	if(cudaStreamQuery(pop_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),0,-1); } //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
 	int num_mutations = prefix_sum_result+final_freq_count;
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_interval, 0, final_generation);
-	//cout<<"initial length " << mutations.h_array_Length << endl;
+	//std::cout<<"num_mutations "<<num_mutations<<" initial length " << mutations.h_array_Length << std::endl;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
@@ -734,8 +734,8 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	cudaEvent_t * pop_events = new cudaEvent_t[2*mutations.h_num_populations];
 
 	int num_control_streams = 1;
-	cudaStream_t * control_streams = new cudaStream_t[num_control_streams];;
-	cudaEvent_t * control_events = new cudaEvent_t[num_control_streams];;
+	cudaStream_t * control_streams = new cudaStream_t[num_control_streams];
+	cudaEvent_t * control_events = new cudaEvent_t[num_control_streams];
 
 	for(int pop = 0; pop < 2*mutations.h_num_populations; pop++){
 		cudaCheckErrors(cudaStreamCreate(&pop_streams[pop]),-1,pop);
@@ -809,13 +809,13 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 		//----- migration, selection, drift -----
 		for(int pop = 0; pop < mutations.h_num_populations; pop++){
 			int N_ind = demography(pop,generation);
-			if(mutations.h_extinct[pop]){ continue; }
+/*			if(mutations.h_extinct[pop]){ continue; }
 			if(N_ind <= 0){
 				if(demography(pop,generation-1) > 0){ //previous generation, the population was alive
 					N_ind = 0; //allow to go extinct
 					mutations.h_extinct[pop] = true; //next generation will not process
 				} else{ continue; } //if population has not yet arisen, it will have a population size of 0, can simply not process
-			}
+			}*/
 			float F = FI(pop,generation);
 			int Nchrom_e = 2*N_ind/(1+F);
 
