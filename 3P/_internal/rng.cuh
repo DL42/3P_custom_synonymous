@@ -30,19 +30,38 @@ constexpr int RNG_N_BOUNDARY_POIS_BINOM = 100;  //binomial calculation starts to
 // and an add, which might be fused, depending on the architecture.
 //
 // If the input is a uniformly distributed integer, then the
-// result is a uniformly distributed floating point number in [0, 1].
+// result is a uniformly distributed floating point number in (0, 1].
 // The result is never exactly 0.0.
 // The smallest value returned is 2^-W.
 // Let M be the number of mantissa bits in Float.
 // If W>M  then the largest value retured is 1.0.
 // If W<=M then the largest value returned is the largest Float less than 1.0.
-__host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
-	//(mostly) stolen from Philox code "uniform.hpp"
-	R123_CONSTEXPR float factor = float(1.)/(UINT_MAX + float(1.));
-	R123_CONSTEXPR float halffactor = float(0.5)*factor;
-    return in*factor + halffactor;
-}
+// __host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
+// 	//(mostly) stolen from Philox code "uniform.hpp"
+// 	R123_CONSTEXPR float factor = 1.f/(UINT_MAX + 1.f);
+// 	R123_CONSTEXPR float halffactor = 0.5f*factor;
+//     return in*factor + halffactor;
+// }
 
+// uint_float_01:  Return a "fixed point" number in (0,1).  Let:
+//   W = width of Itype, e.g., 32 or 64, regardless of signedness.
+//   M = mantissa bits of Ftype, e.g., 24, 53 or 64
+//   B = min(M, W)
+// Then the 2^(B-1) possible output values are:
+//    2^-B*{1, 3, 5, ..., 2^B - 1}
+// The smallest output is: 2^-B
+// The largest output is:  1 - 2^-B
+// The output is never exactly 0.0, nor 0.5, nor 1.0.
+// The 2^(B-1) possible outputs:
+//   - are equally likely,
+//   - are uniformly spaced by 2^-(B-1),
+//   - are balanced around 0.5
+
+__host__ __device__ __forceinline__ float uint_float_01(unsigned int in){
+	//(mostly) stolen from Philox code "uniform.hpp" bit-shifts 'in' and UINT_MAX by the difference W-M (std::numeric_limits<T>::digits)
+	constexpr float factor = 1.f/(1.f + ((UINT_MAX>>8)));
+    return (1 | (in>>8)) * factor;
+}
 
 __host__ __device__ __forceinline__  uint4 Philox(int2 seed, unsigned int k, unsigned int step, unsigned int population, unsigned int round){
 	typedef r123::Philox4x32_R<10> P; //can change the 10 rounds of bijection down to 7 (lowest safe limit) to get possible extra speed!

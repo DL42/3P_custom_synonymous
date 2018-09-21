@@ -18,7 +18,7 @@ namespace go_fish_details{
 
 __device__ __forceinline__ float4 operator-(float a, float4 b){ return make_float4((a-b.x), (a-b.y), (a-b.z), (a-b.w)); }
 
-__device__ __forceinline__ float mse(float i, int N, float F, float h, float s){
+__device__ __forceinline__ double mse(double i, int N, float F, float h, float s){ //takes in double from mse_integrand, otherwise takes in float
 		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
 }
 
@@ -31,7 +31,7 @@ struct mse_integrand{
 	mse_integrand(): N(0), h(0), F(0), pop(0), gen(0) {}
 	mse_integrand(Functor_selection xsel_coeff, int xN, float xF, float xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
 
-	__device__ __forceinline__ float operator()(float i) const{
+	__device__ __forceinline__ double operator()(double i) const{
 		float s = max(sel_coeff(pop, gen, i),-1.f);
 		return mse(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
 	}
@@ -42,54 +42,31 @@ struct trapezoidal_upper{
 	Functor_function fun;
 	trapezoidal_upper() { }
 	trapezoidal_upper(Functor_function xfun): fun(xfun) { }
-	__device__ __forceinline__ float operator()(float a, float step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
+	__device__ __forceinline__ double operator()(double a, double step_size) const{ return step_size*(fun(a)+fun(a-step_size))/2; } //upper integral
 };
 
 //generates an array of areas from 1 to 0 of frequencies at every step size
 template <typename Functor_Integrator>
-__global__ void calculate_area(float * d_freq, const int num_freq, const float step_size, Functor_Integrator trapezoidal){
+__global__ void calculate_area(double * d_freq, const int num_freq, const double step_size, Functor_Integrator trapezoidal){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < num_freq; id += blockDim.x*gridDim.x){ d_freq[id] = trapezoidal((1.0 - id*step_size), step_size); }
 }
 
-/*
- *  CUB scan (sum) phenomenon: float errors in the mse_integral can accumulate differently each run
- *  e.g.
- *  GO_Fish::const_parameter mutation(pow(10.f,-9)); //per-site mutation rate
-	GO_Fish::const_parameter inbreeding(1.f); //constant inbreeding
-	GO_Fish::const_demography demography(pow(10.f,5)*(1+inbreeding(0,0))); //number of individuals in population, set to maintain consistent effective number of chromosomes
-	GO_Fish::const_equal_migration migration(0.f,a.sim_input_constants.num_populations); //constant migration rate
-	float gamma = -5; //effective selection
-	GO_Fish::const_selection selection(gamma/(2*demography(0,0))); //constant selection coefficient
-	GO_Fish::const_parameter dominance(0.f); //constant allele dominance
- *  a.sim_input_constants.compact_interval = 20;
-    a.sim_input_constants.num_generations = pow(10.f,3);
-    a.sim_input_constants.num_sites = 20*2*pow(10.f,7);
-    a.sim_input_constants.seed1 = 0xbeeff00d + 2*14; //random number seeds
-    a.sim_input_constants.seed2 = 0xdecafbad - 2*14;
-
-    one solution is to round the results in reverse array
-    another is to ignore (currently implemented)
-    another is to switch back to using doubles ... at least when summing up the mse_integral (difference in speed was slight)
- */
-
-__global__ static void reverse_array(float * array, const int N){
-	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
-		float temp = array[N - id - 1];
-		array[N - id - 1] = array[id];
-		//float temp = roundf(10000*array[N - id - 1])/10000.f;
-		//array[N - id - 1] = roundf(10000*array[id])/10000.f;
-		array[id] = temp;
-	}
+__global__ void reverse_array(double * array, const int N){
+ 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
+ 	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
+		double temp = array[N - id - 1];
+ 		array[N - id - 1] = array[id];
+ 		array[id] = temp;
+ 	}
 }
 
 //determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void initialize_mse_frequency_array(int * freq_index, float * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
+__global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
-	float mse_total = mse_integral[0]; //integral from frequency 0 to 1
+	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
 		float i = (id+1.f)/Nchrom;
 		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
@@ -99,6 +76,7 @@ __global__ void initialize_mse_frequency_array(int * freq_index, float * mse_int
 		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
 		freq_index[offset+id] = max(RNG::ApproxRandPois1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//mutations are poisson distributed in each frequency class //for round(lambda);//rounding can significantly under count for large N:  //
 	}
+	
 }
 
 //fills in mutation array using the freq and scan indices
@@ -131,7 +109,17 @@ __global__ static void mse_set_mutID(int4 * mutations_ID, const float * const mu
 		}
 	}
 }
-/*__global__ static void print_Device_array_uint(unsigned int * array, int num){
+
+
+/*
+__global__ static void print_Device_array_int(int * array, int num){
+	for(int i = 0; i < num; i++){
+		if(i%20 == 0){ printf("\n"); }
+		printf("%d: %d\t",i,array[i]);
+	}
+}
+
+__global__ static void print_Device_array_uint(unsigned int * array, int num){
 
 	for(int i = 0; i < num; i++){
 		//if(i%1000 == 0){ printf("\n"); }
@@ -360,15 +348,15 @@ struct sim_struct{
 };
 
 template <typename Functor_selection>
-__host__ void integrate_mse(float * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
-	float * d_freq;
+__host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
+	double * d_freq;
 
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(float)),0,pop);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double)),0,pop);
 
 	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
-	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (float)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 
 	void * d_temp_storage = NULL;
@@ -415,7 +403,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_index, num_freq*sizeof(int)),0,-1);
 	int * d_scan_index;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_scan_index, num_freq*sizeof(int)),0,-1);
-	float ** mse_integral = new float *[mutations.h_num_populations];
+	double ** mse_integral = new double *[mutations.h_num_populations];
 
 	int offset = 0;
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
@@ -424,7 +412,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		float F = FI(pop,0);
 		int Nchrom_e = 2*N_ind/(1+F);
 		float h = dominance(pop,0);
-		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(float)),0,pop);
+		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
 		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, mutations.h_num_sites, sel_coeff, F, h, seed, pop);
@@ -437,7 +425,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		cudaCheckErrorsAsync(cudaEventRecord(pop_events[pop],pop_streams[pop]),0,pop);
 		cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[0],pop_events[pop],0),0,pop);
 	}
-
+	
 	delete [] mse_integral;
 
 	void * d_temp_storage = NULL;
@@ -446,7 +434,11 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),0,-1);
 	cudaCheckErrorsAsync(cub::DeviceScan::ExclusiveSum(d_temp_storage, temp_storage_bytes, d_freq_index, d_scan_index, num_freq, pop_streams[0]),0,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),0,-1);
-
+	
+	if(seed.x ==476173717 && seed.y == 1282638044){ 
+		//print_Device_array_int<<<1,1>>>(d_scan_index, 720);
+	}
+	cudaCheckErrorsAsync(cudaDeviceSynchronize(),0, -1);
 	cudaCheckErrorsAsync(cudaEventRecord(pop_events[0],pop_streams[0]),0,-1);
 	for(int pop = 0; pop < mutations.h_num_populations; pop++){
 		cudaCheckErrorsAsync(cudaStreamWaitEvent(pop_streams[pop],pop_events[0],0),0,pop);
@@ -457,10 +449,9 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 	//final index is numfreq-1
 	cudaCheckErrorsAsync(cudaMemcpyAsync(&prefix_sum_result, &d_scan_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost, pop_streams[0]),0,-1); //has to be in sync with host as result is used straight afterwards
 	cudaCheckErrorsAsync(cudaMemcpyAsync(&final_freq_count, &d_freq_index[(num_freq-1)], sizeof(int), cudaMemcpyDeviceToHost, pop_streams[0]),0,-1); //has to be in sync with host as result is used straight afterwards
-	if(cudaStreamQuery(pop_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),0,-1); } //has to be in sync with the host since h_num_seq_mutations is manipulated on CPU right after
+	if(cudaStreamQuery(pop_streams[0]) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(pop_streams[0]),0,-1); } //has to be in sync with the host since prefix_sum_result+final_freq_count is manipulated on CPU right after
 	int num_mutations = prefix_sum_result+final_freq_count;
 	set_Index_Length(mutations, num_mutations, mu_rate, demography, FI, mutations.h_num_sites, compact_interval, 0, final_generation);
-	//std::cout<<"num_mutations "<<num_mutations<<" initial length " << mutations.h_array_Length << std::endl;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_mutations_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
 	cudaCheckErrorsAsync(cudaMalloc((void**)&mutations.d_prev_freq, mutations.h_num_populations*mutations.h_array_Length*sizeof(float)),0,-1);
@@ -594,6 +585,7 @@ __host__ void check_sim_parameters(const Functor_mutation mu_rate, const Functor
 	int num_pop = mutations.h_num_populations;
 	for(int pop = 0; pop < num_pop; pop++){
 		double migration = 0;
+		
 		if(mu_rate(pop,generation) < 0){ fprintf(stderr,"check_sim_parameters: mutation error: mu_rate < 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
 		int N = demography(pop,generation);
 		if(N > 0 && mutations.h_extinct[pop]){ fprintf(stderr,"check_sim_parameters: demography error: extinct population with population size > 0\tgeneration %d\t population %d\n",generation,pop); exit(1); }
@@ -640,14 +632,18 @@ __host__ __forceinline__ void store_time_sample(int & out_num_mutations, int & o
 	out_num_mutations = mutations.h_mutations_Index;
 	out_sampled_generation = sampled_generation;
 	out_mutations_freq = new float[mutations.h_num_populations*out_num_mutations];
-	cudaCheckErrors(cudaHostRegister(out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
-	cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), mutations.h_num_populations, cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //removes padding
-	cudaCheckErrors(cudaHostUnregister(out_mutations_freq),sampled_generation,-1);
+	if(out_num_mutations > 0){
+		cudaCheckErrors(cudaHostRegister(out_mutations_freq,mutations.h_num_populations*out_num_mutations*sizeof(float),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
+		cudaCheckErrorsAsync(cudaMemcpy2DAsync(out_mutations_freq, out_num_mutations*sizeof(float), mutations.d_prev_freq, mutations.h_array_Length*sizeof(float), out_num_mutations*sizeof(float), mutations.h_num_populations, cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //removes padding
+		cudaCheckErrors(cudaHostUnregister(out_mutations_freq),sampled_generation,-1);
+	}
 	if(sampled_generation == final_generation){
 		out_mutations_ID = (GO_Fish::mutID *)malloc(out_num_mutations*sizeof(GO_Fish::mutID)); //use malloc to avoid calling mutID constructor (new calls constructor and is slower by a couple of percent)
-		cudaCheckErrors(cudaHostRegister(out_mutations_ID,out_num_mutations*sizeof(int4),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
-		cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //mutations array is 1D
-		cudaCheckErrors(cudaHostUnregister(out_mutations_ID),sampled_generation,-1);
+		if(out_num_mutations > 0){
+			cudaCheckErrors(cudaHostRegister(out_mutations_ID,out_num_mutations*sizeof(int4),cudaHostRegisterPortable),sampled_generation,-1); //pinned memory allows for asynchronous transfer to host
+			cudaCheckErrorsAsync(cudaMemcpyAsync(out_mutations_ID, mutations.d_mutations_ID, out_num_mutations*sizeof(int4), cudaMemcpyDeviceToHost, control_streams[0]),sampled_generation,-1); //mutations array is 1D
+			cudaCheckErrors(cudaHostUnregister(out_mutations_ID),sampled_generation,-1);
+		}
 		out_max_num_mutations = out_num_mutations;
 	}
 	out_extinct = new bool[mutations.h_num_populations];
@@ -750,7 +746,6 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	int generation = 0;
 	int final_generation = all_results.sim_input_constants.num_generations;
 	int compact_interval = all_results.sim_input_constants.compact_interval;
-
 	//----- initialize simulation -----
 	if(all_results.sim_input_constants.init_mse){
 		//----- mutation-selection equilibrium (mse) (default) -----
@@ -795,6 +790,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	}
 	//----- end -----
 	//----- end -----
+		
 
 //	std::cout<< std::endl <<"initial length " << mutations.h_array_Length << std::endl;
 //	std::cout<<"initial num_mutations " << mutations.h_mutations_Index;
