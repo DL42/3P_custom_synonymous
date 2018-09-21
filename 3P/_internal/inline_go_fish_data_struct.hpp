@@ -15,20 +15,10 @@ inline mutID::mutID() : origin_generation(0), origin_population(0), origin_threa
 /** \t */
 inline mutID::mutID(int origin_generation, int origin_population, int origin_threadID, int reserved) : origin_generation(origin_generation), origin_population(origin_population), origin_threadID(origin_threadID), reserved(reserved) {}
 
-//!\cond
-template<typename T>
-std::string tostring(const T& value)
-{
-    std::ostringstream oss;
-    oss << value;
-    return oss.str();
-}
-//!\endcond
-
 /** string format: (origin_generation,origin_population,origin_thread,reserved)*/
-inline std::string mutID::toString() { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+inline std::string mutID::toString() { return "("+std::to_string(origin_generation)+","+std::to_string(origin_population)+","+std::to_string(abs(origin_threadID))+","+std::to_string(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
-inline std::string mutID::toString() const { return "("+tostring(origin_generation)+","+tostring(origin_population)+","+tostring(abs(origin_threadID))+","+tostring(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
+inline std::string mutID::toString() const { return "("+std::to_string(origin_generation)+","+std::to_string(origin_population)+","+std::to_string(abs(origin_threadID))+","+std::to_string(reserved)+")"; } //abs(origin_threadID) so the user doesn't get confused by the preservation flag on ID, here too for eventual allele trajectory.toString() or toFile() more likely
 
 inline allele_trajectories::sim_constants::sim_constants(): seed1(0xbeeff00d), seed2(0xdecafbad), num_generations(0), num_sites(1000), num_populations(1), init_mse(true), prev_sim_sample(-1), compact_interval(35), device(-1) {}
 
