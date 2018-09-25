@@ -8,10 +8,12 @@
 #ifndef GO_FISH_IMPL_CUH_
 #define GO_FISH_IMPL_CUH_
 
+#include "../_outside_libraries/cub/device/device_reduce.cuh"
 #include "../_outside_libraries/cub/device/device_scan.cuh"
 #include "../_internal/cuda_helper_fun.cuh"
 #include "../_internal/rng.cuh"
 #include "../go_fish_data_struct.h"
+#include "../spectrum.h"
 
 //!\cond
 namespace go_fish_details{
@@ -62,19 +64,37 @@ __global__ void reverse_array(double * array, const int N){
  	}
 }
 
-//determines number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
+template <typename Functor_selection>
+__device__ __forceinline__ float mse_expectation(const double mse_total, const int id, double * mse_integral, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int population, const int generation = 0){
+		float i = (id+1.f)/Nchrom;
+		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
+		float s = sel_coeff(population, generation, i);
+		float lambda;
+		if(s == 0){ lambda = 2*mu*L/i; }
+		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
+		
+		return lambda;
+}
+
+//determines number of mutations at each frequency in the initial populations, sets it equal to mutation-selection balance
 template <typename Functor_selection>
 __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
-		float i = (id+1.f)/Nchrom;
-		float j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
-		float s = sel_coeff(population, 0, i);
-		float lambda;
-		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
+		float lambda = mse_expectation(mse_total, id, mse_integral, mu, Nind, Nchrom, L, sel_coeff, F, h, population);
 		freq_index[offset+id] = max(RNG::ApproxRandPois1(lambda, lambda, mu, L*Nchrom, seed, 0, id, population),0);//mutations are poisson distributed in each frequency class //for round(lambda);//rounding can significantly under count for large N:  //
+	}
+	
+}
+
+//determines the expected number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
+template <typename Functor_selection>
+__global__ void expected_mse_frequency_array(float * freq_index, double * mse_integral, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int population, const int generation){
+	int myID = blockIdx.x*blockDim.x + threadIdx.x;
+	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
+	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
+		freq_index[id] = mse_expectation(mse_total, id, mse_integral, mu, Nind, Nchrom, L, sel_coeff, F, h, population, generation);
 	}
 	
 }
@@ -348,12 +368,12 @@ struct sim_struct{
 };
 
 template <typename Functor_selection>
-__host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, cudaStream_t pop_stream){
+__host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, int gen, cudaStream_t pop_stream){
 	double * d_freq;
 
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq, Nchrom_e*sizeof(double)),0,pop);
 
-	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop);
+	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop, gen);
 	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
 
 	calculate_area<<<10,1024,0,pop_stream>>>(d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
@@ -414,7 +434,7 @@ __host__ void initialize_mse(sim_struct & mutations, const Functor_mutation mu_r
 		float h = dominance(pop,0);
 		cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral[pop], Nchrom_e*sizeof(double)),0,pop);
 		if(Nchrom_e <= 1){ continue; }
-		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, pop_streams[pop]);
+		integrate_mse(mse_integral[pop], N_ind, Nchrom_e, sel_coeff, F, h, pop, 0, pop_streams[pop]);
 		initialize_mse_frequency_array<<<6,1024,0,pop_streams[pop]>>>(d_freq_index, mse_integral[pop], offset, mu, N_ind, Nchrom_e, mutations.h_num_sites, sel_coeff, F, h, seed, pop);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
 		offset += (Nchrom_e - 1);
@@ -880,6 +900,68 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	delete [] pop_events;
 	delete [] control_streams;
 	delete [] control_events;
+}
+
+template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance>
+__host__ void mse_SFS(Spectrum::SFS & mySFS, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const float num_sites, int cuda_device, const int population, const int generation){
+	using namespace go_fish_details;
+	cudaStream_t stream;
+	cudaCheckErrors(cudaStreamCreate(&stream),generation,population);
+	
+	float F = FI(population,generation);
+	int N_ind = demography(population,generation);
+	int Nchrom_e = 2*N_ind/(1+F);
+	int num_freq = Nchrom_e - 1; //number of frequencies
+	
+	float * d_freq_index;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_index,num_freq*sizeof(int)),generation,population);
+	double * mse_integral;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral,Nchrom_e*sizeof(double)),generation,population);
+	
+	float mu = mu_rate(population,generation);
+	float h = dominance(population,generation);
+	
+	if(Nchrom_e > 1){ 
+		integrate_mse(mse_integral, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream);
+		expected_mse_frequency_array<<<6,1024,0,stream>>>(d_freq_index, mse_integral, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, population, generation);
+		cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
+	}
+	
+	cudaCheckErrorsAsync(cudaFree(mse_integral),generation,population);
+	
+	float * d_exp_snp_total;
+	cudaCheckErrorsAsync(cudaMalloc(&d_exp_snp_total, sizeof(float)),generation,population);
+	void * d_temp_storage = NULL;
+	size_t temp_storage_bytes = 0;
+	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_freq_index, d_exp_snp_total, num_freq, stream),generation,population);
+	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),generation,population);
+	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_freq_index, d_exp_snp_total, num_freq, stream),generation,population);
+	cudaCheckErrorsAsync(cudaFree(d_temp_storage),generation,population);
+	
+	float exp_snp_total = 0;
+	float * h_histogram = new float[Nchrom_e];
+	
+	cudaCheckErrors(cudaHostRegister(&h_histogram[1], sizeof(float)*num_freq, cudaHostRegisterPortable),generation,population);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(&h_histogram[1], d_freq_index, num_freq*sizeof(float), cudaMemcpyDeviceToHost, stream),generation,population);
+	cudaCheckErrorsAsync(cudaMemcpyAsync(&exp_snp_total, d_exp_snp_total, sizeof(float), cudaMemcpyDeviceToHost, stream),generation,population);
+	cudaCheckErrors(cudaHostUnregister(&h_histogram[1]),generation,population);
+	
+	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), generation, population); } //ensures writes to host are finished before host can manipulate the data
+	
+	h_histogram[0] = num_sites - exp_snp_total;
+	mySFS.frequency_spectrum = h_histogram;
+	mySFS.num_populations = 1;
+	mySFS.sample_size = new int[1];
+	mySFS.sample_size[0] = Nchrom_e;
+	mySFS.num_sites = num_sites;
+	mySFS.num_mutations = exp_snp_total;
+	mySFS.populations = new int[1];
+	mySFS.populations[0] = population;
+	mySFS.sampled_generation = generation;
+	
+	cudaCheckErrorsAsync(cudaStreamDestroy(stream),generation,population);
+	cudaCheckErrorsAsync(cudaFree(d_freq_index),generation,population);
+	cudaCheckErrorsAsync(cudaFree(d_exp_snp_total),generation,population);
 }
 
 } /* ----- end namespace GO_Fish ----- */
