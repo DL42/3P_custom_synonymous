@@ -49,13 +49,13 @@ struct trapezoidal_upper{
 
 //generates an array of areas from 1 to 0 of frequencies at every step size
 template <typename Functor_Integrator>
-__global__ void calculate_area(double * d_freq, const int num_freq, const double step_size, Functor_Integrator trapezoidal){
+__global__ static void calculate_area(double * d_freq, const int num_freq, const double step_size, Functor_Integrator trapezoidal){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 
 	for(int id = myID; id < num_freq; id += blockDim.x*gridDim.x){ d_freq[id] = trapezoidal((1.0 - id*step_size), step_size); }
 }
 
-__global__ void reverse_array(double * array, const int N){
+__global__ static void reverse_array(double * array, const int N){
  	int myID = blockIdx.x*blockDim.x + threadIdx.x;
  	for(int id = myID; id < N/2; id += blockDim.x*gridDim.x){
 		double temp = array[N - id - 1];
@@ -348,6 +348,17 @@ __global__ static void preserve_prev_run_mutations(int4 * mutations_ID, const in
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){ mutations_ID[id].z = -1*abs(mutations_ID[id].z); } //preservation flag is a -ID, use of absolute value is to ensure that if ID is already
 }
+
+__global__ static void accumulate_pop_SFS(float * d_population_spectrum, float * d_freq_pop_spectrum, float * d_exp_snp_total, float num_sites, int Nchrom_e, bool accumulate){ 
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID+1; id < Nchrom_e; id+= blockDim.x*gridDim.x){
+		d_population_spectrum[id] = d_freq_pop_spectrum[id-1] + accumulate*d_population_spectrum[id]; 
+	}
+	
+	if(myID == 0){ d_population_spectrum[0] = num_sites - d_exp_snp_total[0] + accumulate*d_population_spectrum[0]; }
+	
+}
+
 //for internal simulation function passing
 struct sim_struct{
 	//device arrays
@@ -366,6 +377,20 @@ struct sim_struct{
 	sim_struct(): h_num_populations(0), h_array_Length(0), h_mutations_Index(0), h_num_sites(0), warp_size(0) { d_mutations_freq = NULL; d_prev_freq = NULL; d_mutations_ID = NULL; h_new_mutation_Indices = NULL; h_extinct = NULL;}
 	~sim_struct(){ cudaCheckErrorsAsync(cudaFree(d_mutations_freq),-1,-1); cudaCheckErrorsAsync(cudaFree(d_prev_freq),-1,-1); cudaCheckErrorsAsync(cudaFree(d_mutations_ID),-1,-1); if(h_new_mutation_Indices) { delete [] h_new_mutation_Indices; } if(h_extinct){ delete [] h_extinct; } }
 };
+
+template <typename Functor_selection>
+__host__ void integrate_mse(Spectrum::MSE & out, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, int gen, cudaStream_t pop_stream){
+	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop, gen);
+	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
+
+	calculate_area<<<10,1024,0,pop_stream>>>(out.d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
+	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
+
+	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(out.d_temp_storage_integrate, out.temp_storage_bytes_integrate, out.d_freq, out.d_mse_integral, Nchrom_e, pop_stream),0,pop);
+
+	reverse_array<<<10,1024,0,pop_stream>>>(out.d_mse_integral, Nchrom_e);
+	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
+}
 
 template <typename Functor_selection>
 __host__ void integrate_mse(double * d_mse_integral, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, int gen, cudaStream_t pop_stream){
@@ -902,66 +927,26 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 	delete [] control_events;
 }
 
-template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance>
-__host__ void mse_SFS(Spectrum::SFS & mySFS, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const float num_sites, int cuda_device, const int population, const int generation){
+template <typename Functor_selection>
+__host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selection sel_coeff, const float h, const float num_sites, const bool reset, const int population, const int generation){
 	using namespace go_fish_details;
-	cudaStream_t stream;
-	cudaCheckErrors(cudaStreamCreate(&stream),generation,population);
+	cudaStream_t & stream = out.stream;
 	
-	float F = FI(population,generation);
-	int N_ind = demography(population,generation);
-	int Nchrom_e = 2*N_ind/(1+F);
-	int num_freq = Nchrom_e - 1; //number of frequencies
-	
-	float * d_freq_index;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_freq_index,num_freq*sizeof(int)),generation,population);
-	double * mse_integral;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&mse_integral,Nchrom_e*sizeof(double)),generation,population);
-	
-	float mu = mu_rate(population,generation);
-	float h = dominance(population,generation);
-	
+	float F = out.F;
+	int N_ind = out.N_ind;
+	int Nchrom_e = out.Nchrom_e;
+	int num_freq = out.Nchrom_e - 1; //number of frequencies
 	if(Nchrom_e > 1){ 
-		integrate_mse(mse_integral, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream);
-		expected_mse_frequency_array<<<6,1024,0,stream>>>(d_freq_index, mse_integral, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, population, generation);
+		integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream);
+		expected_mse_frequency_array<<<6,1024,0,stream>>>(out.d_freq_pop_spectrum, out.d_mse_integral, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, population, generation);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
 	}
+
+	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(out.d_temp_storage_reduce, out.temp_storage_bytes_reduce, out.d_freq_pop_spectrum, out.d_exp_snp_total, num_freq, stream),generation,population);
 	
-	cudaCheckErrorsAsync(cudaFree(mse_integral),generation,population);
-	
-	float * d_exp_snp_total;
-	cudaCheckErrorsAsync(cudaMalloc(&d_exp_snp_total, sizeof(float)),generation,population);
-	void * d_temp_storage = NULL;
-	size_t temp_storage_bytes = 0;
-	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_freq_index, d_exp_snp_total, num_freq, stream),generation,population);
-	cudaCheckErrorsAsync(cudaMalloc(&d_temp_storage, temp_storage_bytes),generation,population);
-	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, d_freq_index, d_exp_snp_total, num_freq, stream),generation,population);
-	cudaCheckErrorsAsync(cudaFree(d_temp_storage),generation,population);
-	
-	float exp_snp_total = 0;
-	float * h_histogram = new float[Nchrom_e];
-	
-	cudaCheckErrors(cudaHostRegister(&h_histogram[1], sizeof(float)*num_freq, cudaHostRegisterPortable),generation,population);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(&h_histogram[1], d_freq_index, num_freq*sizeof(float), cudaMemcpyDeviceToHost, stream),generation,population);
-	cudaCheckErrorsAsync(cudaMemcpyAsync(&exp_snp_total, d_exp_snp_total, sizeof(float), cudaMemcpyDeviceToHost, stream),generation,population);
-	cudaCheckErrors(cudaHostUnregister(&h_histogram[1]),generation,population);
-	
-	if(cudaStreamQuery(stream) != cudaSuccess){ cudaCheckErrors(cudaStreamSynchronize(stream), generation, population); } //ensures writes to host are finished before host can manipulate the data
-	
-	h_histogram[0] = num_sites - exp_snp_total;
-	mySFS.frequency_spectrum = h_histogram;
-	mySFS.num_populations = 1;
-	mySFS.sample_size = new int[1];
-	mySFS.sample_size[0] = Nchrom_e;
-	mySFS.num_sites = num_sites;
-	mySFS.num_mutations = exp_snp_total;
-	mySFS.populations = new int[1];
-	mySFS.populations[0] = population;
-	mySFS.sampled_generation = generation;
-	
-	cudaCheckErrorsAsync(cudaStreamDestroy(stream),generation,population);
-	cudaCheckErrorsAsync(cudaFree(d_freq_index),generation,population);
-	cudaCheckErrorsAsync(cudaFree(d_exp_snp_total),generation,population);
+	accumulate_pop_SFS<<<6,1024,0>>>(out.d_population_spectrum, out.d_freq_pop_spectrum, out.d_exp_snp_total, num_sites, Nchrom_e, (!reset));
+	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
+	out.num_sites = num_sites;
 }
 
 } /* ----- end namespace GO_Fish ----- */

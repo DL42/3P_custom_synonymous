@@ -16,6 +16,7 @@
 #define SPECTRUM_H_
 
 #include "../3P/go_fish_data_struct.h"
+#include "_internal/cuda_helper_fun.cuh"
 
 ///Namespace for site frequency spectrum data structure and functions. (in prototype-phase)
 namespace Spectrum{
@@ -36,14 +37,46 @@ struct SFS{
 	~SFS();
 };
 
+struct MSE{
+	float * d_freq_pop_spectrum; ///<site frequency spectrum data structure (non-zero frequency, population)
+	float * d_population_spectrum; ///<site frequency spectrum data structure (population, accumulated)
+	float * d_binomial; //binomial distribution
+	float * d_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
+	float * h_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
+	float * d_exp_snp_total; ///expected SNP total
+	double * d_freq; ///temp vector used to fill up d_mse_integral
+	double * d_mse_integral; ///integrated mse vector used to fill up d_freq_index
+	
+	void * d_temp_storage_integrate;
+	size_t temp_storage_bytes_integrate;
+	void * d_temp_storage_reduce;
+	size_t temp_storage_bytes_reduce;
+	
+	
+	float N_ind; ///number of individuals in mse calculation
+	float F; ///inbreeding coefficient
+	int Nchrom_e; ///population size of mse calculation
+	int sample_size; ///<number of samples taken
+	float num_sites;  ///<number of sites in SFS
+	int cuda_device; ///cuda device to run on
+	cudaStream_t stream; //cuda stream to run on
+	
+	///create a an array on a device, \p d_binomial_out, of size sample_size*(population_size-1)
+	///when used in conjunction with void site_frequency_spectrum(SFS & mySFS, const SFS & inSFS, float * d_binomial, const int sample_size, int cuda_device = -1)
+	///set cuda_device
+	MSE(const int sample_size, int population_size, float inbreeding, int cuda_device = -1);
+	//!default destructor
+	~MSE();
+};
+
 ///create a frequency histogram of mutations at a single time point \p sample_index in a single population \p population_index store in \p mySFS
 void population_frequency_histogram(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, int cuda_device = -1);
 
 ///create a single-population SFS of size \p sample_size from a single time point \p sample_index in a single population \p population_index from allele trajectory \p all_results, store in \p mySFS
 void site_frequency_spectrum(SFS & mySFS, const GO_Fish::allele_trajectories & all_results, const int sample_index, const int population_index, const int sample_size, int cuda_device = -1);
 
-///create a single-population SFS of size \p sample_size from a SFS \p inSFS, store in \p mySFS
-void site_frequency_spectrum(SFS & mySFS, const SFS & inSFS, const int sample_size, int cuda_device = -1);
+///create a single-population SFS from MSE, store in \p out
+void site_frequency_spectrum(MSE & out);
 
 } /*----- end namespace SPECTRUM ----- */
 

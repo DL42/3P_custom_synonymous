@@ -333,9 +333,9 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 ///runs a single-locus Wright-Fisher simulation specified by the given simulation functions and sim_constants, storing the results into \p all_results
 template <typename Functor_mutation, typename Functor_demography, typename Functor_migration, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance, typename Functor_preserve, typename Functor_timesample>
 __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_migration mig_prop, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const Functor_preserve preserve_mutations, const Functor_timesample take_sample, const allele_trajectories & prev_sim);
-//calculates Wright-Fisher mutation-selection equilibrium for a single-locus, single population, single time point, storing the results into \p mySFS
-template <typename Functor_mutation, typename Functor_demography, typename Functor_selection, typename Functor_inbreeding, typename Functor_dominance>
-__host__ void mse_SFS(Spectrum::SFS & mySFS, const Functor_mutation mu_rate, const Functor_demography demography, const Functor_selection sel_coeff, const Functor_inbreeding FI, const Functor_dominance dominance, const float num_sites, int cuda_device = -1, const int population = 0, const int generation = 0);
+//calculates Wright-Fisher mutation-selection equilibrium for a single-locus, single population, single time point, storing the results into \p out
+template <typename Functor_selection>
+__host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selection sel_coeff, const float h, const float num_sites, const bool reset, const int population = 0, const int generation = 0);
 
 /* ----- end go_fish_impl ----- */
 
