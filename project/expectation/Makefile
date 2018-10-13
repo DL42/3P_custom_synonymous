@@ -42,13 +42,13 @@ NVCC = nvcc -std=c++11
 CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_61,code=sm_61 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_61,code=compute_61
 
-object_names = spectrum_exp.o mse_exp.o 
+object_names = spectrum_exp.o run_exp.o 
 objects = $(addprefix $(build_path)/,$(object_names))
 
 all:$(build_path)/$(EXEC_FILE)
 
 ##### OBJECT DEPENDENCIES #####
-$(build_path)/mse_exp.o: mse_exp.cu
+$(build_path)/run_exp.o: run_exp.cu
 $(build_path)/spectrum_exp.o: $(api_path_source)/spectrum.cu 
 ##### END OBJECT DEPENDENCIES #####
 
