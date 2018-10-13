@@ -7,9 +7,9 @@
 
 constexpr int SFS_size = 160;
 constexpr int SFS_fold_size = ((SFS_size%2)+SFS_size)/2 + 1;
-constexpr float theta = 0.035;
+constexpr float theta = 0.035; //0.01; //
 constexpr int anc_pop_size = 40000;											
-#define simTOrun run_zambia_bottlegrowth_sim
+#define simTOrun run_zambia_bottlegrowth_sim //run_mse_sim //
 
 void run_mse_sim(int num_iterations, int num_sites, std::vector<float> gamma, std::vector<float> sel_prop){
 	GO_Fish::allele_trajectories a;
