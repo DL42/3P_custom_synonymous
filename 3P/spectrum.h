@@ -52,7 +52,6 @@ struct MSE{
 	void * d_temp_storage_reduce;
 	size_t temp_storage_bytes_reduce;
 	
-	
 	float N_ind; ///number of individuals in mse calculation
 	float F; ///inbreeding coefficient
 	int Nchrom_e; ///population size of mse calculation
@@ -61,10 +60,10 @@ struct MSE{
 	int cuda_device; ///cuda device to run on
 	cudaStream_t stream; //cuda stream to run on
 	
-	///create a an array on a device, \p d_binomial_out, of size sample_size*(population_size-1)
-	///when used in conjunction with void site_frequency_spectrum(SFS & mySFS, const SFS & inSFS, float * d_binomial, const int sample_size, int cuda_device = -1)
-	///set cuda_device
-	MSE(const int sample_size, int population_size, float inbreeding, int cuda_device = -1);
+	///initializes MSE structure
+	///when used in conjunction with void site_frequency_spectrum(MSE & out)
+	///sets cuda_device
+	MSE(const int sample_size, const int population_size, const float inbreeding, int cuda_device = -1);
 	//!default destructor
 	~MSE();
 };

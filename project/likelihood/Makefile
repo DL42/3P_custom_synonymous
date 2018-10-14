@@ -1,4 +1,4 @@
-# Description of Mac/Linux/Unix Makefile for run_mse. 
+# Description of Mac/Linux/Unix Makefile for mse_gpu. 
 #
 #############################
 # build_path := Where to build program and put executable (note: folder must already exist)
@@ -36,13 +36,13 @@
 build_path = ../bin
 api_path_source = ../../3P/_internal
 api_path_include = ../../3P
-EXEC_FILE = RUN_MSE
+EXEC_FILE = mse_gpu
 
 NVCC = nvcc -std=c++11
-CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
+CFLAGS = -O3 -shared -Xcompiler -Wall,-fPIC `python3 -m pybind11 --includes` --use_fast_math -I $(api_path_include)/ -dc
 CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_61,code=sm_61 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_61,code=compute_61
 
-object_names = spectrum_mse.o mse.o 
+object_names = mse.o spectrum_mse.o  
 objects = $(addprefix $(build_path)/,$(object_names))
 
 all:$(build_path)/$(EXEC_FILE)
@@ -57,7 +57,7 @@ $(objects):
 
 $(build_path)/$(EXEC_FILE): $(objects)
 
-	$(NVCC) $(CODE) $(objects) -o $@
+	$(NVCC) $(CODE) $(objects) -o $@`python3-config --extension-suffix`
 
 .PHONY: all clean
 
