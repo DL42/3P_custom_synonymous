@@ -1,0 +1,1 @@
+cmake . -DPYTHON_LIBRARY=~/anaconda/envs/pybind11CUDA/lib/libpython3.6m.dylib -DPYTHON_INCLUDE_DIR=~/anaconda/envs/pybind11CUDA/include/python3.6m
