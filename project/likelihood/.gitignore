@@ -1,0 +1,9 @@
+# Ignore everything in this directory
+*
+# Except these files
+!.gitignore
+!cmake command.txt
+!CMakeLists.txt
+!mse_gpu.cpp
+!mse_gpu.cu
+!likelihood.py

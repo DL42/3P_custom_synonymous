@@ -4,7 +4,7 @@ find_package(PythonLibs 3.6 REQUIRED)
 
 include_directories(${PYTHON_INCLUDE_DIRS} ../../3P/)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
 cuda_add_library(mse_gpu SHARED
   ../../3P/_internal/spectrum.cu
