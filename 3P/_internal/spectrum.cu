@@ -221,12 +221,13 @@ namespace Spectrum{
 SFS::SFS(): num_populations(0), num_sites(0), num_mutations(0), sampled_generation(0) {frequency_spectrum = NULL; populations = NULL; sample_size = NULL;}
 SFS::~SFS(){ if(frequency_spectrum){ delete [] frequency_spectrum; frequency_spectrum = NULL; } if(populations){ delete[] populations; populations = NULL; } if(sample_size){ delete[] sample_size; sample_size = NULL; }}
 
-MSE::MSE(const int sample_size, const int population_size, const float inbreeding_coeff, int cuda_device): num_sites(0), sample_size(sample_size), N_ind(population_size), F(inbreeding_coeff), cuda_device(cuda_device)  {
+MSE::MSE(const int sample_size, const int eff_num_chromosomes, const bool fold, const bool zero_class, int cuda_device): num_sites(0), sample_size(sample_size), SFS_size(sample_size), Nchrom_e(eff_num_chromosomes), fold(fold), zero_class(zero_class), cuda_device(cuda_device)  {
 	using namespace Spectrum_details;
 	set_cuda_device(cuda_device);
 	cudaCheckErrors(cudaStreamCreate(&stream),-1,-1);
 	
-	Nchrom_e = 2*N_ind/(1+F);
+	if(fold){ SFS_size = ((SFS_size%2)+SFS_size)/2 + 1; }
+	
 	int num_freq = Nchrom_e - 1; //number of non-zero frequencies
 	binomial(d_binomial, sample_size, Nchrom_e, stream);
 	

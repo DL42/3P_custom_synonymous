@@ -40,30 +40,33 @@ struct SFS{
 struct MSE{
 	float * d_freq_pop_spectrum; ///<site frequency spectrum data structure (non-zero frequency, population)
 	float * d_population_spectrum; ///<site frequency spectrum data structure (population, accumulated)
-	float * d_binomial; //binomial distribution
+	float * d_binomial; ///<binomial distribution
 	float * d_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
 	float * h_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
-	float * d_exp_snp_total; ///expected SNP total
-	double * d_freq; ///temp vector used to fill up d_mse_integral
-	double * d_mse_integral; ///integrated mse vector used to fill up d_freq_index
+	float * d_exp_snp_total; ///<expected SNP total
+	double * d_freq; ///<temp vector used to fill up d_mse_integral
+	double * d_mse_integral; ///<integrated mse vector used to fill up d_freq_index
 	
-	void * d_temp_storage_integrate;
-	size_t temp_storage_bytes_integrate;
-	void * d_temp_storage_reduce;
-	size_t temp_storage_bytes_reduce;
+	void * d_temp_storage_integrate; ///<temporary storage for integration
+	size_t temp_storage_bytes_integrate; ///<size of temporary storage for integration
+	void * d_temp_storage_reduce; ///<temporary storage for reduction
+	size_t temp_storage_bytes_reduce; ///<size of temporary storage for reduction
 	
-	float N_ind; ///number of individuals in mse calculation
-	float F; ///inbreeding coefficient
-	int Nchrom_e; ///population size of mse calculation
+	float N_ind; ///<number of individuals in mse calculation
+	float F; ///<inbreeding coefficient
+	int Nchrom_e; ///<population size of mse calculation
 	int sample_size; ///<number of samples taken
+	int SFS_size; ///<size of SFS (same as sample_size if not folded)
+	bool fold; ///<folded
+	bool zero_class; ///<zero_class
 	float num_sites;  ///<number of sites in SFS
-	int cuda_device; ///cuda device to run on
-	cudaStream_t stream; //cuda stream to run on
+	int cuda_device; ///<cuda device to run on
+	cudaStream_t stream; ///<cuda stream to run on
 	
 	///initializes MSE structure
 	///when used in conjunction with void site_frequency_spectrum(MSE & out)
 	///sets cuda_device
-	MSE(const int sample_size, const int population_size, const float inbreeding, int cuda_device = -1);
+	MSE(const int sample_size, const int population_size, const bool fold, const bool zero_class, int cuda_device = -1);
 	//!default destructor
 	~MSE();
 };

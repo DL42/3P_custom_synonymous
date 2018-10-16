@@ -928,13 +928,12 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 }
 
 template <typename Functor_selection>
-__host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selection sel_coeff, const float h, const float num_sites, const bool reset, const int population, const int generation){
+__host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selection sel_coeff, const float h, const float F, const float num_sites, const bool reset, const int population, const int generation){
 	using namespace go_fish_details;
 	cudaStream_t & stream = out.stream;
 	
-	float F = out.F;
-	int N_ind = out.N_ind;
 	int Nchrom_e = out.Nchrom_e;
+	int N_ind = (Nchrom_e*(1.f+F)/2.f);
 	int num_freq = out.Nchrom_e - 1; //number of frequencies
 	if(Nchrom_e > 1){ 
 		integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream);
