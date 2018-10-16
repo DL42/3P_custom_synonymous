@@ -37,7 +37,7 @@ struct selection_constant
 	inline selection_constant(float s); /**<\brief constructor */ /**<\t*/
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline selection_constant(float gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0); /**<\brief constructor: effective selection */
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; /**<\brief selection operator, returns selection coefficient, \p s, for a given `population, generation, freq` */ /**<\t*/
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; /**<\brief selection operator, returns selection coefficient, \p s, for a given `population, generation, freq` */ /**<\t*/
 };
 
 /**\brief functor: models selection coefficient as linearly dependent on frequency */
@@ -49,7 +49,7 @@ struct selection_linear_frequency_dependent
 	inline selection_linear_frequency_dependent(float slope, float intercept); /**<\brief constructor */ /**<\t*/
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline selection_linear_frequency_dependent(float gamma_slope, float gamma_intercept, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift = 0); /**<\brief constructor: effective selection */
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
 /**\brief functor: models selection as a sine wave through time */ /**useful for modeling cyclical/seasonal behavior over time*/
@@ -65,7 +65,7 @@ struct selection_sine_wave
 	inline selection_sine_wave(float A, float pi, float D, float rho = 0, int generation_shift = 0); /**<\brief constructor */
 	template <typename Functor_demography, typename Functor_inbreeding>
 	inline selection_sine_wave(float gamma_A, float pi, float gamma_D, Functor_demography demography, Functor_inbreeding F, float rho = 0, int generation_shift = 0, int forward_generation_shift = 0); /**<\brief constructor: effective selection `gamma_A, gamma_D` */
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
 ///functor: one population, \p pop, has a different, selection function, \p s_pop, all other have function \p s
@@ -78,7 +78,7 @@ struct selection_population_specific
 	Functor_sel_pop s_pop; /**<\brief population specific selection function for \p pop */ /**<\t*/
 	inline selection_population_specific(); /**<\brief default constructor */
 	inline selection_population_specific(Functor_sel s_in, Functor_sel_pop s_pop_in, int pop, int generation_shift = 0); /**<\brief constructor */ /**<\t*/
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 
 ///functor: selection function changes from \p s1 to \p s2 at generation \p inflection_point
@@ -91,7 +91,7 @@ struct selection_piecewise
 	Functor_sel2 s2; /**<\brief second selection function */ /**<\t*/
 	inline selection_piecewise(); /**<\brief default constructor */
 	inline selection_piecewise(Functor_sel1 s1_in, Functor_sel2 s2_in, int inflection_point, int generation_shift = 0); /**<\brief constructor */ /**<\t*/
-	__device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
+	__host__ __device__ __forceinline__ float operator()(const int population, const int generation, const float freq) const; //!<\copybrief Sim_Model::selection_constant::operator()(const int population, const int generation, const float freq) const
 };
 /* ----- end selection models ----- *//** @} */
 

@@ -936,7 +936,7 @@ __host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selecti
 	int N_ind = (Nchrom_e*(1.f+F)/2.f);
 	int num_freq = out.Nchrom_e - 1; //number of frequencies
 	if(Nchrom_e > 1){ 
-		integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream);
+		if(sel_coeff(population, generation,0.5) != 0){ integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream); }
 		expected_mse_frequency_array<<<6,1024,0,stream>>>(out.d_freq_pop_spectrum, out.d_mse_integral, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, population, generation);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
 	}
