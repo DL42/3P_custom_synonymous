@@ -112,7 +112,7 @@ void run_mse_expectation(std::vector<float> gamma, std::vector<float> sel_prop, 
     	float sel_coeff = gamma[j]/anc_pop_size;
     	Sim_Model::selection_constant selection(sel_coeff); 
     	//reset determines if the mse calculated replaces previous values or accumulates
-    	GO_Fish::mse_SFS(mse_data_struct, mu, selection, h, num_sites*sel_prop[j], reset);
+    	GO_Fish::mse_SFS(mse_data_struct, mu, selection, h, 1.f, num_sites*sel_prop[j], reset);
     	reset = false;
     }
     			
@@ -128,7 +128,7 @@ void run_mse_expectation(std::vector<float> gamma, std::vector<float> sel_prop, 
 }
 
 void run_all_mse(std::vector<std::vector<float>> & gamma2_array, std::vector<std::vector<float>> & sel2_prop_array, std::vector<std::vector<float>> gamma3_array, std::vector<std::vector<float>> & sel3_prop_array){
-	Spectrum::MSE mse_data_struct(SFS_size, anc_pop_size, 1.f);
+	Spectrum::MSE mse_data_struct(SFS_size, anc_pop_size, true, true);
 	
 	run_mse_expectation({0}, {1}, mse_data_struct);
 	
