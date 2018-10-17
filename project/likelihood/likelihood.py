@@ -83,6 +83,36 @@ process_time = time.time() - before
 print(process_time)
 print(lik[0])
 
+def check_alpha_pattern(SFS_size, alpha_pattern):
+	previous_0 = alpha_pattern[0][0]
+	previous_1 = alpha_pattern[0][1]
+	if(previous_0 != 0):
+		raise IndexError("alpha pattern must start at 0")
+	for pattern in alpha_pattern[1:]:
+		if(previous_0 >= previous_1):
+			raise IndexError("alpha pattern must be strictly increasing, problem detected at {} {}".format(previous_0,previous_1))
+		if(pattern[0] != previous_1): 
+			raise IndexError("alpha pattern must be continuous, discontnuity detected at {} {}".format(previous_1,pattern[0]))
+		previous_0 = pattern[0]
+		previous_1 = pattern[1]
+	
+	if(previous_1 != SFS_size-2):
+		raise IndexError("alpha pattern must end at {}".format((SFS_size-2)))
+	
+def expand_alpha(alpha_in, SFS_size, alpha_pattern):
+	if(alpha_in.size != alpha_pattern.shape[0]):
+		raise ValueError("alpha_in must have the same number of values as alpha_pattern has index bounds")
+	alpha_out = np.array([0]*(SFS_size-2),dtype=np.float32)
+	for a_in,pattern in zip(alpha_in, alpha_pattern):
+		alpha_out[range(pattern[0],pattern[1])] = a_in
+	return alpha_out
+	
+SFS_size = 81
+alpha_pattern = np.array([[0,1],[1,3],[3,7],[7,15],[15,31],[31,79]])
+check_alpha_pattern(SFS_size, alpha_pattern)
+alpha = expand_alpha(alpha_in, SFS_size, alpha_pattern)
+print(alpha)
+
 def output_results(file_name):
 
     f = open(file_name,"a")
@@ -93,7 +123,7 @@ def output_results(file_name):
         f.write('shape_only\t')
     
     if (free_alpha and not(neutral_alpha)):
-        f.write('freeAlpha6Bins\t')
+        f.write('freeAlpha6Bins\t') #add alpha_pattern to description
     else:
         if (neutral_alpha and free_alpha):
             f.write('neutAlpha6Bins\t')
