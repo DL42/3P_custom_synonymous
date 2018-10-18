@@ -15,14 +15,13 @@ inbreeding = 0.0
 num_sites = 2*pow(10,7)
 selected = mse_gpu.calc_sfs_mse(gamma,dominance,inbreeding,proportion,theta,alpha,mse)
 
-def theor_neutral(theta, alpha, mse):
+def theor_neutral(theta, inbreeding, alpha, mse):
 	gamma = np.array([0],dtype=np.float32)
-	dominance = np.array([0.5],dtype=np.float32) #effectively ignored since inbreeding is set to 1
+	dominance = np.array([0.5],dtype=np.float32) #effectively ignored since neutral mutations
 	proportion = np.array([1],dtype=np.float32)
-	inbreeding = 0
 	return mse_gpu.calc_sfs_mse(gamma,dominance,inbreeding,proportion,theta,alpha,mse)
 
-neutral = theor_neutral(theta, alpha, mse)
+neutral = theor_neutral(theta, inbreeding, alpha, mse)
 
 # num_test_sites=sum(obs_test_sfs)
 # num_ref_sites=sum(obs_ref_sfs)
@@ -53,7 +52,7 @@ def total_likelihood(obs_test_sfs, obs_ref_sfs, theta, gamma_array, d_array, inb
     	if (bound_check > 0):
         	return loglambda,alpha,None,None
 
-    	theor_ref_sfs = theor_neutral(theta, alpha, mse)
+    	theor_ref_sfs = theor_neutral(theta, inbreeding, alpha, mse)
     
     	proportion = np.append(p_array,[(1 - lethal_perc) - sum_p_array])
     	theor_test_sfs = mse_gpu.calc_sfs_mse(gamma_array,d_array,inbreeding,proportion,theta,alpha,mse)
