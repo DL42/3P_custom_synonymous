@@ -6,7 +6,7 @@ namespace py = pybind11;
 
 void sfs_mse_expectation(Spectrum::MSE & mse, const float * gamma, const float * h, const float F, const float * proportion, const int num_categories, const float theta, const float num_sites);
 
-py::array_t<float> normalize_SFS(const float * SFS_in, const int SFS_in_size, py::array_t<const float> & alpha, Spectrum::MSE & mse){	
+py::array_t<double> normalize_SFS(const float * SFS_in, const int SFS_in_size, py::array_t<const float> & alpha, Spectrum::MSE & mse){	
 	py::buffer_info buf = alpha.request();
     
     if (buf.ndim != 1)
@@ -21,21 +21,21 @@ py::array_t<float> normalize_SFS(const float * SFS_in, const int SFS_in_size, py
     
     const float * a_ptr = (const float *)buf.ptr;
     	
-    auto SFS_out = py::array_t<float>(SFS_size);
+    auto SFS_out = py::array_t<double>(SFS_size);
 	py::buffer_info buf2 = SFS_out.request();
-	float * out_ptr = (float *)buf2.ptr;
+	auto out_ptr = (double *)buf2.ptr;
     
 	bool fold = (SFS_in_size == SFS_unfolded) && (mse.fold);
 	
-	float temp;
-	if(fold && SFS_size > 2){ temp = SFS_in[1] + SFS_in[SFS_unfolded-1];  }
+	double temp;
+	if(fold && SFS_size > 2){ temp = double(SFS_in[1]) + double(SFS_in[SFS_unfolded-1]);  }
 	else{ temp = SFS_in[1]; }
 	double total_snps = temp; 
 	out_ptr[1] = temp;
 		
 	for(int k = 2; k < SFS_size; k++){ 
-    	if(fold && k != SFS_unfolded-k){ temp = a_ptr[k-2]*(SFS_in[k] + SFS_in[SFS_unfolded-k]); } 
-    	else { temp = a_ptr[k-2]*SFS_in[k]; }
+    	if(fold && k != SFS_unfolded-k){ temp = double(a_ptr[k-2])*(double(SFS_in[k]) + double(SFS_in[SFS_unfolded-k])); } 
+    	else { temp = double(a_ptr[k-2])*double(SFS_in[k]); }
     	out_ptr[k] = temp;
     	total_snps += temp;
     } 
@@ -97,5 +97,5 @@ PYBIND11_MODULE(mse_gpu, m)
              py::arg("cuda_device")=-1);
 
 	m.def("calc_sfs_mse", &calc_sfs_mse);
-	m.def("renormalize_SFS", &renormalize_SFS);
+	//m.def("renormalize_SFS", &renormalize_SFS);
 }
