@@ -39,6 +39,25 @@ struct mse_integrand{
 	}
 };
 
+__device__ __forceinline__ double mse64(double i, int N, double F, double h, double s){ //takes in double from mse_integrand, otherwise takes in float
+		return exp(2*N*s*i*((2*h+(1-2*h)*i)*(1-F) + 2*F)/(1+F)); //works for either haploid or diploid, N should be number of individuals, for haploid, F = 1
+}
+
+template <typename Functor_selection>
+struct mse_integrand64{
+	Functor_selection sel_coeff;
+	int N, pop, gen;
+	double F, h;
+
+	mse_integrand64(): N(0), h(0), F(0), pop(0), gen(0) {}
+	mse_integrand64(Functor_selection xsel_coeff, int xN, double xF, double xh, int xpop, int xgen = 0): sel_coeff(xsel_coeff), N(xN), F(xF), h(xh), pop(xpop), gen(xgen) { }
+
+	__device__ __forceinline__ double operator()(double i) const{
+		double s = max(sel_coeff(pop, gen, i),-1.f);
+		return mse64(i, N, F, h, -1*s); //exponent term in integrand is negative inverse
+	}
+};
+
 template<typename Functor_function>
 struct trapezoidal_upper{
 	Functor_function fun;
@@ -76,6 +95,18 @@ __device__ __forceinline__ float mse_expectation(const double mse_total, const i
 		return lambda;
 }
 
+template <typename Functor_selection>
+__device__ __forceinline__ double mse_expectation64(const double mse_total, const int id, double * mse_integral, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const double F, const double h, const int population, const int generation = 0){
+		double i = (id+1.f)/Nchrom;
+		double j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
+		double s = sel_coeff(population, generation, i);
+		double lambda;
+		if(s == 0){ lambda = 2*mu*L/i; }
+		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
+		
+		return lambda;
+}
+
 //determines number of mutations at each frequency in the initial populations, sets it equal to mutation-selection balance
 template <typename Functor_selection>
 __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_integral, const int offset, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int2 seed, const int population){
@@ -90,11 +121,11 @@ __global__ void initialize_mse_frequency_array(int * freq_index, double * mse_in
 
 //determines the expected number of mutations at each frequency in the initial population, sets it equal to mutation-selection balance
 template <typename Functor_selection>
-__global__ void expected_mse_frequency_array(float * freq_index, double * mse_integral, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const float F, const float h, const int population, const int generation){
+__global__ void expected_mse_frequency_array(double * freq_index, double * mse_integral, const float mu, const int Nind, const int Nchrom, const double L, const Functor_selection sel_coeff, const double F, const double h, const int population, const int generation){
 	int myID = blockIdx.x*blockDim.x + threadIdx.x;
 	double mse_total = mse_integral[0]; //integral from frequency 0 to 1
 	for(int id = myID; id < (Nchrom-1); id += blockDim.x*gridDim.x){ //exclusive, number of freq in pop is chromosome population size N-1
-		freq_index[id] = mse_expectation(mse_total, id, mse_integral, mu, Nind, Nchrom, L, sel_coeff, F, h, population, generation);
+		freq_index[id] = mse_expectation64(mse_total, id, mse_integral, mu, Nind, Nchrom, L, sel_coeff, F, h, population, generation);
 	}
 	
 }
@@ -349,7 +380,7 @@ __global__ static void preserve_prev_run_mutations(int4 * mutations_ID, const in
 	for(int id = myID; id < mutations_Index; id+= blockDim.x*gridDim.x){ mutations_ID[id].z = -1*abs(mutations_ID[id].z); } //preservation flag is a -ID, use of absolute value is to ensure that if ID is already
 }
 
-__global__ static void accumulate_pop_SFS(float * d_population_spectrum, float * d_freq_pop_spectrum, float * d_exp_snp_total, float num_sites, int Nchrom_e, bool accumulate){ 
+__global__ static void accumulate_pop_SFS(double * d_population_spectrum, double * d_freq_pop_spectrum, double * d_exp_snp_total, double num_sites, int Nchrom_e, bool accumulate){ 
 	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
 	for(int id = myID+1; id < Nchrom_e; id+= blockDim.x*gridDim.x){
 		d_population_spectrum[id] = d_freq_pop_spectrum[id-1] + accumulate*d_population_spectrum[id]; 
@@ -379,9 +410,9 @@ struct sim_struct{
 };
 
 template <typename Functor_selection>
-__host__ void integrate_mse(Spectrum::MSE & out, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const float F, const float h, int pop, int gen, cudaStream_t pop_stream){
-	mse_integrand<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop, gen);
-	trapezoidal_upper< mse_integrand<Functor_selection> > trap(mse_fun);
+__host__ void integrate_mse(Spectrum::MSE & out, const int N_ind, const int Nchrom_e, const Functor_selection sel_coeff, const double F, const double h, int pop, int gen, cudaStream_t pop_stream){
+	mse_integrand64<Functor_selection> mse_fun(sel_coeff, N_ind, F, h, pop, gen);
+	trapezoidal_upper< mse_integrand64<Functor_selection> > trap(mse_fun);
 
 	calculate_area<<<10,1024,0,pop_stream>>>(out.d_freq, Nchrom_e, (double)1.0/(Nchrom_e), trap); //setup array frequency values to integrate over (upper integral from 1 to 0)
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),0,pop);
@@ -928,7 +959,7 @@ __host__ void run_sim(allele_trajectories & all_results, const Functor_mutation 
 }
 
 template <typename Functor_selection>
-__host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selection sel_coeff, const float h, const float F, const float num_sites, const bool reset, const int population, const int generation){
+__host__ void mse_SFS(Spectrum::MSE & out, const double mu, const Functor_selection sel_coeff, const double h, const double F, const double num_sites, const bool reset, const int population, const int generation){
 	using namespace go_fish_details;
 	cudaStream_t & stream = out.stream;
 	
@@ -936,7 +967,7 @@ __host__ void mse_SFS(Spectrum::MSE & out, const float mu, const Functor_selecti
 	int N_ind = (Nchrom_e*(1.f+F)/2.f);
 	int num_freq = out.Nchrom_e - 1; //number of frequencies
 	if(Nchrom_e > 1){ 
-		if(sel_coeff(population, generation,0.5) != 0){ integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream); }
+		if(sel_coeff(population, generation, 0.5) != 0){ integrate_mse(out, N_ind, Nchrom_e, sel_coeff, F, h, population, generation, stream); }
 		expected_mse_frequency_array<<<6,1024,0,stream>>>(out.d_freq_pop_spectrum, out.d_mse_integral, mu, N_ind, Nchrom_e, num_sites, sel_coeff, F, h, population, generation);
 		cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
 	}

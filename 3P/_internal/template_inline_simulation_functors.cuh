@@ -53,6 +53,17 @@ inline selection_constant::selection_constant(float gamma, Functor_demography de
 __device__ __forceinline__ float selection_constant::operator()(const int population, const int generation, const float freq) const{ return s; }
 /* ----- end constant selection model ----- */
 
+/* ----- constant selection model 64 bit ----- */
+inline selection_constant64::selection_constant64() : s(0) {}
+inline selection_constant64::selection_constant64(double s) : s(s){ }
+/**`s = gamma/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift)))`\n
+ * \param forward_generation_shift (optional input) default `0` \n allows you to push the population size and inbreeding coefficient value to the state forward in time - useful
+ * if you are starting the simulation from a previous simulation state and are using the same functions as the previous simulation or any time you want to shift the generation of the demography and inbreeding functions from 0 \n */
+template <typename Functor_demography, typename Functor_inbreeding>
+inline selection_constant64::selection_constant64(double gamma, Functor_demography demography, Functor_inbreeding F, int forward_generation_shift /*= 0*/){ s = gamma/(2*demography(0,forward_generation_shift)/(1+F(0,forward_generation_shift))); }
+__device__ __forceinline__ double selection_constant64::operator()(const int population, const int generation, const double freq) const{ return s; }
+/* ----- end constant selection model ----- */
+
 /* ----- linear frequency dependent selection model ----- */
 /**\struct selection_linear_frequency_dependent
  * `(slope < 0)` := balancing selection model (negative frequency-dependent selection) \n

@@ -38,12 +38,12 @@ struct SFS{
 };
 
 struct MSE{
-	float * d_freq_pop_spectrum; ///<site frequency spectrum data structure (non-zero frequency, population)
-	float * d_population_spectrum; ///<site frequency spectrum data structure (population, accumulated)
+	double * d_freq_pop_spectrum; ///<site frequency spectrum data structure (non-zero frequency, population)
+	double * d_population_spectrum; ///<site frequency spectrum data structure (population, accumulated)
 	float * d_binomial; ///<binomial distribution
 	float * d_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
 	float * h_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
-	float * d_exp_snp_total; ///<expected SNP total
+	double * d_exp_snp_total; ///<expected SNP total
 	double * d_freq; ///<temp vector used to fill up d_mse_integral
 	double * d_mse_integral; ///<integrated mse vector used to fill up d_freq_index
 	
@@ -52,14 +52,13 @@ struct MSE{
 	void * d_temp_storage_reduce; ///<temporary storage for reduction
 	size_t temp_storage_bytes_reduce; ///<size of temporary storage for reduction
 	
-	float N_ind; ///<number of individuals in mse calculation
-	float F; ///<inbreeding coefficient
+	double N_ind; ///<number of individuals in mse calculation
 	int Nchrom_e; ///<population size of mse calculation
 	int sample_size; ///<number of samples taken
 	int SFS_size; ///<size of SFS (same as sample_size if not folded)
 	bool fold; ///<folded
 	bool zero_class; ///<zero_class
-	float num_sites;  ///<number of sites in SFS
+	double num_sites;  ///<number of sites in SFS
 	int cuda_device; ///<cuda device to run on
 	cudaStream_t stream; ///<cuda stream to run on
 	

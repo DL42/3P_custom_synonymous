@@ -158,7 +158,7 @@ __global__ void binom(float * d_binomial, const float * const d_binom_coeff, con
 }
 
 template <int BLOCK_THREADS>
-__global__ void SFS_binom_SFS(float * d_histogram, const float * const d_inSFS, const float * const d_binomial, const int num_levels, int population_size){
+__global__ void SFS_binom_SFS(float * d_histogram, const double * const d_inSFS, const float * const d_binomial, const int num_levels, int population_size){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
 	typedef cub::BlockReduce<float, BLOCK_THREADS> BlockReduceT;
@@ -231,9 +231,9 @@ MSE::MSE(const int sample_size, const int eff_num_chromosomes, const bool fold, 
 	int num_freq = Nchrom_e - 1; //number of non-zero frequencies
 	binomial(d_binomial, sample_size, Nchrom_e, stream);
 	
-	cudaCheckErrorsAsync(cudaMalloc(&d_freq_pop_spectrum, num_freq*sizeof(float)),-1,-1); 
-	cudaCheckErrorsAsync(cudaMalloc(&d_population_spectrum, Nchrom_e*sizeof(float)),-1,-1); 
-	cudaCheckErrorsAsync(cudaMalloc(&d_exp_snp_total, sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc(&d_freq_pop_spectrum, num_freq*sizeof(double)),-1,-1); 
+	cudaCheckErrorsAsync(cudaMalloc(&d_population_spectrum, Nchrom_e*sizeof(double)),-1,-1); 
+	cudaCheckErrorsAsync(cudaMalloc(&d_exp_snp_total, sizeof(double)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_freq, Nchrom_e*sizeof(double)),-1,-1); //double
 	cudaCheckErrorsAsync(cudaMalloc(&d_mse_integral, Nchrom_e*sizeof(double)),-1,-1); //double
 	cudaCheckErrorsAsync(cudaMalloc(&d_frequency_spectrum, sample_size*sizeof(float)),-1,-1);
