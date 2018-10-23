@@ -102,7 +102,7 @@ __device__ __forceinline__ double mse_expectation64(const double mse_total, cons
 		double s = sel_coeff(population, generation, i);
 		double lambda;
 		if(s == 0){ lambda = 2*mu*L/i; }
-		else{ lambda = 2*mu*L*(mse(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
+		else{ lambda = 2*mu*L*(mse64(i, Nind, F, h, s)*mse_integral[id])/(mse_total*i*j); }
 		
 		return lambda;
 }

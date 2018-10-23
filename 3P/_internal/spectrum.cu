@@ -163,9 +163,9 @@ __global__ void binom(double * d_binomial, const double * const d_binom_coeff, c
 		for(int idx = myIDx+1; idx < population_size; idx+= blockDim.x*gridDim.x){
 			double pf = static_cast<double>(idx)/population_size;
 			double qf = 1-pf;
-			double powp = idy*logf(pf);
-			double powq = (num_levels-idy)*logf(qf);
-			d_binomial[idx-1+(population_size-1)*idy] = expf(coeff+powp+powq);
+			double powp = idy*log(pf);
+			double powq = (num_levels-idy)*log(qf);
+			d_binomial[idx-1+(population_size-1)*idy] = exp(coeff+powp+powq);
 		}
 	}
 
