@@ -71,20 +71,20 @@ py::array_t<double> calc_sfs_mse(py::array_t<const double> & gamma, py::array_t<
 	return normalize_SFS(mse.h_frequency_spectrum, mse.sample_size, alpha, mse);
 }
 
-// py::array_t<float> renormalize_SFS(py::array_t<const float> & sfs, py::array_t<const float> & alpha, Spectrum::MSE & mse){
-// 	py::buffer_info buf1 = sfs.request();
-// 	if (buf1.ndim != 1)
-//         throw std::runtime_error("Number of dimensions must be one");
-//     
-//     int SFS_size = mse.SFS_size;
-//     
-//     if (buf1.size != SFS_size)
-//         throw std::runtime_error("Input shapes must match");
-//     
-//     const float * in_ptr = (const float *)buf1.ptr;
-//     
-//     return normalize_SFS(in_ptr, SFS_size, alpha, mse);
-// }
+py::array_t<double> renormalize_SFS(py::array_t<const double> & sfs, py::array_t<const double> & alpha, Spectrum::MSE & mse){
+	py::buffer_info buf1 = sfs.request();
+	if (buf1.ndim != 1)
+        throw std::runtime_error("Number of dimensions must be one");
+    
+    int SFS_size = mse.SFS_size;
+    
+    if (buf1.size != SFS_size)
+        throw std::runtime_error("Input shapes must match");
+    
+    const double * in_ptr = (const double *)buf1.ptr;
+    
+    return normalize_SFS(in_ptr, SFS_size, alpha, mse);
+}
 
 PYBIND11_MODULE(mse_gpu, m)
 {	
