@@ -3,7 +3,9 @@ find_package(CUDA)
 find_package(PythonLibs 3.6 REQUIRED)
 
 include_directories(${PYTHON_INCLUDE_DIRS} ../../3P/)
-
+cuda_select_nvcc_arch_flags(ARCH_FLAGS Auto)
+set(CUDA_NVCC_FLAGS "-std=c++11 -O3")
+LIST(APPEND CUDA_NVCC_FLAGS ${ARCH_FLAGS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
 cuda_add_library(mse_gpu SHARED

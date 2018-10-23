@@ -112,8 +112,15 @@ __global__ void print_Device_array_float(float * array, int num){
 __global__ void print_Device_array_double(double * array, int start, int end){
 
 		//if(i%1000 == 0){ printf("\n"); }
-	for(int j = start; j < end; j++){ printf("%d: %f\t",j,array[j]); }
+	for(int j = start; j < end; j++){ printf("%d: %5.10e\t",j,array[j]); }
 	printf("\n");
+}
+
+__global__ void compareDevicearray(double * array1, double * array2, int array_length){
+	int myID =  blockIdx.x*blockDim.x + threadIdx.x;
+	for(int id = myID; id < array_length; id+= blockDim.x*gridDim.x){
+		if(array1[id] != array2[id]){ printf("%d,%f,%f\t",id,array1[id],array2[id]); return; }
+	}
 }
 
 template <int BLOCK_THREADS>
@@ -164,19 +171,6 @@ __global__ void binom(double * d_binomial, const double * const d_binom_coeff, c
 
 }
 
-__device__ double atomicAdd(double* address, double val)
-{
-    unsigned long long int* address_as_ull = (unsigned long long int*)address;
-    unsigned long long int old = *address_as_ull, assumed;
-    do {
-        assumed = old;
-        old = atomicCAS(address_as_ull, assumed,
-                __double_as_longlong(val + __longlong_as_double(assumed)));
-    } while (assumed != old);
-    return __longlong_as_double(old);
-}
-
-
 template <int BLOCK_THREADS>
 __global__ void SFS_binom_SFS(double * d_histogram, const double * const d_inSFS, const double * const d_binomial, const int num_levels, int population_size){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
@@ -220,7 +214,7 @@ void binomial(double *& d_binomial, int sample_size, int population_size, cudaSt
 	cudaCheckErrorsAsync(cub::DeviceScan::InclusiveSum(d_temp_storage, temp_storage_bytes, d_binom_partial_coeff, d_binom_coeff, half_n, stream),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_temp_storage),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
-	//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
+	//print_Device_array_double<<<1,1,0,stream>>>(d_binom_coeff, 0, half_n);
 	
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binomial, (sample_size+1)*(population_size-1)*sizeof(double)),-1,-1);
 	const dim3 gridsize(200,20,1);
@@ -228,6 +222,7 @@ void binomial(double *& d_binomial, int sample_size, int population_size, cudaSt
 	binom<<<gridsize,num_threads_binom,0,stream>>>(d_binomial, d_binom_coeff, half_n, sample_size, population_size);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	cudaCheckErrorsAsync(cudaFree(d_binom_coeff),-1,-1);
+	//print_Device_array_double<<<1,1,0,stream>>>(d_binomial, 0, (sample_size+1)*(population_size-1));
 }
 
 } /*----- end namespace Spectrum_details ----- */
