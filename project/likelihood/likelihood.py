@@ -98,7 +98,7 @@ def re_param(x, boundary_array, p_size, fixed_alpha, ap_size, neutral_alpha, fre
 	g_array = x[(ap_size+1+p_size):x.size]
 	d_array = np.array([0.5]*g_array.size,dtype=np.float64)
 	result = total_likelihood(obs_test_sfs, obs_ref_sfs, theta_site, g_array, d_array, inbreeding, p_array, boundary_array, alpha, 0, mse) 
-	#print(x[0],x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],result[0],result[1],result[2])
+	#print(alpha,x[6],x[7],x[8],x[9],result[0])
 	return -1*result[0]
     
 def re_param_neu(x, fixed_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
@@ -165,7 +165,7 @@ def maximum_likelihood(obs_test_sfs, obs_ref_sfs, file_name, initial_gamma_array
 	input_tuple = (boundary_array, p_size, init_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse)
 	if(neutral_alpha and free_alpha):
 		x_max_neu_alpha = scipy.optimize.minimize(re_param_neutral_alpha, x_neu_alpha, input_tuple[3:], method=optimizer, options={'maxfev': maxfev})
-		init_alpha = x_max_neu_alpha["x"][:ap_size]
+		for index,xa in enumerate(x_max_neu_alpha["x"][:ap_size]): init_alpha[index] = xa
 		#print(x_max_neu_alpha)
 	x = np.concatenate((np.ones(ap_size),np.array([initial_theta_site]),initial_p_array,initial_gamma_array)) 
 
@@ -280,7 +280,7 @@ if __name__ == '__main__':
 	fold = True
 	zero_class = True
 	free_alpha = True
-	neutral_alpha = False
+	neutral_alpha = True
 
 	my_test_sfs = np.loadtxt("sfs_test_out.txt", delimiter="\n", dtype=np.float64, unpack=False)
 	my_ref_sfs = np.loadtxt("sfs_ref_out.txt", delimiter="\n", dtype=np.float64, unpack=False)
@@ -294,11 +294,15 @@ if __name__ == '__main__':
 	SFS_size = my_test_sfs.size
 	my_expand_alpha = lambda x: expand_alpha(x, SFS_size, alpha_pattern)
 	before = time.time()
-	ml_results = maximum_likelihood(my_test_sfs, my_ref_sfs, file_name, initial_gamma_array, my_boundary_array, initial_p_array, initial_theta_site, initial_lethal_array, alpha_pattern, free_alpha, neutral_alpha, fold, zero_class, 40000, optimizer = 'Nelder-Mead')
+	ml_results = maximum_likelihood(my_test_sfs, my_ref_sfs, file_name, initial_gamma_array, my_boundary_array, initial_p_array, initial_theta_site, initial_lethal_array, alpha_pattern, free_alpha, neutral_alpha, fold, zero_class, 4000, optimizer = 'Nelder-Mead')
 	process_time = time.time() - before
 	print(process_time,ml_results)
-	#print(my_test_sfs,my_ref_sfs)
-	#p_array = proportion[0:1]
-	#results = total_likelihood(my_test_sfs, my_ref_sfs, theta, gamma, dominance, inbreeding, p_array, my_boundary_array, alpha, 0, mse2)
-	#print(results[0],results[1]*num_sites,results[2]*num_sites)
+	# m_alpha=np.array([0.982322869711217,0.982197875401603,0.982197327162886,0.982196638455358,0.982195239794138,0.982205653372654],dtype=np.float64) for when Nchrome=4000,free=neutral=True
+# 	#m_alpha_exp = my_expand_alpha(m_alpha)
+# 	m_alpha_exp = ml_results[3]
+# 	p_array = np.array([0.849887384658254],dtype=np.float64)
+# 	g_array = np.array([0,-1.946871547510721e+02],dtype=np.float64)
+# 	mse2 = mse_gpu.MSE(160,4000,fold,zero_class)
+# 	results = total_likelihood(my_test_sfs, my_ref_sfs, 0.0102, g_array, [0.5,0.5], 0, p_array, my_boundary_array, m_alpha_exp, 0, mse2)
+# 	print(results[0])
     
