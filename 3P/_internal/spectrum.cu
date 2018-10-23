@@ -95,6 +95,13 @@ __global__ void binom_coeff(float * binom_coeff, int half_n, int n){
 	if(myIDx == 0){ binom_coeff[0] = 0.0; }
 }
 
+__global__ void binom_coeff64(double * binom_coeff, int half_n, int n){
+	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
+
+	for(int idx = (myIDx+1); idx < half_n; idx+= blockDim.x*gridDim.x){ binom_coeff[idx] =  logf((n+1.f-idx)/((double)idx)); }
+	if(myIDx == 0){ binom_coeff[0] = 0.0; }
+}
+
 __global__ void print_Device_array_float(float * array, int num){
 
 		//if(i%1000 == 0){ printf("\n"); }
@@ -139,36 +146,49 @@ __global__ void mut_binom_SFS(float * d_histogram, const float * const d_mutatio
 	if(myIDx == 0 && myIDy == 0){  atomicAdd(&d_histogram[0],(float)(num_sites-num_mutations));  }
 }
 
-__global__ void binom(float * d_binomial, const float * const d_binom_coeff, const int half_n, const int num_levels, int population_size){
+__global__ void binom(double * d_binomial, const double * const d_binom_coeff, const int half_n, const int num_levels, int population_size){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
 	
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
-		float coeff = 0;
+		double coeff = 0;
 		if(idy < half_n){ coeff = d_binom_coeff[idy]; } else{ coeff = d_binom_coeff[num_levels-idy]; }
 		for(int idx = myIDx+1; idx < population_size; idx+= blockDim.x*gridDim.x){
-			float pf = static_cast<float>(idx)/population_size;
-			float qf = 1-pf;
-			float powp = idy*logf(pf);
-			float powq = (num_levels-idy)*logf(qf);
+			double pf = static_cast<double>(idx)/population_size;
+			double qf = 1-pf;
+			double powp = idy*logf(pf);
+			double powq = (num_levels-idy)*logf(qf);
 			d_binomial[idx-1+(population_size-1)*idy] = expf(coeff+powp+powq);
 		}
 	}
 
 }
 
+__device__ double atomicAdd(double* address, double val)
+{
+    unsigned long long int* address_as_ull = (unsigned long long int*)address;
+    unsigned long long int old = *address_as_ull, assumed;
+    do {
+        assumed = old;
+        old = atomicCAS(address_as_ull, assumed,
+                __double_as_longlong(val + __longlong_as_double(assumed)));
+    } while (assumed != old);
+    return __longlong_as_double(old);
+}
+
+
 template <int BLOCK_THREADS>
-__global__ void SFS_binom_SFS(float * d_histogram, const double * const d_inSFS, const float * const d_binomial, const int num_levels, int population_size){
+__global__ void SFS_binom_SFS(double * d_histogram, const double * const d_inSFS, const double * const d_binomial, const int num_levels, int population_size){
 	int myIDx =  blockIdx.x*blockDim.x + threadIdx.x;
 	int myIDy = blockIdx.y;
-	typedef cub::BlockReduce<float, BLOCK_THREADS> BlockReduceT;
+	typedef cub::BlockReduce<double, BLOCK_THREADS> BlockReduceT;
 	__shared__ typename BlockReduceT::TempStorage temp_storage;
-	float thread_data[1];
+	double thread_data[1];
 
 	for(int idy = myIDy; idy <= num_levels; idy+= blockDim.y*gridDim.y){
 		thread_data[0] = 0;
 		for(int idx = myIDx+1; idx < population_size; idx+= blockDim.x*gridDim.x){ thread_data[0] += d_inSFS[idx]*d_binomial[idx-1+(population_size-1)*idy]; }
-		float aggregate = BlockReduceT(temp_storage).Sum(thread_data);
+		double aggregate = BlockReduceT(temp_storage).Sum(thread_data);
 		if(threadIdx.x == 0){
 			if(idy == num_levels){ atomicAdd(&d_histogram[0],aggregate); }
 			else{ atomicAdd(&d_histogram[idy],aggregate);  }
@@ -177,21 +197,21 @@ __global__ void SFS_binom_SFS(float * d_histogram, const double * const d_inSFS,
 	if(myIDx == 0 && myIDy == 0){  atomicAdd(&d_histogram[0], d_inSFS[0]);  } //num_sites-num_mutations equivalent to d_inSFS[0]
 }
 
-void binomial(float *& d_binomial, int sample_size, int population_size, cudaStream_t stream){
+void binomial(double *& d_binomial, int sample_size, int population_size, cudaStream_t stream){
 	int half_n;
 	if((sample_size) % 2 == 0){ half_n = (sample_size)/2+1; }
 	else{ half_n = (sample_size+1)/2; }
 
-	float * d_binom_partial_coeff;
+	double * d_binom_partial_coeff;
 	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_partial_coeff, half_n*sizeof(float)),-1,-1);
 	int num_threads = 1024;
 	if(half_n < 1024){ num_threads = 256; if(half_n < 256){  num_threads = 128; } }
 	int num_blocks = max(sample_size/num_threads,1);
-	binom_coeff<<<num_blocks,num_threads,0,stream>>>(d_binom_partial_coeff, half_n, sample_size);
+	binom_coeff64<<<num_blocks,num_threads,0,stream>>>(d_binom_partial_coeff, half_n, sample_size);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 
-	float * d_binom_coeff;
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(float)),-1,-1);
+	double * d_binom_coeff;
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binom_coeff, half_n*sizeof(double)),-1,-1);
 
 	void *d_temp_storage = NULL;
 	size_t temp_storage_bytes = 0;
@@ -202,7 +222,7 @@ void binomial(float *& d_binomial, int sample_size, int population_size, cudaStr
 	cudaCheckErrorsAsync(cudaFree(d_binom_partial_coeff),-1,-1);
 	//print_Device_array_double<<<1,1,0,stream>>>(d_binom, 0, half_n);
 	
-	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binomial, (sample_size+1)*(population_size-1)*sizeof(float)),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc((void**)&d_binomial, (sample_size+1)*(population_size-1)*sizeof(double)),-1,-1);
 	const dim3 gridsize(200,20,1);
 	const int num_threads_binom = 1024;
 	binom<<<gridsize,num_threads_binom,0,stream>>>(d_binomial, d_binom_coeff, half_n, sample_size, population_size);
@@ -236,9 +256,9 @@ MSE::MSE(const int sample_size, const int eff_num_chromosomes, const bool fold, 
 	cudaCheckErrorsAsync(cudaMalloc(&d_exp_snp_total, sizeof(double)),-1,-1);
 	cudaCheckErrorsAsync(cudaMalloc(&d_freq, Nchrom_e*sizeof(double)),-1,-1); //double
 	cudaCheckErrorsAsync(cudaMalloc(&d_mse_integral, Nchrom_e*sizeof(double)),-1,-1); //double
-	cudaCheckErrorsAsync(cudaMalloc(&d_frequency_spectrum, sample_size*sizeof(float)),-1,-1);
-	h_frequency_spectrum = new float[sample_size]; ///<site frequency spectrum data structure (sampling)
-	cudaCheckErrors(cudaHostRegister(h_frequency_spectrum, sizeof(float)*sample_size, cudaHostRegisterPortable),-1,-1);
+	cudaCheckErrorsAsync(cudaMalloc(&d_frequency_spectrum, sample_size*sizeof(double)),-1,-1);
+	h_frequency_spectrum = new double[sample_size]; ///<site frequency spectrum data structure (sampling)
+	cudaCheckErrors(cudaHostRegister(h_frequency_spectrum, sizeof(double)*sample_size, cudaHostRegisterPortable),-1,-1);
 
 	d_temp_storage_integrate = NULL;
 	temp_storage_bytes_integrate = 0;
@@ -423,13 +443,13 @@ void site_frequency_spectrum(MSE & out){
 
 	const dim3 gridsize(2,20,1);
 	const int num_threads_binom = 1024;
-	cudaCheckErrorsAsync(cudaMemsetAsync(out.d_frequency_spectrum, 0, num_levels*sizeof(float), stream),-1,-1);
+	cudaCheckErrorsAsync(cudaMemsetAsync(out.d_frequency_spectrum, 0, num_levels*sizeof(double), stream),-1,-1);
 	SFS_binom_SFS<num_threads_binom><<<gridsize,num_threads_binom,0,stream>>>(out.d_frequency_spectrum, out.d_population_spectrum, out.d_binomial, num_levels, population_size);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
 	//slight differences in each run of the above reduction are due to different floating point error accumulations as different blocks execute in different orders each time
 	//can be ignored, might switch back to using doubles (at least for summing into d_histogram & not calculating d_binom_coeff, speed difference was negligble for the former)
 
-	cudaCheckErrors(cudaMemcpy(out.h_frequency_spectrum, out.d_frequency_spectrum, num_levels*sizeof(float), cudaMemcpyDeviceToHost),-1,-1); //might as well, have to wait for writes to finish anyway and stream_synchronize is needed
+	cudaCheckErrors(cudaMemcpy(out.h_frequency_spectrum, out.d_frequency_spectrum, num_levels*sizeof(double), cudaMemcpyDeviceToHost),-1,-1); //might as well, have to wait for writes to finish anyway and stream_synchronize is needed
 }
 
 } /*----- end namespace SPECTRUM ----- */

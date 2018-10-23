@@ -96,7 +96,7 @@ __device__ __forceinline__ float mse_expectation(const double mse_total, const i
 }
 
 template <typename Functor_selection>
-__device__ __forceinline__ double mse_expectation64(const double mse_total, const int id, double * mse_integral, const float mu, const int Nind, const int Nchrom, const float L, const Functor_selection sel_coeff, const double F, const double h, const int population, const int generation = 0){
+__device__ __forceinline__ double mse_expectation64(const double mse_total, const int id, double * mse_integral, const double mu, const int Nind, const int Nchrom, const double L, const Functor_selection sel_coeff, const double F, const double h, const int population, const int generation = 0){
 		double i = (id+1.f)/Nchrom;
 		double j = ((Nchrom - id)+1.f)/Nchrom; //ensures that when i gets close to be rounded to 1, Ni doesn't become 0 when it isn't actually 0 unlike simply taking 1-i
 		double s = sel_coeff(population, generation, i);

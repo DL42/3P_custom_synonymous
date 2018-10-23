@@ -40,9 +40,9 @@ struct SFS{
 struct MSE{
 	double * d_freq_pop_spectrum; ///<site frequency spectrum data structure (non-zero frequency, population)
 	double * d_population_spectrum; ///<site frequency spectrum data structure (population, accumulated)
-	float * d_binomial; ///<binomial distribution
-	float * d_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
-	float * h_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
+	double * d_binomial; ///<binomial distribution
+	double * d_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
+	double * h_frequency_spectrum; ///<site frequency spectrum data structure (sampling)
 	double * d_exp_snp_total; ///<expected SNP total
 	double * d_freq; ///<temp vector used to fill up d_mse_integral
 	double * d_mse_integral; ///<integrated mse vector used to fill up d_freq_index

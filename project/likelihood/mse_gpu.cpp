@@ -6,7 +6,7 @@ namespace py = pybind11;
 
 void sfs_mse_expectation(Spectrum::MSE & mse, const double * gamma, const double * h, const double F, const double * proportion, const int num_categories, const double theta, const double num_sites);
 
-py::array_t<double> normalize_SFS(const float * SFS_in, const int SFS_in_size, py::array_t<const double> & alpha, Spectrum::MSE & mse){	
+py::array_t<double> normalize_SFS(const double * SFS_in, const int SFS_in_size, py::array_t<const double> & alpha, Spectrum::MSE & mse){	
 	py::buffer_info buf = alpha.request();
     
     if (buf.ndim != 1)
@@ -28,14 +28,14 @@ py::array_t<double> normalize_SFS(const float * SFS_in, const int SFS_in_size, p
 	bool fold = (SFS_in_size == SFS_unfolded) && (mse.fold);
 	
 	double temp;
-	if(fold && SFS_size > 2){ temp = double(SFS_in[1]) + double(SFS_in[SFS_unfolded-1]);  }
+	if(fold && SFS_size > 2){ temp = SFS_in[1] + SFS_in[SFS_unfolded-1];  }
 	else{ temp = SFS_in[1]; }
 	double total_snps = temp; 
 	out_ptr[1] = temp;
 		
 	for(int k = 2; k < SFS_size; k++){ 
-    	if(fold && k != SFS_unfolded-k){ temp = double(a_ptr[k-2])*(double(SFS_in[k]) + double(SFS_in[SFS_unfolded-k])); } 
-    	else { temp = double(a_ptr[k-2])*double(SFS_in[k]); }
+    	if(fold && k != SFS_unfolded-k){ temp = a_ptr[k-2]*(SFS_in[k] + SFS_in[SFS_unfolded-k]); } 
+    	else { temp = (a_ptr[k-2])*(SFS_in[k]); }
     	out_ptr[k] = temp;
     	total_snps += temp;
     } 

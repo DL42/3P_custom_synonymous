@@ -182,7 +182,7 @@ def maximum_likelihood(obs_test_sfs, obs_ref_sfs, file_name, initial_gamma_array
 	max_likelihood,theor_test_sfs,theor_ref_sfs = total_likelihood(obs_test_sfs, obs_ref_sfs, max_theta_site, max_gamma, dominance, inbreeding, max_p_array, boundary_array, max_alpha, 0, mse) 
     
 	x_neu = np.append(np.ones(ap_size),initial_theta_site)
-	x_max_neu = scipy.optimize.minimize(re_param_neu, x_neu, input_tuple[1:], method=optimizer, options={'maxfev': maxfev, 'disp' : True}) 
+	x_max_neu = scipy.optimize.minimize(re_param_neu, x_neu, input_tuple[1:], method=optimizer, options={'maxfev': maxfev}) 
 	all_neutral_lik = -1*x_max_neu["fun"]
 	max_theta_site_neu = x_max_neu["x"][ap_size]
     
