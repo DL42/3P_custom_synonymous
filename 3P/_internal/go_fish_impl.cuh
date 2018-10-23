@@ -234,6 +234,14 @@ __global__ static void copyDevicearray(float * array1, float * array2, int array
 
 __global__ static void print_Device_array_float(float * array, int num){
 	printf("%5.10e\n",array[num]);
+	
+__global__ static void print_Device_array_double(double * array, int num){
+
+	for(int i = 0; i < num; i++){
+		//if(i%100 == 0){ printf("\n"); }
+		printf("\n%5.10e",array[i]);
+	}
+}
 }*/
 
 /*returns float j/max between [0,1], x/0 = 1, needed this way rather than fminf(fmaxf()) to avoid floating point approximate division errors giving 300/300 < 1.f */
@@ -974,8 +982,9 @@ __host__ void mse_SFS(Spectrum::MSE & out, const double mu, const Functor_select
 
 	cudaCheckErrorsAsync(cub::DeviceReduce::Sum(out.d_temp_storage_reduce, out.temp_storage_bytes_reduce, out.d_freq_pop_spectrum, out.d_exp_snp_total, num_freq, stream),generation,population);
 	
-	accumulate_pop_SFS<<<6,1024,0>>>(out.d_population_spectrum, out.d_freq_pop_spectrum, out.d_exp_snp_total, num_sites, Nchrom_e, (!reset));
+	accumulate_pop_SFS<<<6,1024,0,stream>>>(out.d_population_spectrum, out.d_freq_pop_spectrum, out.d_exp_snp_total, num_sites, Nchrom_e, (!reset));
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),generation,population);
+
 	out.num_sites = num_sites;
 }
 
