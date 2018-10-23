@@ -437,7 +437,7 @@ void site_frequency_spectrum(MSE & out){
 	if(num_levels == 0){ num_levels = population_size; }
 
 	const dim3 gridsize(2,20,1);
-	const int num_threads_binom = 1024;
+	const int num_threads_binom = 512;
 	cudaCheckErrorsAsync(cudaMemsetAsync(out.d_frequency_spectrum, 0, num_levels*sizeof(double), stream),-1,-1);
 	SFS_binom_SFS<num_threads_binom><<<gridsize,num_threads_binom,0,stream>>>(out.d_frequency_spectrum, out.d_population_spectrum, out.d_binomial, num_levels, population_size);
 	cudaCheckErrorsAsync(cudaPeekAtLastError(),-1,-1);
