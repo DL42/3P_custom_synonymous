@@ -58,10 +58,10 @@ def total_likelihood(obs_test_sfs, obs_ref_sfs, theta, gamma_array, d_array, inb
     
 		if (bound_check > 0):
 			return loglambda,None,None
-			
-	theor_ref_sfs = theor_neutral_sfs(theta, inbreeding, alpha, mse)
 		
+	theor_ref_sfs = theor_neutral_sfs(theta, inbreeding, alpha, mse)	
 	proportion = np.append(p_array,[(1 - lethal_perc) - sum_p_array])
+	
 	theor_test_sfs = mse_gpu.calc_sfs_mse(gamma_array, d_array, inbreeding, proportion, theta, alpha, mse)
 	
 	start_index = 0
@@ -74,10 +74,10 @@ def total_likelihood(obs_test_sfs, obs_ref_sfs, theta, gamma_array, d_array, inb
 	loglambda_sel = np.dot(obs_test_sfs[r],np.log(theor_test_sfs[r]))
 
 	loglambda = loglambda_neu + loglambda_sel
-   
+	#print(obs_ref_sfs,obs_test_sfs,theor_ref_sfs,theor_test_sfs,loglambda)
 	return loglambda,theor_test_sfs,theor_ref_sfs
 
-def re_param_neutral_alpha(x, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
+def re_param_neutral_alpha(x, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
 	theta_site = x[ap_size]
 	p_array = np.array([],dtype=np.float64)
 	alpha = my_expand_alpha(x[0:ap_size])
@@ -88,7 +88,7 @@ def re_param_neutral_alpha(x, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_s
 	result = total_likelihood(obs_ref_sfs, obs_ref_sfs, theta_site, g_array, d_array, inbreeding, p_array, b_array, alpha, 0, mse)
 	return -1*result[0]
     
-def re_param(x, boundary_array, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
+def re_param(x, boundary_array, p_size, fixed_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
 	theta_site = x[ap_size]
 	p_array = x[(ap_size+1):(ap_size+1+p_size)]
 	if (free_alpha and not(neutral_alpha)):
@@ -98,10 +98,10 @@ def re_param(x, boundary_array, fixed_alpha, neutral_alpha, free_alpha, obs_test
 	g_array = x[(ap_size+1+p_size):x.size]
 	d_array = np.array([0.5]*g_array.size,dtype=np.float64)
 	result = total_likelihood(obs_test_sfs, obs_ref_sfs, theta_site, g_array, d_array, inbreeding, p_array, boundary_array, alpha, 0, mse) 
-	#print(g_array,p_array,result[0])
+	#print(x[0],x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],result[0],result[1],result[2])
 	return -1*result[0]
     
-def re_param_neu(x, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
+def re_param_neu(x, fixed_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
 	theta_site = x[ap_size]
 	p_array = np.array([],dtype=np.float64)
 	if (free_alpha and not(neutral_alpha)):
@@ -114,7 +114,7 @@ def re_param_neu(x, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_re
 	result = total_likelihood(obs_test_sfs, obs_ref_sfs, theta_site, g_array, d_array, inbreeding, p_array, b_array, alpha, 0, mse)
 	return -1*result[0]
     
-def re_param_neu_lethal(x, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
+def re_param_neu_lethal(x, fixed_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
 	theta_site = x[ap_size]
 	p_array = 1.0 - x[(x.size-1)]
 	if (free_alpha and not(neutral_alpha)):
@@ -128,7 +128,7 @@ def re_param_neu_lethal(x, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs,
 	result = total_likelihood(obs_test_sfs, obs_ref_sfs, theta_site, g_array, d_array, inbreeding, p_array, b_array, alpha, lethal_perc, mse)
 	return -1*result[0]
     
-def re_param_lethal(x, boundary_array, fixed_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
+def re_param_lethal(x, boundary_array, p_size, fixed_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse):
 	theta_site = x[ap_size]
 	p_array=x[(ap_size+1):(ap_size+1+p_size)]
 	if (free_alpha and not(neutral_alpha)):
@@ -162,9 +162,9 @@ def maximum_likelihood(obs_test_sfs, obs_ref_sfs, file_name, initial_gamma_array
 	x_neu_alpha = np.append(init_alpha,initial_theta_site)
 	maxfev = 100000*(x_neu_alpha.size+p_size+g_size)
 
-	input_tuple = (boundary_array, init_alpha, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse)
+	input_tuple = (boundary_array, p_size, init_alpha, ap_size, neutral_alpha, free_alpha, obs_test_sfs, obs_ref_sfs, inbreeding, mse)
 	if(neutral_alpha and free_alpha):
-		x_max_neu_alpha = scipy.optimize.minimize(re_param_neutral_alpha, x_neu_alpha, input_tuple[2:], method=optimizer, options={'maxfev': maxfev})
+		x_max_neu_alpha = scipy.optimize.minimize(re_param_neutral_alpha, x_neu_alpha, input_tuple[3:], method=optimizer, options={'maxfev': maxfev})
 		init_alpha = x_max_neu_alpha["x"][:ap_size]
 		#print(x_max_neu_alpha)
 	x = np.concatenate((np.ones(ap_size),np.array([initial_theta_site]),initial_p_array,initial_gamma_array)) 
@@ -182,13 +182,13 @@ def maximum_likelihood(obs_test_sfs, obs_ref_sfs, file_name, initial_gamma_array
 	max_likelihood,theor_test_sfs,theor_ref_sfs = total_likelihood(obs_test_sfs, obs_ref_sfs, max_theta_site, max_gamma, dominance, inbreeding, max_p_array, boundary_array, max_alpha, 0, mse) 
     
 	x_neu = np.append(np.ones(ap_size),initial_theta_site)
-	x_max_neu = scipy.optimize.minimize(re_param_neu, x_neu, input_tuple[1:], method=optimizer, options={'maxfev': maxfev}) 
+	x_max_neu = scipy.optimize.minimize(re_param_neu, x_neu, input_tuple[2:], method=optimizer, options={'maxfev': maxfev}) 
 	all_neutral_lik = -1*x_max_neu["fun"]
 	max_theta_site_neu = x_max_neu["x"][ap_size]
     
 	if(zero_class):
 		x_neu_lethal = np.concatenate((np.ones(ap_size),np.array([initial_theta_site]),initial_lethal_array[0:1]))
-		x_max_neu_lethal = scipy.optimize.minimize(re_param_neu_lethal, x_neu_lethal, input_tuple[1:], method=optimizer, options={'maxfev': maxfev})   
+		x_max_neu_lethal = scipy.optimize.minimize(re_param_neu_lethal, x_neu_lethal, input_tuple[2:], method=optimizer, options={'maxfev': maxfev})   
 		max_neutral_lethal_lik = -1*x_max_neu_lethal["fun"]
 		max_neu_lethal_perc = x_max_neu_lethal["x"][x_max_neu_lethal["x"].size-1]
 		max_theta_site_neu_lethal = x_max_neu_lethal["x"][ap_size]
@@ -281,23 +281,10 @@ if __name__ == '__main__':
 	zero_class = True
 	free_alpha = True
 	neutral_alpha = False
-	N_chrome = 40000
-	gamma_strength = -200
-	mse2 = mse_gpu.MSE(160,N_chrome,fold,True)
-	gamma = np.array([0,gamma_strength],dtype=np.float64)
-	dominance = np.array([0.5,0.5],dtype=np.float64) #effectively ignored since inbreeding is set to 1
-	proportion = np.array([0.85,0.15],dtype=np.float64)
-	p_size = proportion.size -1
 
-	alpha = np.array([1]*79,dtype=np.float64)
-	theta = 0.01
-	inbreeding = 0.0
-	num_sites = 2*pow(10,7)
-	selected = mse_gpu.calc_sfs_mse(gamma,dominance,inbreeding,proportion,theta,alpha,mse2)
-	my_test_sfs = num_sites*selected
-	neutral = theor_neutral_sfs(theta, inbreeding, alpha, mse2)
-	my_ref_sfs = num_sites*neutral
-		
+	my_test_sfs = np.loadtxt("sfs_test_out.txt", delimiter="\n", dtype=np.float64, unpack=False)
+	my_ref_sfs = np.loadtxt("sfs_ref_out.txt", delimiter="\n", dtype=np.float64, unpack=False)
+	
 	file_name = "test_ml.txt"
 	my_boundary_array = np.array([[0,0],[0,-250]])
 	initial_gamma_array = np.array([0,-100],dtype=np.float64)
@@ -307,7 +294,7 @@ if __name__ == '__main__':
 	SFS_size = my_test_sfs.size
 	my_expand_alpha = lambda x: expand_alpha(x, SFS_size, alpha_pattern)
 	before = time.time()
-	ml_results = maximum_likelihood(my_test_sfs, my_ref_sfs, file_name, initial_gamma_array, my_boundary_array, initial_p_array, initial_theta_site, initial_lethal_array, alpha_pattern, free_alpha, neutral_alpha, fold, zero_class, N_chrome, optimizer = 'Nelder-Mead')
+	ml_results = maximum_likelihood(my_test_sfs, my_ref_sfs, file_name, initial_gamma_array, my_boundary_array, initial_p_array, initial_theta_site, initial_lethal_array, alpha_pattern, free_alpha, neutral_alpha, fold, zero_class, 40000, optimizer = 'Nelder-Mead')
 	process_time = time.time() - before
 	print(process_time,ml_results)
 	#print(my_test_sfs,my_ref_sfs)

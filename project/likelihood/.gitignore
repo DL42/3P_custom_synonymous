@@ -7,3 +7,4 @@
 !mse_gpu.cpp
 !mse_gpu.cu
 !likelihood.py
+!generate_SFS.py
