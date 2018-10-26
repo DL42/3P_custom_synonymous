@@ -13,7 +13,6 @@ if __name__ == '__main__':
 	gamma = np.array([0,gamma_strength],dtype=np.float64)
 	dominance = np.array([0.5,0.5],dtype=np.float64) #effectively ignored since inbreeding is set to 1
 	proportion = np.array([0.85,0.15],dtype=np.float64)
-	p_size = proportion.size -1
 	
 	alpha = np.array([1]*79,dtype=np.float64)
 	theta = 0.01
