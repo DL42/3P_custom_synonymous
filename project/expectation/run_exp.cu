@@ -7,11 +7,11 @@
 
 constexpr int SFS_size = 160;
 constexpr int SFS_fold_size = ((SFS_size%2)+SFS_size)/2 + 1;
-constexpr float theta = 0.01; //0.035; //
+constexpr float theta = 0.035; //0.01; //
 constexpr int anc_pop_size = 40000;	
 constexpr float num_sites = 20000000.f;
 constexpr int num_iterations = 1; //only for bottlegrowth
-#define simTOrun run_all_mse //run_all_bottlegrowth //
+#define simTOrun run_all_bottlegrowth //run_all_mse //
 
 ///////////////////////////////////////// bottlegrowth
 
@@ -72,8 +72,12 @@ void run_zambia_bottlegrowth_expectation(int num_iterations, float num_sites, st
 	}
 }
 
-void run_all_bottlegrowth(std::vector<std::vector<float>> & gamma2_array, std::vector<std::vector<float>> & sel2_prop_array, std::vector<std::vector<float>> gamma3_array, std::vector<std::vector<float>> & sel3_prop_array){
+void run_all_bottlegrowth(std::vector<std::vector<float>> & gamma1_array, std::vector<std::vector<float>> & gamma2_array, std::vector<std::vector<float>> & sel2_prop_array, std::vector<std::vector<float>> gamma3_array, std::vector<std::vector<float>> & sel3_prop_array){
 	run_zambia_bottlegrowth_expectation(num_iterations, num_sites, {0}, {1});
+	
+	for(int j = 0; j < gamma1_array.size(); j++){
+		run_zambia_bottlegrowth_expectation(num_iterations, num_sites, gamma1_array[j], {1});
+	}
 	
 	for(int j = 0; j < gamma2_array.size(); j++){
 		for(int k = 0; k < sel2_prop_array.size(); k++){
@@ -127,10 +131,14 @@ void run_mse_expectation(std::vector<float> gamma, std::vector<float> sel_prop, 
     outfile.close();
 }
 
-void run_all_mse(std::vector<std::vector<float>> & gamma2_array, std::vector<std::vector<float>> & sel2_prop_array, std::vector<std::vector<float>> gamma3_array, std::vector<std::vector<float>> & sel3_prop_array){
+void run_all_mse(std::vector<std::vector<float>> & gamma1_array, std::vector<std::vector<float>> & gamma2_array, std::vector<std::vector<float>> & sel2_prop_array, std::vector<std::vector<float>> gamma3_array, std::vector<std::vector<float>> & sel3_prop_array){
 	Spectrum::MSE mse_data_struct(SFS_size, anc_pop_size, true, true);
 	
 	run_mse_expectation({0}, {1}, mse_data_struct);
+	
+	for(int j = 0; j < gamma1_array.size(); j++){
+		run_mse_expectation(gamma1_array[j], {1}, mse_data_struct);
+	}
 	
 	for(int j = 0; j < gamma2_array.size(); j++){
 		for(int k = 0; k < sel2_prop_array.size(); k++){
@@ -148,11 +156,13 @@ void run_all_mse(std::vector<std::vector<float>> & gamma2_array, std::vector<std
 /////////////////////////////////////////	main
 
 int main(int argc, char **argv){ 
+	std::vector<std::vector<float>> gamma1_array = {{-2},{-10},{-25},{-50},{-100},{-150},{-200},{-250}};
+
 	std::vector<std::vector<float>> gamma2_array = {{0,-2},{0,-10},{0,-25},{0,-50},{0,-100},{0,-150},{0,-200},{0,-250}};
 	std::vector<std::vector<float>> sel2_prop_array = {{0.95,0.05},{0.9,0.1},{0.85,0.15},{0.8,0.2},{0.7,0.3}};	
 	std::vector<std::vector<float>> gamma3_array = {{0,-2,-25},{0,-2,-50},{0,-2,-100},{0,-2,-150},{0,-2,-200},{0,-2,-250},
 													{0,-10,-25},{0,-10,-50},{0,-10,-100},{0,-10,-150},{0,-10,-200},{0,-10,-250}};
 	std::vector<std::vector<float>> sel3_prop_array = {{0.85,0.1,0.05},{0.7,0.2,0.1},{0.6,0.3,0.1},{0.4,0.45,0.15}};
 
-	simTOrun(gamma2_array, sel2_prop_array, gamma3_array, sel3_prop_array);
+	simTOrun(gamma1_array, gamma2_array, sel2_prop_array, gamma3_array, sel3_prop_array);
 }

@@ -40,7 +40,7 @@ EXEC_FILE = RUN_SIM
 
 NVCC = nvcc -std=c++11
 CFLAGS = -O3 --use_fast_math -I $(api_path_include)/ -dc
-CODE = --generate-code arch=compute_30,code=sm_30 --generate-code arch=compute_61,code=sm_61 --generate-code arch=compute_30,code=compute_30 --generate-code arch=compute_61,code=compute_61
+CODE = --generate-code arch=compute_61,code=sm_61 --generate-code arch=compute_61,code=compute_61
 
 object_names = spectrum_sim.o run_sim.o 
 objects = $(addprefix $(build_path)/,$(object_names))
