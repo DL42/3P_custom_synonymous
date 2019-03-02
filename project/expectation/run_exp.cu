@@ -11,7 +11,7 @@ constexpr float theta = 0.035; //0.01; //
 constexpr int anc_pop_size = 40000;	
 constexpr float num_sites = 20000000.f;
 constexpr int num_iterations = 1; //only for bottlegrowth
-#define simTOrun run_all_bottlegrowth //run_all_mse //
+#define simTOrun run_all_bottlegrowth //run_all_mse
 
 ///////////////////////////////////////// bottlegrowth
 
@@ -156,10 +156,10 @@ void run_all_mse(std::vector<std::vector<float>> & gamma1_array, std::vector<std
 /////////////////////////////////////////	main
 
 int main(int argc, char **argv){ 
-	std::vector<std::vector<float>> gamma1_array = {{-2},{-10},{-25},{-50},{-100},{-150},{-200},{-250}};
+	std::vector<std::vector<float>> gamma1_array = {{-1},{-2},{-3},{-4},{-5},{-10},{-15},{-20},{-25},{-30},{-35},{-40},{-45},{-50},{-100},{-150},{-200},{-250}};
 
-	std::vector<std::vector<float>> gamma2_array = {{0,-2},{0,-10},{0,-25},{0,-50},{0,-100},{0,-150},{0,-200},{0,-250}};
-	std::vector<std::vector<float>> sel2_prop_array = {{0.95,0.05},{0.9,0.1},{0.85,0.15},{0.8,0.2},{0.7,0.3}};	
+	std::vector<std::vector<float>> gamma2_array = {{0,-1},{0,-2},{0,-3},{0,-4},{0,-5},{0,-10},{0,-15},{0,-20},{0,-25},{0,-30},{0,-35},{0,-45},{0,-50},{0,-100},{0,-150},{0,-200},{0,-250}};
+	std::vector<std::vector<float>> sel2_prop_array = {{0.99,0.01},{0.95,0.05},{0.9,0.1},{0.85,0.15},{0.8,0.2},{0.75,0.25},{0.7,0.3}};	
 	std::vector<std::vector<float>> gamma3_array = {{0,-2,-25},{0,-2,-50},{0,-2,-100},{0,-2,-150},{0,-2,-200},{0,-2,-250},
 													{0,-10,-25},{0,-10,-50},{0,-10,-100},{0,-10,-150},{0,-10,-200},{0,-10,-250}};
 	std::vector<std::vector<float>> sel3_prop_array = {{0.85,0.1,0.05},{0.7,0.2,0.1},{0.6,0.3,0.1},{0.4,0.45,0.15}};

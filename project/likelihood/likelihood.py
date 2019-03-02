@@ -286,10 +286,10 @@ if __name__ == '__main__':
 	my_ref_sfs = np.loadtxt("sfs_ref_out.txt", delimiter="\n", dtype=np.float64, unpack=False)
 	
 	file_name = "test_ml.txt"
-	my_boundary_array = np.array([[0,0],[0,-250]])
-	initial_gamma_array = np.array([0,-100],dtype=np.float64)
-	initial_p_array = np.array([0.65],dtype=np.float64)
-	initial_theta_site = 0.005
+	my_boundary_array = np.array([[0,0],[-40,-250]])
+	initial_gamma_array = np.array([0,-50],dtype=np.float64)
+	initial_p_array = np.array([0.8],dtype=np.float64)
+	initial_theta_site = 0.035
 	initial_lethal_array = np.array([0.01,0.01],dtype=np.float64)
 	SFS_size = my_test_sfs.size
 	my_expand_alpha = lambda x: expand_alpha(x, SFS_size, alpha_pattern)
